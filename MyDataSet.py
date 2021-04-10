@@ -12,7 +12,8 @@ from nilmtk import DataSet
 class MyChunk(Dataset):
     """MyChunk dataset."""
 
-    def __init__(self, path, building, device,  dates=None, transform=None, window_size=50, test=False, mmax=None,**load_kwargs):
+    def __init__(self, path, building, device,  dates=None, transform=None,
+                 window_size=50, test=False, mmax=None, sample_period=None,**load_kwargs):
         """
         Args:
             path (string): Path to the h5 file.
@@ -23,6 +24,7 @@ class MyChunk(Dataset):
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """
+        print('Implementation of torch dataset using NILMTK')
         if test:
             self.mmax = mmax
         else:
@@ -31,6 +33,7 @@ class MyChunk(Dataset):
         self.building = building
         self.device = device
         self.transform = transform
+        self.test = test
 
         #loads h5 file with Nilmtk DataSet class
         self.dataset = DataSet(path)
@@ -52,13 +55,18 @@ class MyChunk(Dataset):
         #meter : a nilmtk.ElecMeter object for the meter data
         mains = elec1.mains()
         meter = elec1.submeters()[self.device]
-
+        self.elec = elec1
         #get meter metadata
         self.meter_metadata = meter
 
+
         #these are nilmtk generators
-        self.main_power_series = mains.power_series(**load_kwargs) 
-        self.meter_power_series = meter.power_series(**load_kwargs)
+        if sample_period:
+            self.main_power_series = mains.power_series(**load_kwargs, sample_period=sample_period)
+            self.meter_power_series = meter.power_series(**load_kwargs, sample_period=sample_period)
+        else:
+            self.main_power_series = mains.power_series(**load_kwargs)
+            self.meter_power_series = meter.power_series(**load_kwargs)
 
         #get chunks
         mainchunk = next(self.main_power_series)
@@ -69,6 +77,11 @@ class MyChunk(Dataset):
         self.chunk_name = mainchunk.name
 
         mainchunk = mainchunk[~mainchunk.index.duplicated()]
+        meterchunk = meterchunk[~meterchunk.index.duplicated()]
+
+        ix = mainchunk.index.intersection(meterchunk.index)
+        mainchunk = mainchunk[ix]
+        meterchunk = meterchunk[ix]
 
         #normalize chunks
         if self.mmax == None:
@@ -80,23 +93,18 @@ class MyChunk(Dataset):
         mainchunk.fillna(0, inplace=True)
         meterchunk.fillna(0, inplace=True)
 
-        #intersect chunks in order to have same length
-        ix = mainchunk.index.intersection(meterchunk.index)
-        mainchunk = np.array(mainchunk[ix])
-        meterchunk = np.array(meterchunk[ix])
-
         indexer = np.arange(self.window_size)[None, :] + np.arange(len(mainchunk)-self.window_size+1)[:, None]
-        mainchunk = mainchunk[indexer]
-        meterchunk = meterchunk[self.window_size-1:]
+        mains_time_index = mainchunk.index
+        meter_time_index = meterchunk.index
 
-        #reshape and store to self attributes
-        # mainchunk = np.reshape(mainchunk, (mainchunk.shape[0],1,1))
-        # mainchunk = np.reshape(mainchunk, (mainchunk.shape[0],1))
-        self.mainchunk = mainchunk
+        mainchunk, mains_time_index = mainchunk[indexer], mains_time_index[indexer]
+        meterchunk, meter_time_index = meterchunk[self.window_size-1:], meter_time_index[self.window_size-1:]
 
-        # meterchunk = np.reshape(meterchunk, (len(meterchunk),-1 ))
-        # meterchunk = np.reshape(meterchunk, (len(meterchunk), 1 ))
-        self.meterchunk = meterchunk
+        # mainchunk = np.reshape(mainchunk, (mainchunk.shape[0], 1, mainchunk.shape[1]))
+        self.mainchunk = np.array(mainchunk)
+        self.mains_time_index = np.array(mains_time_index)
+        self.meterchunk = np.array(meterchunk)
+        self.meter_time_index = np.array(meter_time_index)
 
     def __len__(self):
         return len(self.mainchunk)
@@ -135,28 +143,28 @@ class MyChunkList(Dataset):
             file = open('baseTrainSetsInfo_' + device, 'r')
         else:
             file = open(filename, 'r')
-        
+
         for line in file:
             #take tokens from file
             toks = line.split(',')
-            
+
             #loads h5 file with Nilmtk DataSet class
             train = DataSet(toks[0])
-            
+
             #sets time window of each house
             print(toks[2],'-',toks[3])
-            
+
             train.set_window(start=toks[2], end=toks[3])
-            #sets buildings 
-            train_elec = train.buildings[int(toks[1])].elec           
-            
+            #sets buildings
+            train_elec = train.buildings[int(toks[1])].elec
+
             #mainlist : a list of nilmtk.ElecMeter objects for the aggregate data of each building
             #meterlist : a list of nilmtk.ElecMeter objects for the meter data of each building
             meterlist.append(train_elec.submeters()[self.device])
             mainlist.append(train_elec.mains())
-        
+
         file.close()
-       
+
         assert(len(mainlist) == len(meterlist), "Number of main and meter channels should be equal")
         num_meters = len(mainlist)
 
@@ -171,23 +179,23 @@ class MyChunkList(Dataset):
 
         for i,m in enumerate(meterlist):
             meterps[i] = m.power_series(**load_kwargs)
-        
+
         # Get a chunk of data
         for i in range(num_meters):
             mainchunks[i] = next(mainps[i])
             meterchunks[i] = next(meterps[i])
         if self.mmax == None:
             self.mmax = max([m.max() for m in mainchunks])
-        
-        # Normalize 
+
+        # Normalize
         mainchunks = [self._normalize(m, self.mmax) for m in mainchunks]
         meterchunks = [self._normalize(m, self.mmax) for m in meterchunks]
-                
+
         X_batch= None
         Y_batch = None
         for i in range(num_meters):
             print(i)
-            
+
             #Replace NaNs with 0s
             mainchunks[i].fillna(0, inplace=True)
             meterchunks[i].fillna(0, inplace=True)
@@ -200,9 +208,9 @@ class MyChunkList(Dataset):
             mainchunks[i] = np.array(m1[ix])
             meterchunks[i] = np.array(m2[ix])
             #reshape and store to self attributes
-            mainchunks[i] = np.reshape(mainchunks[i], (mainchunks[i].shape[0],1,1))            
+            mainchunks[i] = np.reshape(mainchunks[i], (mainchunks[i].shape[0],1,1))
             del m1, m2
-            
+
             #concatenation
             if X_batch is None:
                 X_batch = mainchunks[i]
@@ -210,16 +218,16 @@ class MyChunkList(Dataset):
             else:
                 X_batch = np.append(X_batch, mainchunks[i], 0)
                 Y_batch = np.append(Y_batch, meterchunks[i], 0)
-            
-        #for memory purposes    
+
+        #for memory purposes
         del mainchunks, meterchunks
-         
+
         X_batch = np.reshape(X_batch, (X_batch.shape[0], 1, 1))
         self.mainchunk = X_batch
         self.meterchunk = Y_batch
         self.meterchunk = np.reshape(self.meterchunk, (len(self.meterchunk),-1 ))
         del X_batch, Y_batch
-        
+
     @staticmethod
     def _normalize(chunk, mmax):
         '''Normalizes timeseries
@@ -230,30 +238,15 @@ class MyChunkList(Dataset):
         Returns: Normalized timeseries
         '''
         tchunk = chunk / mmax
-        return tchunk    
-    
+        return tchunk
+
     def __len__(self):
         return len(self.mainchunk)
-    
+
     def __getitem__(self, i):
         x = torch.from_numpy(self.mainchunk)
-        y = torch.from_numpy(self.meterchunk)        
+        y = torch.from_numpy(self.meterchunk)
         return x[i], y[i]
 
     def __mmax__(self):
         return self.mmax
-    
-class TestDataset(Dataset):
-    
-    def __init__(self, X, Y):
-        self.X = X
-        self.Y = np.reshape(Y, (len(Y),-1 ))
-        
-    def __len__(self):
-        return len(self.X)
-    
-    def __getitem__(self, i):
-        x = torch.from_numpy(self.X)
-        y = torch.from_numpy(self.Y)
-        return x[i], y[i]
-    
