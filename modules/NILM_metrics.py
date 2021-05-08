@@ -1,7 +1,7 @@
 import math
 import numpy as np
 
-def metrics(pred, ground, threshold=40, mmax=None, round_digit=3):
+def NILM_metrics(pred, ground, threshold=40, mmax=None, round_digit=3):
 
     def tp_tn_fp_fn(states_pred, states_ground):
         tp = np.sum(np.logical_and(states_pred == 1, states_ground == 1))
