@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from pytorch_lightning import Trainer
 from modules.NILM_metrics import NILM_metrics
-from modules.models import WGRU, S2P, SAED, SimpleGru
+from modules.models import WGRU, S2P, SF2P, SAED, SimpleGru, FFED, FNET
 # Setting the seed
 pl.seed_everything(42)
 
@@ -18,7 +18,7 @@ torch.backends.cudnn.benchmark = False
 device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
 print("Device:", device)
 
-ON_THRESHOLDS= {'dishwasher':10,
+ON_THRESHOLDS= {'dish washer':10,
                 'fridge': 50,
                 'kettle': 2000,
                 'microwave': 200,
@@ -28,8 +28,11 @@ ON_THRESHOLDS= {'dishwasher':10,
 def create_model(model_name, model_hparams):
     model_dict = {'WGRU':WGRU,
                   'S2P':S2P,
+                  'SF2P':SF2P,
                   'SAED':SAED,
-                  'SimpleGru':SimpleGru}
+                  'SimpleGru':SimpleGru,
+                  'FFED':FFED,
+                  'FNET':FNET}
     if model_name in model_dict:
         return model_dict[model_name](**model_hparams)
     else:
@@ -81,7 +84,7 @@ class NILMTrainer(pl.LightningModule):
         x, y = batch
         # Forward pass
         outputs = self(x)
-        loss = F.mse_loss(outputs, y)
+        loss = F.mse_loss(outputs.squeeze(), y.squeeze())
         preds_batch = outputs.squeeze().cpu().numpy()
         self.final_preds = np.append(self.final_preds, preds_batch)
         return {'test_loss': loss}
@@ -108,6 +111,11 @@ class NILMTrainer(pl.LightningModule):
                            mmax=mmax,
                            threshold=ON_THRESHOLDS[device])
 
-        return {'model': self.model_name,
-                'metrics': res,
-                'preds': self.final_preds,}
+        results = {'model': self.model_name,
+                   'metrics': res,
+                   'preds': self.final_preds,}
+        self.final_preds = np.array([])
+        return results
+
+    def set_ground(self, ground):
+        self.eval_params['groundtruth'] = ground

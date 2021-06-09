@@ -2,6 +2,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchnlp.nn.attention import Attention
 
 def attention_calc(q, k, v, mode='dot', mask=None, scale=False):
     '''
@@ -46,6 +47,28 @@ class _Cnn1(nn.Module):
     def forward(self, x):
         return self.conv(x)
 
+class _CnnF(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, dropout):
+        super(_CnnF, self).__init__()
+
+        left, right = kernel_size//2, kernel_size//2
+        if kernel_size%2==0 :
+            right -= 1
+        padding = (left, right, 0, 0)
+
+        self.conv = nn.Sequential(
+            nn.ZeroPad2d(padding),
+            nn.Conv1d(in_channels, out_channels, kernel_size),
+            nn.Dropout(dropout),
+            nn.ReLU(inplace=True),
+        )
+    def forward(self, x):
+        x = self.conv(x)
+        # x = x.permute(0, 2, 1)
+        # attn_output, attn_output_weights = multihead_attn(query, key, value)
+        x = torch.fft.fft(torch.fft.fft(x, dim=-2), dim=-1).real
+        return x
+
 
 class S2P(nn.Module):
 
@@ -59,6 +82,38 @@ class S2P(nn.Module):
 
         self.conv = nn.Sequential(
             _Cnn1(1, 30, kernel_size=10, dropout=self.drop),
+            _Cnn1(30, 40, kernel_size=8, dropout=self.drop),
+            _Cnn1(40, 50, kernel_size=6, dropout=self.drop),
+            _Cnn1(50, 50, kernel_size=5, dropout=self.drop),
+            _Cnn1(50, 50, kernel_size=5, dropout=self.drop),
+            nn.Flatten()
+        )
+        self.dense = _Dense(self.dense_input, 1024, self.drop)
+        self.output = nn.Linear(1024, 1)
+
+    def forward(self, x):
+        # x must be in shape [batch_size, 1, window_size]
+        # eg: [1024, 1, 50]
+        x = x
+        x = x.unsqueeze(1)
+
+        x = self.conv(x)
+        x = self.dense(x)
+        out = self.output(x)
+        return out
+
+class SF2P(nn.Module):
+
+    def __init__(self, window_size, dropout=0, lr=None):
+        super(SF2P, self).__init__()
+        self.MODEL_NAME = 'Sequence2Point model with fourier after each cnn'
+        self.drop = dropout
+        self.lr = lr
+
+        self.dense_input = 50*window_size #50 is the out_features of last CNNF
+
+        self.conv = nn.Sequential(
+            _CnnF(1, 30, kernel_size=10, dropout=self.drop),
             _Cnn1(30, 40, kernel_size=8, dropout=self.drop),
             _Cnn1(40, 50, kernel_size=6, dropout=self.drop),
             _Cnn1(50, 50, kernel_size=5, dropout=self.drop),
@@ -125,11 +180,12 @@ class WGRU(nn.Module):
 
 class SAED(nn.Module):
 
-    def __init__(self, mode='dot', hidden_dim=16, num_heads=1, dropout=0,lr=None):
+    def __init__(self, window_size, mode='dot', hidden_dim=16,
+                 num_heads=1, dropout=0,lr=None):
         super(SAED, self).__init__()
 
         '''
-        mode(str): 'dot' or 'add'
+        mode(str): 'dot' or 'general'--> additive
             default is 'dot' (additive attention not supported yet)
         ***in order for the mhattention to work, embed_dim should be dividable
         to num_heads (embed_dim is the hidden dimension inside mhattention
@@ -151,9 +207,10 @@ class SAED(nn.Module):
         self.conv = _Cnn1(1, hidden_dim,
                            kernel_size=4,
                            dropout=self.drop)
-        self.multihead_attn = nn.MultiheadAttention(embed_dim=hidden_dim,
-                                                    num_heads=num_heads,
-                                                    dropout=self.drop)
+        # self.multihead_attn = nn.MultiheadAttention(embed_dim=hidden_dim,
+        #                                             num_heads=num_heads,
+        #                                             dropout=self.drop)
+        self.attention = Attention(window_size,attention_type=mode)
         self.bgru = nn.GRU(hidden_dim, 64,
                          batch_first=True,
                          bidirectional=True,
@@ -167,13 +224,19 @@ class SAED(nn.Module):
         x = x
         x = x.unsqueeze(1)
         x = self.conv(x)
+
         # x (aka output of conv1) shape is [batch_size, out_channels=16, window_size-kernel+1]
         # x must be in shape [batch_size, seq_len, input_size=output_size of prev layer]
-        # so we have to change the order of the dimensions
-        x = x.permute(0, 2, 1)
+        # so  if we use MHAttention or attention_calc we have to change the order of the dimensions
+
+        # x = x.permute(0, 2, 1)
         # attn_output, attn_output_weights = multihead_attn(query, key, value)
         # x, _ = self.multihead_attn(query=x, key=x, value=x)
-        x, _ = attention_calc(q=x, k=x, v=x, mode=self.mode)
+        # x, _ = attention_calc(q=x, k=x, v=x, mode=self.mode)
+
+        x, _ = self.attention(x, x)
+        x = x.permute(0, 2, 1)
+
         x = self.bgru(x)[0]
         # we took only the first part of the tuple: output, h = gru(x)
 
@@ -227,5 +290,121 @@ class SimpleGru(nn.Module):
         # equivalent of return_sequences=False
         x = x[:, -1, :]
         x = self.dense(x)
+        out = self.output(x)
+        return out
+
+class FFED(nn.Module):
+
+    def __init__(self,hidden_dim=16,dropout=0,lr=None):
+        super(FFED, self).__init__()
+
+        self.drop = dropout
+        self.lr = lr
+
+        self.conv = _Cnn1(1, hidden_dim,
+                           kernel_size=4,
+                           dropout=self.drop)
+
+        self.bgru = nn.GRU(hidden_dim, 64,
+                         batch_first=True,
+                         bidirectional=True,
+                         dropout=self.drop)
+        self.dense = _Dense(128, 64, self.drop)
+        self.output = nn.Linear(64, 1)
+
+    def forward(self, x):
+        # x must be in shape [batch_size, 1, window_size]
+        # eg: [1024, 1, 50]
+        x = x
+        x = x.unsqueeze(1)
+        x = self.conv(x)
+        # x (aka output of conv1) shape is [batch_size, out_channels=16, window_size-kernel+1]
+        # x must be in shape [batch_size, seq_len, input_size=output_size of prev layer]
+        # so we have to change the order of the dimensions
+        x = x.permute(0, 2, 1)
+        # attn_output, attn_output_weights = multihead_attn(query, key, value)
+        x = torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2).real
+        x = self.bgru(x)[0]
+        # we took only the first part of the tuple: output, h = gru(x)
+
+        # Next we have to take only the last hidden state of the last b1gru
+        # equivalent of return_sequences=False
+        x = x[:, -1, :]
+        x = self.dense(x)
+        out = self.output(x)
+        return out
+
+
+## ENCODER BLOCK
+class FNETBLock(nn.Module):
+
+    def __init__(self, input_dim, hidden_dim, dropout=0.0):
+        """
+        Inputs:
+            input_dim - Dimensionality of the input (seq_len)
+            hidden_dim - Dimensionality of the hidden layer in the MLP
+            dropout - Dropout probability to use in the dropout layers
+        """
+        super().__init__()
+
+        # Two-layer MLP
+        self.linear_net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.Dropout(dropout),
+            nn.ReLU(inplace=True),
+            nn.Linear(hidden_dim, input_dim)
+        )
+
+        # Layers to apply in between the main layers
+        self.norm1 = nn.LayerNorm(input_dim)
+        self.norm2 = nn.LayerNorm(input_dim)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x, mask=None):
+        x = x
+        fft_out = torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2).real
+        x = x + self.dropout(fft_out)
+        x = self.norm1(x)
+
+        # MLP part
+        linear_out = self.linear_net(x)
+        x = x + self.dropout(linear_out)
+        x = self.norm2(x)
+
+        return x
+
+class FNET(nn.Module):
+
+    def __init__(self, depth, kernel_size, cnn_dim, **block_args):
+        super(FNET, self).__init__()
+
+        drop = block_args['dropout']
+        input_dim = block_args['input_dim']
+        dense_in = input_dim*cnn_dim//2
+
+        self.conv = _Cnn1(1, cnn_dim, kernel_size=kernel_size,dropout=drop)
+        self.pool = nn.LPPool1d(norm_type=2, kernel_size=2, stride=2)
+
+        self.fnet_layers = nn.ModuleList([FNETBLock(**block_args) for _ in range(depth)])
+
+        self.flat = nn.Flatten()
+        self.dense1 = _Dense(dense_in, cnn_dim, drop)
+        self.dense2 = _Dense(cnn_dim, cnn_dim//2, drop)
+        self.output = nn.Linear(cnn_dim//2, 1)
+
+    def forward(self, x):
+        # x must be in shape [batch_size, 1, window_size]
+        # eg: [1024, 1, 50]
+        x = x
+        x = x.unsqueeze(1)
+        x = self.conv(x)
+        x = x.transpose(1, 2).contiguous()
+        x = self.pool(x)
+        x = x.transpose(1, 2).contiguous()
+        for layer in self.fnet_layers:
+            x = layer(x)
+        x = self.flat(x)
+        x = self.dense1(x)
+        x = self.dense2(x)
         out = self.output(x)
         return out

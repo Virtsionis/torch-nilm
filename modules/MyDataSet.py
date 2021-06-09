@@ -18,7 +18,6 @@ class MyChunk(Dataset):
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """
-        print('Implementation of torch dataset using NILMTK')
         if test:
             self.mmax = mmax
         else:

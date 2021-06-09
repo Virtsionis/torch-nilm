@@ -1,0 +1,2 @@
+recall,f1,precision,accuracy,MAE,RETE
+0.766,0.66,0.579,0.556,57.292,0.138
