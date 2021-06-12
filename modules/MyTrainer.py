@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from pytorch_lightning import Trainer
 from modules.NILM_metrics import NILM_metrics
-from modules.models import WGRU, S2P, SF2P, SAED, SimpleGru, FFED, FNET
+from modules.models import WGRU, S2P, SF2P, SAED, SimpleGru, FFED, FNET, ConvFourier
 # Setting the seed
 pl.seed_everything(42)
 
@@ -32,7 +32,8 @@ def create_model(model_name, model_hparams):
                   'SAED':SAED,
                   'SimpleGru':SimpleGru,
                   'FFED':FFED,
-                  'FNET':FNET}
+                  'FNET':FNET,
+                  'ConvFourier': ConvFourier}
     if model_name in model_dict:
         return model_dict[model_name](**model_hparams)
     else:

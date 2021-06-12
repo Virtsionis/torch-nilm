@@ -19,7 +19,7 @@ def attention_calc(q, k, v, mode='dot', mask=None, scale=False):
     return values, attention
 
 class _Dense(nn.Module):
-    def __init__(self, in_features, out_features, dropout):
+    def __init__(self, in_features, out_features, dropout=0):
         super(_Dense, self).__init__()
         self.linear = nn.Sequential(
             nn.Linear(in_features, out_features),
@@ -406,5 +406,66 @@ class FNET(nn.Module):
         x = self.flat(x)
         x = self.dense1(x)
         x = self.dense2(x)
+        out = self.output(x)
+        return out
+
+class FReal(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        # x = torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2)
+        x = torch.fft.fft(x, dim=-1)
+        return x.real
+
+class FImag(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        # x = torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2)
+        x = torch.fft.fft(x, dim=-1)
+        return x.imag
+
+
+class ConvFourier(nn.Module):
+
+    def __init__(self, window_size, dropout=0, lr=None):
+        super(ConvFourier, self).__init__()
+        self.MODEL_NAME = 'ConvFourier'
+        self.drop = dropout
+        self.lr = lr
+        cnn_out = 16 #the out_features of last CNN
+        self.dense_input = cnn_out*window_size
+
+
+        self.conv = nn.Sequential(
+            _Cnn1(1, cnn_out, kernel_size=11, dropout=self.drop),
+            nn.LPPool1d(norm_type=2, kernel_size=2, stride=2)
+        )
+        self.freal = FReal()
+        self.fimag = FImag()
+
+        self.mlp = nn.Sequential(
+            nn.Linear(self.dense_input//2, 2*self.dense_input),
+            nn.Dropout(self.drop),
+            nn.ReLU(inplace=True),
+            nn.Linear(2*self.dense_input, self.dense_input//2),
+        )
+
+        self.flat = nn.Flatten()
+        self.output = nn.Linear(self.dense_input, 1)
+
+    def forward(self, x):
+        x = x
+        x = x.unsqueeze(1)
+        cnn = self.conv(x)
+        real_x = self.flat(self.freal(cnn))
+        imag_x = self.flat(self.fimag(cnn))
+        mlp1 = self.mlp(real_x)
+        mlp2 = self.mlp(imag_x)
+        x = torch.cat([mlp1, mlp2], dim= -1)
+        x = self.flat(x)
+
         out = self.output(x)
         return out
