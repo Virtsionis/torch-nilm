@@ -46,7 +46,7 @@ class ElectricityDataset(IterableDataset):
         self.datasource = datasource
         self.window_size = window_size
 
-        # self._init_generators(building, chunksize, device, start_date, end_date, sample_period)
+        self._init_generators(building, chunksize, device, start_date, end_date, sample_period)
 
     def __iter__(self) -> Iterator[T_co]:
         worker_info = torch.utils.data.get_worker_info()
@@ -90,7 +90,6 @@ class ElectricityDataset(IterableDataset):
 
     def _should_partition(self, worker_info):
         return worker_info is not None and worker_info.num_workers > 1
-        # return iter_start is not None and iter_end is not None and 0 <= iter_start < iter_end
 
     def _reload(self):
         self.mainchunk = torch.tensor([])
@@ -101,11 +100,10 @@ class ElectricityDataset(IterableDataset):
 
             mainchunk, meterchunk = self._align_chunks(mainchunk, meterchunk)
             mainchunk, meterchunk = self._normalize_chunks(mainchunk, meterchunk)
-            self._replace_nans(mainchunk, meterchunk)
+            mainchunk, meterchunk = self._replace_nans(mainchunk, meterchunk)
             mainchunk, meterchunk = self._apply_rolling_window(mainchunk, meterchunk)
             self.mainchunk, self.meterchunk = torch.from_numpy(np.array(mainchunk)), torch.from_numpy(
                 np.array(meterchunk))
-            # self.mainchunk, self.meterchunk = mainchunk.tolist(), meterchunk.tolist()
         except StopIteration:
             return
 
@@ -125,16 +123,12 @@ class ElectricityDataset(IterableDataset):
         indexer = np.arange(self.window_size)[None, :] + np.arange(len(mainchunk) - self.window_size + 1)[:, None]
         mainchunk = mainchunk[indexer]
         meterchunk = meterchunk[self.window_size - 1:]
-        # # time_indexes are not needed
-        # mains_time_index = mainchunk.index
-        # meter_time_index = meterchunk.index
-        # mains_time_index = mains_time_index[indexer]
-        # meter_time_index = meter_time_index[self.window_size - 1:]
         return mainchunk, meterchunk
 
     def _replace_nans(self, mainchunk, meterchunk):
         mainchunk.fillna(0, inplace=True)
         meterchunk.fillna(0, inplace=True)
+        return mainchunk, meterchunk
 
     def _normalize_chunks(self, mainchunk, meterchunk):
         if self.mmax is None:
