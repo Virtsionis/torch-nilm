@@ -96,7 +96,7 @@ for device in dev_list:
     data = {'test_house': test_houses, 'test_set': test_sets, 'test_date': test_dates}
     tests_params = pd.DataFrame(data)
     print(device)
-    display(tests_params)
+    print(tests_params)
     
     # TRAIN LOADER
     train_file = open('{}base{}TrainSetsInfo_{}'.format(train_file_dir, exp_type, device), 'r')

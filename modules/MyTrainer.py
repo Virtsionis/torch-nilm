@@ -57,6 +57,7 @@ class NILMTrainer(pl.LightningModule):
         self.model_name = model_name
 
         self.final_preds = np.array([])
+        self.results = {}
 
     def forward(self, x):
         # Forward function that is run when visualizing the graph
@@ -115,8 +116,21 @@ class NILMTrainer(pl.LightningModule):
         results = {'model': self.model_name,
                    'metrics': res,
                    'preds': self.final_preds,}
+        self.set_res(results)
         self.final_preds = np.array([])
         return results
 
     def set_ground(self, ground):
         self.eval_params['groundtruth'] = ground
+
+    def set_res(self, res):
+        print("set_res")
+        self.reset_res()
+        self.results = res
+
+    def reset_res(self):
+        self.results = {}
+
+    def get_res(self):
+        print("get res")
+        return self.results

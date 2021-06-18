@@ -90,9 +90,9 @@ def display_res(root_dir=None, model_name=None, device=None,
         report = pd.read_csv(path + report_filename)
     
         if int(iteration) > 0:
-            display(report.iloc[int(iteration)-1:int(iteration)])
+            print(report.iloc[int(iteration)-1:int(iteration)])
         else:
-            display(report.iloc[int(iteration)])
+            print(report.iloc[int(iteration)])
         data = pd.read_csv(path + data_filename)
         data['ground'][low_lim:upper_lim].plot.line()
         data['preds'][low_lim:upper_lim].plot.line()
@@ -154,10 +154,13 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
 
         ground = test_dataset.meterchunk
         model.set_ground(ground)
-        test_result = trainer.test(model, test_dataloaders=test_loader)
-
-        results = test_result[0]['metrics']
-        preds = test_result[0]['preds']
+        # test_result = trainer.test(model, test_dataloaders=test_loader)
+        # results = test_result[0]['metrics']
+        # preds = test_result[0]['preds']
+        trainer.test(model, test_dataloaders=test_loader)
+        test_result = model.get_res()
+        results = test_result['metrics']
+        preds = test_result['preds']
         final_experiment_name = experiment_name + 'test_' + building + '_' + dataset
         save_report(root_dir, model_name, device, exp_type,final_experiment_name,
                     iteration, results, preds, ground)
