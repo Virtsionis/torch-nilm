@@ -29,14 +29,12 @@ dev_list = [
 #             'electric space heater'
            ]
 mod_list = [
-#             'SF2P',
-#             'MyNet',
+#             'PAF'
 #             'S2P',
 #             'SimpleGru',
 #             'FFED',
             'SAED',
 #             'FNET',
-#             'FNET2',
 #             'WGRU',
 #             'ConvFourier'
             ]
@@ -80,6 +78,7 @@ for device in dev_list:
                   'WGRU':{'dropout':dropout},
                   'S2P': {'window_size':WINDOW, 'dropout':dropout},
                   'ConvFourier': {'window_size':WINDOW, 'dropout':dropout},
+                  'PAF': {'window_size':WINDOW, 'dropout':dropout},
                   'FNET': {'depth': 3, 'kernel_size':8, 'cnn_dim': 64,
                            'input_dim':WINDOW, 'hidden_dim':WINDOW*8, 'dropout':dropout},
                    }

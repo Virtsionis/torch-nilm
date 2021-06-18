@@ -4,20 +4,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchnlp.nn.attention import Attention
 
-def attention_calc(q, k, v, mode='dot', mask=None, scale=False):
-    '''
-    only dot attention is currenty supported
-    '''
-    attn_logits = torch.matmul(q, k.transpose(-2, -1))
-    if scale:
-        d_k = q.size()[-1]
-        attn_logits = attn_logits / math.sqrt(d_k)
-    if mask is not None:
-        attn_logits = attn_logits.masked_fill(mask == 0, -9e15)
-    attention = F.softmax(attn_logits, dim=-1)
-    values = torch.matmul(attention, v)
-    return values, attention
-
 class _Dense(nn.Module):
     def __init__(self, in_features, out_features, dropout=0):
         super(_Dense, self).__init__()
@@ -102,37 +88,45 @@ class S2P(nn.Module):
         out = self.output(x)
         return out
 
-class SF2P(nn.Module):
+class PAF(nn.Module):
 
     def __init__(self, window_size, dropout=0, lr=None):
-        super(SF2P, self).__init__()
-        self.MODEL_NAME = 'Sequence2Point model with fourier after each cnn'
+        super(PAF, self).__init__()
+        self.MODEL_NAME = 'PAF'
         self.drop = dropout
         self.lr = lr
+        cnn_out = 8 #the out_features of last CNN
+        self.dense_input = cnn_out*window_size
 
-        self.dense_input = 50*window_size #50 is the out_features of last CNNF
 
         self.conv = nn.Sequential(
-            _CnnF(1, 30, kernel_size=10, dropout=self.drop),
-            _Cnn1(30, 40, kernel_size=8, dropout=self.drop),
-            _Cnn1(40, 50, kernel_size=6, dropout=self.drop),
-            _Cnn1(50, 50, kernel_size=5, dropout=self.drop),
-            _Cnn1(50, 50, kernel_size=5, dropout=self.drop),
-            nn.Flatten()
+            _Cnn1(1, cnn_out, kernel_size=5, dropout=self.drop),
+            # nn.LPPool1d(norm_type=2, kernel_size=2, stride=2)
         )
-        self.dense = _Dense(self.dense_input, 1024, self.drop)
-        self.output = nn.Linear(1024, 1)
+        self.freal = FReal()
+        self.fimag = FImag()
+        self.attention = Attention(window_size,attention_type='dot')
+        self.flat = nn.Flatten()
+        self.mlp = nn.Sequential(
+            nn.Linear(self.dense_input, 4*self.dense_input),
+            nn.Dropout(self.drop),
+            nn.GELU(),
+            nn.Linear(4*self.dense_input, self.dense_input),
+            nn.Dropout(self.drop),
+            nn.GELU(),
+            nn.Linear(self.dense_input, 1),
+        )
 
     def forward(self, x):
-        # x must be in shape [batch_size, 1, window_size]
-        # eg: [1024, 1, 50]
         x = x
         x = x.unsqueeze(1)
-
-        x = self.conv(x)
-        x = self.dense(x)
-        out = self.output(x)
-        return out
+        cnn = self.conv(x)
+        real = self.freal(cnn)
+        imag = self.fimag(cnn)
+        attn, _ = self.attention(real,imag)
+        attn = self.flat(attn)
+        mlp = self.mlp(attn)
+        return mlp
 
 class WGRU(nn.Module):
 
@@ -220,19 +214,9 @@ class SAED(nn.Module):
 
     def forward(self, x):
         # x must be in shape [batch_size, 1, window_size]
-        # eg: [1024, 1, 50]
         x = x
         x = x.unsqueeze(1)
         x = self.conv(x)
-
-        # x (aka output of conv1) shape is [batch_size, out_channels=16, window_size-kernel+1]
-        # x must be in shape [batch_size, seq_len, input_size=output_size of prev layer]
-        # so  if we use MHAttention or attention_calc we have to change the order of the dimensions
-
-        # x = x.permute(0, 2, 1)
-        # attn_output, attn_output_weights = multihead_attn(query, key, value)
-        # x, _ = self.multihead_attn(query=x, key=x, value=x)
-        # x, _ = attention_calc(q=x, k=x, v=x, mode=self.mode)
 
         x, _ = self.attention(x, x)
         x = x.permute(0, 2, 1)
@@ -279,15 +263,8 @@ class SimpleGru(nn.Module):
         x = x
         x = x.unsqueeze(1)
         x = self.conv(x)
-        # x (aka output of conv1) shape is [batch_size, out_channels=16, window_size-kernel+1]
-        # x must be in shape [batch_size, seq_len, input_size=output_size of prev layer]
-        # so we have to change the order of the dimensions
         x = x.permute(0, 2, 1)
         x = self.bgru(x)[0]
-        # we took only the first part of the tuple: output, h = gru(x)
-
-        # Next we have to take only the last hidden state of the last b1gru
-        # equivalent of return_sequences=False
         x = x[:, -1, :]
         x = self.dense(x)
         out = self.output(x)
@@ -318,17 +295,9 @@ class FFED(nn.Module):
         x = x
         x = x.unsqueeze(1)
         x = self.conv(x)
-        # x (aka output of conv1) shape is [batch_size, out_channels=16, window_size-kernel+1]
-        # x must be in shape [batch_size, seq_len, input_size=output_size of prev layer]
-        # so we have to change the order of the dimensions
         x = x.permute(0, 2, 1)
-        # attn_output, attn_output_weights = multihead_attn(query, key, value)
         x = torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2).real
         x = self.bgru(x)[0]
-        # we took only the first part of the tuple: output, h = gru(x)
-
-        # Next we have to take only the last hidden state of the last b1gru
-        # equivalent of return_sequences=False
         x = x[:, -1, :]
         x = self.dense(x)
         out = self.output(x)
