@@ -96,3 +96,5 @@ ENV/
 .~lock*
 results/*
 !results/__init__.py
+/lightning_logs/
+/output/
