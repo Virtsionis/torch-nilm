@@ -3,7 +3,7 @@ import numpy as np
 import pytorch_lightning as pl
 import torch.nn.functional as F
 from modules.NILM_metrics import NILM_metrics
-from modules.models import WGRU, S2P, PAF, SAED, SimpleGru, FFED, FNET, ConvFourier
+from modules.models import WGRU, S2P, PAF, PAFnet,  SAED, SimpleGru, FFED, FNET, ConvFourier
 # Setting the seed
 pl.seed_everything(42)
 
@@ -25,6 +25,7 @@ def create_model(model_name, model_hparams):
     model_dict = {'WGRU':WGRU,
                   'S2P':S2P,
                   'PAF':PAF,
+                  'PAFnet':PAFnet,
                   'SAED':SAED,
                   'SimpleGru':SimpleGru,
                   'FFED':FFED,

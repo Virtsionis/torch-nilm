@@ -1,6 +1,6 @@
 import torch
 import pandas as pd
-from modules.helpers import create_tree_dir, train_eval
+from modules.helpers import create_tree_dir,train_eval
 from torch.utils.data import DataLoader
 
 
@@ -31,7 +31,8 @@ dev_list = [
 #             'electric space heater'
            ]
 mod_list = [
-            'PAF'
+#             'PAF'
+            'PAFnet'
 #             'S2P',
 #             'SimpleGru',
 #             'FFED',
@@ -80,6 +81,8 @@ for device in dev_list:
                   'S2P': {'window_size':WINDOW, 'dropout':dropout},
                   'ConvFourier': {'window_size':WINDOW, 'dropout':dropout},
                   'PAF': {'window_size':WINDOW, 'dropout':dropout},
+                  'PAFnet': {'cnn_dim': 16, 'kernel_size':5, 'depth':4,
+                             'window_size':WINDOW,'hidden_factor': 10, 'dropout':dropout},
                   'FNET': {'depth': 3, 'kernel_size':8, 'cnn_dim': 64,
                            'input_dim':WINDOW, 'hidden_dim':WINDOW*8, 'dropout':dropout},
                    }
