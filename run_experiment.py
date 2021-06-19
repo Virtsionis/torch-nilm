@@ -1,13 +1,12 @@
 import torch
 import pandas as pd
-from modules.MyTrainer import NILMTrainer
-from modules.helpers import create_tree_dir, save_report, train_model, display_res,train_eval
-from torch.utils.data import Dataset, DataLoader
+from modules.helpers import create_tree_dir, train_eval
+from torch.utils.data import DataLoader
 
 
 from datasources.datasource import DatasourceFactory
-from datasources.torchdataset import MyChunk,ElectricityDataset
-# from modules.MyDataSet import MyChunk, MyChunkList
+from datasources.torchdataset import ElectricityDataset,ElectricityIterableDataset
+from modules.MyDataSet import MyChunkList #,MyChunk
 
 with torch.no_grad():
     torch.cuda.empty_cache()
@@ -32,8 +31,7 @@ dev_list = [
 #             'electric space heater'
            ]
 mod_list = [
-#             'PAF'
-            'PAFnet'
+            'PAF'
 #             'S2P',
 #             'SimpleGru',
 #             'FFED',
@@ -49,7 +47,7 @@ create_tree_dir(tree_levels=tree_levels, clean=clean)
 # Experiment Settings
 exp_type = 'Single'#'Multi'
 
-EPOCHS = 1
+EPOCHS = 20
 ITERATIONS = 5
 
 SAMPLE_PERIOD = 6
@@ -82,8 +80,6 @@ for device in dev_list:
                   'S2P': {'window_size':WINDOW, 'dropout':dropout},
                   'ConvFourier': {'window_size':WINDOW, 'dropout':dropout},
                   'PAF': {'window_size':WINDOW, 'dropout':dropout},
-                  'PAFnet': {'cnn_dim': 8, 'kernel_size':5, 'depth':5,
-                             'window_size':WINDOW,'hidden_factor': 8, 'dropout':dropout},
                   'FNET': {'depth': 3, 'kernel_size':8, 'cnn_dim': 64,
                            'input_dim':WINDOW, 'hidden_dim':WINDOW*8, 'dropout':dropout},
                    }
@@ -119,7 +115,7 @@ for device in dev_list:
         path = data_dir + '/{}/{}.h5'.format(train_set, train_set)
         print(path)
         datasource = DatasourceFactory.create_datasource(train_set)
-        train_dataset = MyChunk(datasource=datasource, building=int(train_house), window_size=WINDOW,
+        train_dataset = ElectricityDataset(datasource=datasource, building=int(train_house), window_size=WINDOW,
                                 device=device, dates=train_dates, sample_period=SAMPLE_PERIOD)
     else:
         for line in train_file:

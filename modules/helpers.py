@@ -1,14 +1,12 @@
 import os, shutil
-from typing import NewType
 import pandas as pd
 import numpy as np
-import matplotlib as plt
 import pytorch_lightning as pl
 from modules.MyTrainer import NILMTrainer
 from torch.utils.data import DataLoader
 
 from datasources.datasource import DatasourceFactory
-from datasources.torchdataset import MyChunk, ElectricityDataset
+from datasources.torchdataset import ElectricityIterableDataset, ElectricityDataset
 
 def create_tree_dir(tree_levels={}, clean=False):
     tree_gen = (level for level in tree_levels)
@@ -147,7 +145,7 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
         print(80*'#')
 
         datasource = DatasourceFactory.create_datasource(dataset)
-        test_dataset = MyChunk(datasource=datasource, building=int(building),
+        test_dataset = ElectricityDataset(datasource=datasource, building=int(building),
                                window_size=window_size, device=device,
                                dates=dates, sample_period=sample_period)
 
