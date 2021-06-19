@@ -8,7 +8,7 @@ from fuzzywuzzy import fuzz
 from nilmtk import DataSet, MeterGroup
 from pandas import DataFrame
 
-from datasources.paths_manager import UK_DALE, REDD
+from datasources.paths_manager import UK_DALE, REDD, REFIT
 from exceptions.lab_exceptions import LabelNormalizationError
 from utils.logger import timing, TIMING, info, debug
 
@@ -253,6 +253,10 @@ class DatasourceFactory:
     def create_datasource(dataset_name:str):
         if dataset_name == NAME_UK_DALE:
             return DatasourceFactory.create_uk_dale_datasource()
+        elif dataset_name == NAME_REDD:
+            return DatasourceFactory.create_redd_datasource()
+        elif dataset_name == NAME_REFIT:
+            return DatasourceFactory.create_refit_datasource()
 
     @staticmethod
     def create_uk_dale_datasource():
@@ -269,6 +273,14 @@ class DatasourceFactory:
     @staticmethod
     def get_redd_dataset():
         return DataSet(REDD)
+
+    @staticmethod
+    def create_refit_datasource():
+        return Datasource(DatasourceFactory.get_refit_dataset(), NAME_REFIT)
+
+    @staticmethod
+    def get_refit_dataset():
+        return DataSet(REFIT)
 
 
 def save_and_plot(sequence, plot=False, save_figure=False, filename=None):

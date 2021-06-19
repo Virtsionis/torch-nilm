@@ -7,7 +7,8 @@ import pytorch_lightning as pl
 from modules.MyTrainer import NILMTrainer
 from torch.utils.data import DataLoader
 
-from modules.MyDataSet import MyChunk
+from datasources.datasource import DatasourceFactory
+from datasources.torchdataset import MyChunk, ElectricityDataset
 
 def create_tree_dir(tree_levels={}, clean=False):
     tree_gen = (level for level in tree_levels)
@@ -88,11 +89,11 @@ def display_res(root_dir=None, model_name=None, device=None,
         data_filename = experiment_name + '_iter_' + str(iteration)+'.csv'
 
         report = pd.read_csv(path + report_filename)
-    
+
         if int(iteration) > 0:
-            display(report.iloc[int(iteration)-1:int(iteration)])
+            print(report.iloc[int(iteration)-1:int(iteration)])
         else:
-            display(report.iloc[int(iteration)])
+            print(report.iloc[int(iteration)])
         data = pd.read_csv(path + data_filename)
         data['ground'][low_lim:upper_lim].plot.line()
         data['preds'][low_lim:upper_lim].plot.line()
@@ -140,24 +141,25 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
 
         building = tests_params['test_house'][i]
         dataset = tests_params['test_set'][i]
-        path = '/'.join([data_dir,dataset,dataset+'.h5',])
         dates = tests_params['test_date'][i]
         print(80*'#')
         print('Evaluate house {} of {} for {}'.format(building, dataset, dates))
         print(80*'#')
-        test_dataset = MyChunk(path=path, building=int(building), window_size=window_size,
-                               device=device, dates=dates, test=True,
-                               mmax=mmax, sample_period=sample_period)
+
+        datasource = DatasourceFactory.create_datasource(dataset)
+        test_dataset = MyChunk(datasource=datasource, building=int(building),
+                               window_size=window_size, device=device,
+                               dates=dates, sample_period=sample_period)
 
         test_loader = DataLoader(test_dataset, batch_size=batch_size,
                                 shuffle=False, num_workers=8)
 
         ground = test_dataset.meterchunk
         model.set_ground(ground)
-        test_result = trainer.test(model, test_dataloaders=test_loader)
-
-        results = test_result[0]['metrics']
-        preds = test_result[0]['preds']
+        trainer.test(model, test_dataloaders=test_loader)
+        test_result = model.get_res()
+        results = test_result['metrics']
+        preds = test_result['preds']
         final_experiment_name = experiment_name + 'test_' + building + '_' + dataset
         save_report(root_dir, model_name, device, exp_type,final_experiment_name,
                     iteration, results, preds, ground)
