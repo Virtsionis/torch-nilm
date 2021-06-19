@@ -14,6 +14,7 @@ from utils.logger import timing, TIMING, info, debug
 
 NAME_UK_DALE = 'UKDALE'
 NAME_REDD = 'REDD'
+NAME_REFIT = 'REFIT'
 SITE_METER = 'Site meter'
 
 
