@@ -1,0 +1,2 @@
+UNDEFINED = 'undefined'
+BASE_NETWORK = "BASE_NETWORK"

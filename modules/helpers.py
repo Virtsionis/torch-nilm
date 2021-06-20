@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import matplotlib as plt
 import pytorch_lightning as pl
-from modules.MyTrainer import NILMTrainer
+from modules.MyTrainer import NILMTrainer, VIBTrainer
 from torch.utils.data import DataLoader
 
 from modules.MyDataSet import MyChunk
@@ -110,7 +110,7 @@ def train_model(model_name, train_loader, test_loader,
     """
     trainer = pl.Trainer(gpus=1,max_epochs=epochs)
 
-    model = NILMTrainer(model_name=model_name,**kwargs)
+    model = VIBTrainer(model_name=model_name,**kwargs)
     trainer.fit(model, train_loader)
 
     test_result = trainer.test(model, test_dataloaders=test_loader)
@@ -132,7 +132,7 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
     trainer = pl.Trainer(gpus=1,max_epochs=epochs)
 
 
-    model = NILMTrainer(model_name=model_name,**kwargs)
+    model = VIBTrainer(model_name=model_name,**kwargs)
 
     trainer.fit(model, train_loader)
 
