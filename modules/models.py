@@ -1,7 +1,5 @@
-import math
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torchnlp.nn.attention import Attention
 
 class _Dense(nn.Module):
@@ -54,7 +52,6 @@ class _CnnF(nn.Module):
         # attn_output, attn_output_weights = multihead_attn(query, key, value)
         x = torch.fft.fft(torch.fft.fft(x, dim=-2), dim=-1).real
         return x
-
 
 class S2P(nn.Module):
 
@@ -437,4 +434,73 @@ class ConvFourier(nn.Module):
         x = self.flat(x)
 
         out = self.output(x)
+        return out
+
+class FeedForward(nn.Module):
+    def __init__(self, dim, hidden_factor, dropout = 0.):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(dim, hidden_factor),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_factor, dim),
+            nn.Dropout(dropout)
+        )
+    def forward(self, x):
+        return self.net(x)
+
+
+class PAFBlock(nn.Module):
+    def __init__(self, window_size, hidden_factor, dropout=0):
+        super(PAFBlock, self).__init__()
+        self.MODEL_NAME = 'PAFBlock'
+
+        self.freal = FReal()
+        self.fimag = FImag()
+        self.attention = Attention(window_size,attention_type='dot')
+        self.linear = FeedForward(window_size, hidden_factor, dropout=0)
+
+    def forward(self, x):
+        x = x
+        real = self.freal(x)
+        imag = self.fimag(x)
+        attn, _ = self.attention(real,imag)
+        x = self.linear(attn)
+        return x
+
+class PAFnet(nn.Module):
+
+    def __init__(self, cnn_dim, kernel_size, depth, window_size, hidden_factor, dropout=0):
+        super(PAFnet, self).__init__()
+        self.MODEL_NAME = 'PAF'
+        self.dense_input = cnn_dim*window_size
+
+        self.conv = nn.Sequential(
+            _Cnn1(1, cnn_dim, kernel_size=kernel_size, dropout=dropout),
+            # nn.LPPool1d(norm_type=2, kernel_size=2, stride=2)
+        )
+
+        self.paf_blocks = nn.ModuleList([PAFBlock(window_size, hidden_factor, dropout)\
+                                            for _ in range(depth)])
+
+
+        self.flat = nn.Flatten()
+        self.mlp = nn.Sequential(
+            nn.Linear(self.dense_input, 4*self.dense_input),
+            nn.Dropout(dropout),
+            nn.GELU(),
+            nn.Linear(4*self.dense_input, self.dense_input),
+            nn.Dropout(dropout),
+            nn.GELU(),
+            nn.Linear(self.dense_input, 1),
+        )
+
+    def forward(self, x):
+        x = x
+        x = x.unsqueeze(1)
+        x = self.conv(x)
+        for block in self.paf_blocks:
+            x = block(x)
+        x = self.flat(x)
+        out = self.mlp(x)
         return out

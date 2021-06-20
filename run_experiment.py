@@ -1,13 +1,15 @@
 import torch
 import pandas as pd
-from modules.MyTrainer import NILMTrainer
-from modules.helpers import create_tree_dir, save_report, train_model, display_res,train_eval
-from torch.utils.data import Dataset, DataLoader
+from modules.helpers import create_tree_dir,train_eval
+from torch.utils.data import DataLoader
 
-from modules.MyDataSet import MyChunk, MyChunkList
+
+from datasources.datasource import DatasourceFactory
+from datasources.torchdataset import ElectricityDataset,ElectricityIterableDataset
+from modules.MyDataSet import MyChunkList #,MyChunk
 
 with torch.no_grad():
-    torch.cuda.empty_cache() 
+    torch.cuda.empty_cache()
 
 clean = True
 ROOT = 'output'
@@ -19,9 +21,9 @@ dev_list = [
 #             'dish washer',
             'microwave',
 #             'washing machine',
-#             'kettle', 
+#             'kettle',
 #             'tumble dryer',
-#             'fridge', 
+#             'fridge',
 #             'washer dryer',
 
 #             'television',
@@ -30,10 +32,11 @@ dev_list = [
            ]
 mod_list = [
 #             'PAF'
+            'PAFnet'
 #             'S2P',
 #             'SimpleGru',
 #             'FFED',
-            'SAED',
+            # 'SAED',
 #             'FNET',
 #             'WGRU',
 #             'ConvFourier'
@@ -45,7 +48,7 @@ create_tree_dir(tree_levels=tree_levels, clean=clean)
 # Experiment Settings
 exp_type = 'Single'#'Multi'
 
-EPOCHS = 1
+EPOCHS = 20
 ITERATIONS = 5
 
 SAMPLE_PERIOD = 6
@@ -54,8 +57,8 @@ BATCH = 512
 dropout = 0.2
 
 windows = {
-            'fridge': 50, 
-            'kettle': 50, 
+            'fridge': 50,
+            'kettle': 50,
             'washing machine': 100,
             'washer dryer': 100,
             'tumble dryer': 100,
@@ -68,9 +71,8 @@ windows = {
 # Run
 
 for device in dev_list:
-    
+
     WINDOW = windows[device]
-    
     model_hparams={
                   'SimpleGru':{},
                   'SAED':{'window_size':WINDOW},
@@ -79,6 +81,8 @@ for device in dev_list:
                   'S2P': {'window_size':WINDOW, 'dropout':dropout},
                   'ConvFourier': {'window_size':WINDOW, 'dropout':dropout},
                   'PAF': {'window_size':WINDOW, 'dropout':dropout},
+                  'PAFnet': {'cnn_dim': 16, 'kernel_size':5, 'depth':4,
+                             'window_size':WINDOW,'hidden_factor': 10, 'dropout':dropout},
                   'FNET': {'depth': 3, 'kernel_size':8, 'cnn_dim': 64,
                            'input_dim':WINDOW, 'hidden_dim':WINDOW*8, 'dropout':dropout},
                    }
@@ -97,11 +101,11 @@ for device in dev_list:
     tests_params = pd.DataFrame(data)
     print(device)
     print(tests_params)
-    
+
     # TRAIN LOADER
     train_file = open('{}base{}TrainSetsInfo_{}'.format(train_file_dir, exp_type, device), 'r')
     if exp_type=='Single':
-        for line in train_file:    
+        for line in train_file:
             toks = line.split(',')
             train_set = toks[0]
             train_house = toks[1]
@@ -111,10 +115,13 @@ for device in dev_list:
 
         path = data_dir + '/{}/{}.h5'.format(train_set, train_set)
         print(path)
-        train_dataset = MyChunk(path=path, building=int(train_house), window_size=WINDOW,
-                          device=device, dates=train_dates, sample_period=SAMPLE_PERIOD)
+        path = data_dir + '/{}/{}.h5'.format(train_set, train_set)
+        print(path)
+        datasource = DatasourceFactory.create_datasource(train_set)
+        train_dataset = ElectricityDataset(datasource=datasource, building=int(train_house), window_size=WINDOW,
+                                device=device, dates=train_dates, sample_period=SAMPLE_PERIOD)
     else:
-        for line in train_file:    
+        for line in train_file:
             toks = line.split(',')
             train_set = toks[0]
             break
@@ -125,7 +132,7 @@ for device in dev_list:
     train_loader = DataLoader(train_dataset, batch_size=BATCH, 
                               shuffle=True, num_workers=8)
     mmax = train_dataset.mmax
-    
+
     # RUN DEVICE EXPERIMENT FOR ALL MODELS
     experiments = []
     experiment_name = '_'.join([device, exp_type,'Train',train_set,'',])
@@ -143,18 +150,18 @@ for device in dev_list:
             print('#'*20)
             experiment_name = '_'.join([device, exp_type,'Train',train_set,'',])
             experiments.append(experiment_name)
-            train_eval(model_name, 
-                       train_loader, 
-                       exp_type, 
+            train_eval(model_name,
+                       train_loader,
+                       exp_type,
                        tests_params,
-                       SAMPLE_PERIOD, 
-                       BATCH, 
-                       experiment_name, 
+                       SAMPLE_PERIOD,
+                       BATCH,
+                       experiment_name,
                        iteration,
                        device,
                        mmax,
-                       WINDOW, 
-                       ROOT, 
+                       WINDOW,
+                       ROOT,
                        data_dir,
                        epochs=EPOCHS,
                        eval_params=eval_params,

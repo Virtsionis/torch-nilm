@@ -1,4 +1,5 @@
 import math
+import torch
 import numpy as np
 
 def NILM_metrics(pred, ground, threshold=40, mmax=None, round_digit=3):
@@ -41,22 +42,32 @@ def NILM_metrics(pred, ground, threshold=40, mmax=None, round_digit=3):
     if mmax:
         threshold = threshold/mmax
 
-    pred[np.isnan(pred)] = 0
-    ground[np.isnan(ground)] = 0
+    if torch.is_tensor(pred):
+        pr = pred.numpy()
+    else:
+        pr = pred
 
-    RETE = round(relative_error_total_energy(pred, ground),round_digit)
-    MAE = mean_absolute_error(pred, ground)
+    if torch.is_tensor(ground):
+        gr = ground.numpy()
+    else:
+        gr = ground
+
+    pr[np.isnan(pr)] = 0
+    gr[np.isnan(gr)] = 0
+
+    RETE = round(relative_error_total_energy(pr, gr),round_digit)
+    MAE = mean_absolute_error(pr, gr)
 
     if mmax:
         MAE *= mmax
     MAE = round(MAE,round_digit)
 
-    pred = np.array([0 if (p)<threshold else 1 for p in pred])
-    ground = np.array([0 if p<threshold else 1 for p in ground])
+    pr = np.array([0 if (p)<threshold else 1 for p in pr])
+    gr = np.array([0 if p<threshold else 1 for p in gr])
 
-    tp, tn, fp, fn = tp_tn_fp_fn(pred,ground)
-    positives = sum(pred)
-    negatives = len(pred) - positives
+    tp, tn, fp, fn = tp_tn_fp_fn(pr,gr)
+    positives = sum(pr)
+    negatives = len(pr) - positives
 
     recall = round(recall(tp,fn),round_digit)
     precision = round(precision(tp,fp),round_digit)
