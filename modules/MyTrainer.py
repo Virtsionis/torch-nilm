@@ -1,13 +1,10 @@
-import math
 import torch
 import numpy as np
-import torch.nn as nn
 import pytorch_lightning as pl
-import matplotlib.pyplot as plt
 import torch.nn.functional as F
-from pytorch_lightning import Trainer
 from modules.NILM_metrics import NILM_metrics
 from neural_networks.models import WGRU, S2P, SF2P, SAED, SimpleGru, FFED, FNET, ConvFourier
+
 # Setting the seed
 from neural_networks.variational import VIBSeq2Point
 
@@ -37,6 +34,7 @@ def create_model(model_name, model_hparams):
                   'FNET'        : FNET,
                   'ConvFourier' : ConvFourier,
                   'VIBSeq2Point': VIBSeq2Point}
+
     if model_name in model_dict:
         return model_dict[model_name](**model_hparams)
     else:
@@ -61,6 +59,7 @@ class NILMTrainer(pl.LightningModule):
         self.model_name = model_name
 
         self.final_preds = np.array([])
+        self.results = {}
 
     def forward(self, x):
         # Forward function that is run when visualizing the graph
@@ -117,7 +116,8 @@ class NILMTrainer(pl.LightningModule):
 
         results = {'model'  : self.model_name,
                    'metrics': res,
-                   'preds'  : self.final_preds, }
+                   'preds': self.final_preds,}
+        self.set_res(results)
         self.final_preds = np.array([])
         return results
 
@@ -198,3 +198,15 @@ class VIBTrainer(NILMTrainer):
        #          avg_correct += torch.eq(avg_prediction,y).float().sum()
        #      else :
        #          avg_correct = Variable(cuda(torch.zeros(correct.size()), self.cuda))
+
+    def set_res(self, res):
+        print("set_res")
+        self.reset_res()
+        self.results = res
+
+    def reset_res(self):
+        self.results = {}
+
+    def get_res(self):
+        print("get res")
+        return self.results
