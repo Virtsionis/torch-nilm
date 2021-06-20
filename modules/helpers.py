@@ -154,6 +154,7 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
 
         ground = test_dataset.meterchunk
         model.set_ground(ground)
+
         trainer.test(model, test_dataloaders=test_loader)
         test_result = model.get_res()
         results = test_result['metrics']
