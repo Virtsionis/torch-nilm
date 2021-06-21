@@ -90,8 +90,8 @@ class Seq2Point(nn.Module):
             CNNWithDropoutBlock(50, 50, kernel_size=5, dropout=self.drop),
             nn.Flatten()
         )
-        self.dense = DenseWithDropoutBlock(self.dense_input, 1024, self.drop)
-        self.output = nn.Linear(1024, 1)
+        self.dense = DenseWithDropoutBlock(self.dense_input, 512, 0)
+        self.output = nn.Linear(512, 1)
 
     def forward(self, x):
         # x must be in shape [batch_size, 1, window_size]
@@ -104,7 +104,7 @@ class Seq2Point(nn.Module):
 
 
 class VIBSeq2Point(Seq2Point, VIBNet):
-    def __init__(self, window_size, dropout=0, lr=None, K=512):
+    def __init__(self, window_size, dropout=0, lr=None, K=256):
         super(VIBSeq2Point, self).__init__(window_size, dropout, lr)
         self.K = K
         self.output = nn.Linear(self.K, 1)
@@ -142,7 +142,7 @@ class ToyNet(nn.Module):
             nn.Linear(1024, 2 * self.K))
 
         self.decode = nn.Sequential(
-            nn.Linear(self.K, 10))
+            nn.Linear(self.K, 1))
 
     def forward(self, x, num_sample=1):
         if x.dim() > 2: x = x.view(x.size(0), -1)

@@ -3,7 +3,6 @@ import pandas as pd
 
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityDataset
-from modules.MyTrainer import NILMTrainer
 from modules.helpers import create_tree_dir, save_report, train_model, display_res, train_eval
 from torch.utils.data import Dataset, DataLoader
 
@@ -31,7 +30,7 @@ dev_list = ['fridge',
             ]
 mod_list = [
     #             'SF2P',
-    #             'S2P',
+    # 'S2P',
     #             'SimpleGru',
     #             'FFED',
     #             'SAED',
@@ -52,19 +51,19 @@ ITERATIONS = 1
 SAMPLE_PERIOD = 6
 WINDOW = 50
 device = 'fridge'
-BATCH = 4
+BATCH = 1024
 
 model_hparams = {
-    'SimpleGru'  : {},
-    'SAED'       : {'window_size': WINDOW},
-    'FFED'       : {},
-    'WGRU'       : {'dropout': 0.25},
-    'S2P'        : {'window_size': WINDOW, 'dropout': 0.25},
-    'VIBSeq2Point': {'window_size': WINDOW, 'dropout': 0.25},
-    'ConvFourier': {'window_size': WINDOW, 'dropout': 0.25},
-    'SF2P'       : {'window_size': WINDOW, 'dropout': 0.25},
-    'FNET'       : {'depth'    : 2, 'kernel_size': 5, 'cnn_dim': 64,
-                    'input_dim': WINDOW, 'hidden_dim': WINDOW * 8, 'dropout': 0.25}
+    'SimpleGru'   : {},
+    'SAED'        : {'window_size': WINDOW},
+    'FFED'        : {},
+    'WGRU'        : {'dropout': 0.25},
+    'S2P'         : {'window_size': WINDOW, 'dropout': 0.25},
+    'VIBSeq2Point': {'window_size': WINDOW, 'dropout': 0},
+    'ConvFourier' : {'window_size': WINDOW, 'dropout': 0.25},
+    'SF2P'        : {'window_size': WINDOW, 'dropout': 0.25},
+    'FNET'        : {'depth'    : 2, 'kernel_size': 5, 'cnn_dim': 64,
+                     'input_dim': WINDOW, 'hidden_dim': WINDOW * 8, 'dropout': 0.25}
 }
 
 test_houses = []
@@ -93,7 +92,7 @@ if exp_type == 'Single':
 
     path = data_dir + '/{}/{}.h5'.format(train_set, train_set)
     print(path)
-    # datasource = DatasourceFactory.create_datasource(train_set)
+    datasource = DatasourceFactory.create_datasource(train_set)
     # train_dataset = ElectricityDataset(datasource=datasource,
     #                                    building=int(train_house),
     #                                    device=device,
@@ -105,8 +104,9 @@ if exp_type == 'Single':
     #                                    sample_period=SAMPLE_PERIOD,
     #                                    chunksize=1000*BATCH,
     #                                    batch_size=BATCH)
-    train_dataset = MyChunk(path=path, building=int(train_house), window_size=WINDOW,
-                            device=device, dates=train_dates, sample_period=SAMPLE_PERIOD)
+    train_dataset = ElectricityDataset(datasource=datasource, building=int(train_house), window_size=WINDOW,
+                                       device=device, dates=train_dates, sample_period=SAMPLE_PERIOD)
+
 else:
     for line in train_file:
         toks = line.split(',')

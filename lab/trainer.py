@@ -1,9 +1,12 @@
+import math
+
 import torch
 import numpy as np
 import pytorch_lightning as pl
 import torch.nn.functional as F
 from modules.NILM_metrics import NILM_metrics
-from neural_networks.models import WGRU, S2P, SF2P, SAED, SimpleGru, FFED, FNET, ConvFourier
+from neural_networks.base_models import BaseModel
+from neural_networks.models import WGRU, S2P, SAED, SimpleGru, FFED, FNET, ConvFourier
 
 # Setting the seed
 from neural_networks.variational import VIBSeq2Point
@@ -27,7 +30,6 @@ ON_THRESHOLDS = {'dish washer'    : 10,
 def create_model(model_name, model_hparams):
     model_dict = {'WGRU'        : WGRU,
                   'S2P'         : S2P,
-                  'SF2P'        : SF2P,
                   'SAED'        : SAED,
                   'SimpleGru'   : SimpleGru,
                   'FFED'        : FFED,
@@ -41,9 +43,24 @@ def create_model(model_name, model_hparams):
         assert False, "Unknown model name \"%s\". Available models are: %s" % (model_name, str(model_dict.keys()))
 
 
-class NILMTrainer(pl.LightningModule):
+class TrainingToolsFactory:
 
-    def __init__(self, model_name, model_hparams, eval_params):
+    @staticmethod
+    def build_and_equip_model(model_name, model_hparams, eval_params):
+        model: BaseModel = create_model(model_name, model_hparams)
+        return TrainingToolsFactory.equip_model(model, model_hparams, eval_params)
+
+    @staticmethod
+    def equip_model(model, model_hparams, eval_params):
+        if model.supports_vib():
+            return VIBTrainingTools(model, model_hparams, eval_params)
+        else:
+            return ClassicTrainingTools(model, model_hparams, eval_params)
+
+
+class ClassicTrainingTools(pl.LightningModule):
+
+    def __init__(self, model: BaseModel, model_hparams, eval_params):
         """
         Inputs:
             model_name - Name of the model to run. Used for creating the model (see function below)
@@ -53,10 +70,10 @@ class NILMTrainer(pl.LightningModule):
         # Exports the hyperparameters to a YAML file, and create "self.hparams" namespace
         self.save_hyperparameters()
         # Create model
-        self.model = create_model(model_name, model_hparams)
+        self.model = model
 
         self.eval_params = eval_params
-        self.model_name = model_name
+        self.model_name = self.model.architecture_name
 
         self.final_preds = np.array([])
         self.results = {}
@@ -116,7 +133,7 @@ class NILMTrainer(pl.LightningModule):
 
         results = {'model'  : self.model_name,
                    'metrics': res,
-                   'preds': self.final_preds,}
+                   'preds'  : self.final_preds, }
         self.set_res(results)
         self.final_preds = np.array([])
         return results
@@ -124,38 +141,35 @@ class NILMTrainer(pl.LightningModule):
     def set_ground(self, ground):
         self.eval_params['groundtruth'] = ground
 
+    def set_res(self, res):
+        print("set_res")
+        self.reset_res()
+        self.results = res
 
-class VIBTrainer(NILMTrainer):
-    def __init__(self, model_name, model_hparams, eval_params, beta=1e-3):
+    def reset_res(self):
+        self.results = {}
+
+    def get_res(self):
+        print("get res")
+        return self.results
+
+
+class VIBTrainingTools(ClassicTrainingTools):
+    def __init__(self, model, model_hparams, eval_params, beta=1e-3):
         """
         Inputs:
             model_name - Name of the model to run. Used for creating the model (see function below)
             model_hparams - Hyperparameters for the model, as dictionary.
         """
-        super().__init__(model_name, model_hparams, eval_params)
+        super().__init__(model, model_hparams, eval_params)
         self.beta = beta
-
-    # def _forward_step(self, batch: Tensor, batch_idx: int) -> Tuple[Tensor, Tensor, Tensor]:
-    #     inputs, labels = batch
-    #     kl_terms, logits = self.forward(inputs)
-    #
-    #     cross_entropy = self.calculate_loss(logits, labels)
-    #     class_loss = torch.div(cross_entropy, math.log(2))
-    #     info_loss = torch.mean(kl_terms)
-    #     loss = class_loss + self.beta * info_loss
-    #
-    #     preds = torch.argmax(logits, dim=1)
-    #     acc = accuracy(preds, labels)
-    #
-    #     return acc, loss, info_loss
 
     def training_step(self, batch, batch_idx):
         # x must be in shape [batch_size, 1, window_size]
         x, y = batch
         # Forward pass
         (mu, std), logit = self(x)
-        # class_loss = F.cross_entropy(logit.squeeze(1), y.squeeze(), size_average=False).div(math.log(2))
-        class_loss = F.mse_loss(logit.squeeze(), y.squeeze())
+        class_loss = F.mse_loss(logit.squeeze(), y.squeeze()).div(math.log(2))
 
         info_loss = -0.5 * (1 + 2 * std.log() - mu.pow(2) - std.pow(2)).sum().div(math.log(2))
         total_loss = class_loss + self.beta * info_loss
@@ -173,40 +187,3 @@ class VIBTrainer(NILMTrainer):
         self.final_preds = np.append(self.final_preds, preds_batch)
         return {'test_loss': loss}
         # return {'test_loss': loss, 'metrics': self._metrics(test=True)}
-
-
-       # for idx, (images,labels) in enumerate(self.data_loader['test']):
-       #
-       #      x = Variable(cuda(images, self.cuda))
-       #      y = Variable(cuda(labels, self.cuda))
-       #      (mu, std), logit = self.toynet_ema.model(x)
-       #
-       #      class_loss += F.cross_entropy(logit,y,size_average=False).div(math.log(2))
-       #      info_loss += -0.5*(1+2*std.log()-mu.pow(2)-std.pow(2)).sum().div(math.log(2))
-       #      total_loss += class_loss + self.beta*info_loss
-       #      total_num += y.size(0)
-       #
-       #      izy_bound += math.log(10,2) - class_loss
-       #      izx_bound += info_loss
-       #
-       #      prediction = F.softmax(logit,dim=1).max(1)[1]
-       #      correct += torch.eq(prediction,y).float().sum()
-       #
-       #      if self.num_avg != 0 :
-       #          _, avg_soft_logit = self.toynet_ema.model(x,self.num_avg)
-       #          avg_prediction = avg_soft_logit.max(1)[1]
-       #          avg_correct += torch.eq(avg_prediction,y).float().sum()
-       #      else :
-       #          avg_correct = Variable(cuda(torch.zeros(correct.size()), self.cuda))
-
-    def set_res(self, res):
-        print("set_res")
-        self.reset_res()
-        self.results = res
-
-    def reset_res(self):
-        self.results = {}
-
-    def get_res(self):
-        print("get res")
-        return self.results
