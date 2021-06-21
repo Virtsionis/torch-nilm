@@ -18,7 +18,10 @@ ON_THRESHOLDS= {'dish washer':10,
                 'fridge': 50,
                 'kettle': 2000,
                 'microwave': 200,
-                'washing machine': 20}
+                'washing machine': 20,
+                'electric space heater': 10,
+                'computer': 10,
+                'television': 10,}
 
 
 def create_model(model_name, model_hparams):

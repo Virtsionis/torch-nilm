@@ -123,7 +123,7 @@ def train_model(model_name, train_loader, test_loader,
 def train_eval(model_name, train_loader, exp_type, tests_params,
                sample_period, batch_size,experiment_name, iteration,
                device, mmax, window_size, root_dir, data_dir,
-               epochs=5, save=True, logger=True, **kwargs):
+               epochs=5, saveReport=True, logger=True, **kwargs):
     """
     Inputs:
         model_name - Name of the model you want to run.
@@ -166,7 +166,7 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
         model.set_ground(ground)
 
         trainer.test(model, test_dataloaders=test_loader)
-        if save:
+        if saveReport:
             test_result = model.get_res()
             results = test_result['metrics']
             preds = test_result['preds']
