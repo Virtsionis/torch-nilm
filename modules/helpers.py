@@ -1,12 +1,13 @@
 import os, shutil
-import pandas as pd
 import numpy as np
+import pandas as pd
 import pytorch_lightning as pl
-from modules.MyTrainer import NILMTrainer
 from torch.utils.data import DataLoader
-
+from modules.MyTrainer import NILMTrainer
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityIterableDataset, ElectricityDataset
+
+from pytorch_lightning.loggers import WandbLogger
 
 def create_tree_dir(tree_levels={}, clean=False):
     tree_gen = (level for level in tree_levels)
@@ -122,14 +123,23 @@ def train_model(model_name, train_loader, test_loader,
 def train_eval(model_name, train_loader, exp_type, tests_params,
                sample_period, batch_size,experiment_name, iteration,
                device, mmax, window_size, root_dir, data_dir,
-               epochs=5, **kwargs):
+               epochs=5, save=True, logger=True, **kwargs):
     """
     Inputs:
         model_name - Name of the model you want to run.
             It's used to look up the class in "model_dict"
     """
-    trainer = pl.Trainer(gpus=1,max_epochs=epochs)
-
+    if logger:
+        wandb_logger = WandbLogger(name=experiment_name,project='50 epochs comparison')
+        trainer = pl.Trainer(gpus=1,
+                            max_epochs=epochs,
+                            logger=wandb_logger,
+                            #log_save_interval=10
+                            )
+    else:
+        trainer = pl.Trainer(gpus=1,
+                            max_epochs=epochs,
+                            )
 
     model = NILMTrainer(model_name=model_name,**kwargs)
 
@@ -156,10 +166,11 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
         model.set_ground(ground)
 
         trainer.test(model, test_dataloaders=test_loader)
-        test_result = model.get_res()
-        results = test_result['metrics']
-        preds = test_result['preds']
-        final_experiment_name = experiment_name + 'test_' + building + '_' + dataset
-        save_report(root_dir, model_name, device, exp_type,final_experiment_name,
-                    iteration, results, preds, ground)
-        del test_dataset, test_loader, ground, final_experiment_name
+        if save:
+            test_result = model.get_res()
+            results = test_result['metrics']
+            preds = test_result['preds']
+            final_experiment_name = experiment_name + 'test_' + building + '_' + dataset
+            save_report(root_dir, model_name, device, exp_type,final_experiment_name,
+                        iteration, results, preds, ground)
+            del test_dataset, test_loader, ground, final_experiment_name

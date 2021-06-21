@@ -77,7 +77,8 @@ class NILMTrainer(pl.LightningModule):
     def train_epoch_end(self, outputs):
         # outputs is a list of whatever you returned in `training_step`
         train_loss = torch.stack([x['loss'] for x in outputs]).mean()
-        self.log("loss", train_loss)
+        tensorboard_logs = {'train_loss': train_loss}
+        self.log("train_loss", train_loss, 'log', tensorboard_logs)
 
     def test_step(self, batch, batch_idx):
         x, y = batch
@@ -89,6 +90,7 @@ class NILMTrainer(pl.LightningModule):
         return {'test_loss': loss}
         # return {'test_loss': loss, 'metrics': self._metrics(test=True)}
 
+
     def test_epoch_end(self, outputs):
         # outputs is a list of whatever you returned in `test_step`
         avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
@@ -97,7 +99,7 @@ class NILMTrainer(pl.LightningModule):
         print('#### model name: {} ####'.format(res['model']))
         print('metrics: {}'.format(res['metrics']))
 
-        self.log("test_test_avg_loss", avg_loss, 'log', tensorboard_logs)
+        self.log("test_avg_loss", avg_loss, 'log', tensorboard_logs)
         return res
 
     def _metrics(self):

@@ -1,3 +1,4 @@
+from numpy.lib.npyio import save
 import torch
 import pandas as pd
 from modules.helpers import create_tree_dir,train_eval
@@ -11,35 +12,34 @@ from modules.MyDataSet import MyChunkList #,MyChunk
 with torch.no_grad():
     torch.cuda.empty_cache()
 
-clean = True
-ROOT = 'output'
+clean = False
+ROOT = 'ablation_study'#'output'
 data_dir = '/mnt/B40864F10864B450/WorkSpace/PHD/PHD_exps/data'
-train_file_dir = 'dates/train/'
-test_file_dir = 'dates/test/'
+train_file_dir = 'dates2/train/'
+test_file_dir = 'dates2/test/'
 
 dev_list = [
 #             'dish washer',
-            'microwave',
+            # 'microwave',
 #             'washing machine',
-#             'kettle',
+            'kettle',
 #             'tumble dryer',
 #             'fridge',
 #             'washer dryer',
-
 #             'television',
 #             'computer',
 #             'electric space heater'
            ]
 mod_list = [
 #             'PAF'
-            'PAFnet'
-#             'S2P',
-#             'SimpleGru',
-#             'FFED',
+            # 'PAFnet',
+            'S2P',
+            # 'SimpleGru',
             # 'SAED',
-#             'FNET',
-#             'WGRU',
-#             'ConvFourier'
+            # 'FFED',
+            'WGRU',
+            # 'FNET',
+            # 'ConvFourier'
             ]
 cat_list = [x for x in ['Single', 'Multi']]
 tree_levels = {'root': ROOT, 'l1': ['results'], 'l2': dev_list, 'l3': mod_list, 'experiments':cat_list}
@@ -48,13 +48,15 @@ create_tree_dir(tree_levels=tree_levels, clean=clean)
 # Experiment Settings
 exp_type = 'Single'#'Multi'
 
-EPOCHS = 20
-ITERATIONS = 5
+EPOCHS = 50
+ITERATIONS = 3
+SAVE = True
+LOGGER = False
 
 SAMPLE_PERIOD = 6
 
 BATCH = 512
-dropout = 0.2
+dropout = 0.5
 
 windows = {
             'fridge': 50,
@@ -112,7 +114,7 @@ for device in dev_list:
             train_dates = [str(toks[2]),str(toks[3].rstrip("\n"))]
             break
         train_file.close()
-
+        print(train_dates)
         path = data_dir + '/{}/{}.h5'.format(train_set, train_set)
         print(path)
         path = data_dir + '/{}/{}.h5'.format(train_set, train_set)
@@ -164,5 +166,7 @@ for device in dev_list:
                        ROOT,
                        data_dir,
                        epochs=EPOCHS,
+                       save=SAVE,
+                       logger=LOGGER,
                        eval_params=eval_params,
                        model_hparams=model_hparams[model_name])
