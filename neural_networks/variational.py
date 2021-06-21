@@ -6,6 +6,8 @@ import torch.nn.functional as F
 from torch import nn
 from torch.autograd import Variable
 
+from neural_networks.base_models import BaseModel
+
 
 def cuda(tensor, is_cuda):
     if is_cuda:
@@ -14,7 +16,10 @@ def cuda(tensor, is_cuda):
         return tensor
 
 
-class VIBNet(nn.Module, ABC):
+class VIBNet(BaseModel):
+
+    def supports_vib(self) -> bool:
+        return True
 
     @staticmethod
     def reparametrize_n(mu, std, n=1):

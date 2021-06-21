@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityIterableDataset, ElectricityDataset
-from lab.trainer import TrainingToolsFactory
+from lab.training_tools import TrainingToolsFactory
 
 
 def create_tree_dir(tree_levels={}, clean=False):
