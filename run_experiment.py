@@ -19,15 +19,15 @@ train_file_dir = 'dates2/train/'
 test_file_dir = 'dates2/test/'
 
 dev_list = [
-            'dish washer',
-            'microwave',
-            'washing machine',
-            'kettle',
+            # 'dish washer',
+            # 'microwave',
+            # 'washing machine',
+            # 'kettle',
 #             'tumble dryer',
-            'fridge',
+            # 'fridge',
 #             'washer dryer',
-            'television',
-            'computer',
+            # 'television',
+            # 'computer',
             'electric space heater'
            ]
 mod_list = [
@@ -46,14 +46,14 @@ tree_levels = {'root': ROOT, 'l1': ['results'], 'l2': dev_list, 'l3': mod_list, 
 create_tree_dir(tree_levels=tree_levels, clean=clean)
 
 # Experiment Settings
-exp_type = 'Single'#'Multi'
+exp_type = 'Multi'#'Single'
 
-EPOCHS = 50
-ITERATIONS = 5
-SAVE_REPORT = True
+EPOCHS = 1
+ITERATIONS = 1
+SAVE_REPORT = False
 LOGGER = False
 
-SAMPLE_PERIOD = 6
+SAMPLE_PERIOD = 10
 
 BATCH = 512
 dropout = 0.5
@@ -105,7 +105,8 @@ for device in dev_list:
     print(tests_params)
 
     # TRAIN LOADER
-    train_file = open('{}base{}TrainSetsInfo_{}'.format(train_file_dir, exp_type, device), 'r')
+    train_filename = '{}base{}TrainSetsInfo_{}'.format(train_file_dir, exp_type, device)
+    train_file = open(train_filename, 'r')
     if exp_type=='Single':
         for line in train_file:
             toks = line.split(',')
@@ -128,7 +129,8 @@ for device in dev_list:
             train_set = toks[0]
             break
         train_file.close()
-        train_dataset = MyChunkList(device,filename=train_file,
+        print('ELAAAAA',str(train_filename))
+        train_dataset = MyChunkList(device,filename=str(train_filename),
                                     window_size=WINDOW, sample_period=SAMPLE_PERIOD)
 
     train_loader = DataLoader(train_dataset, batch_size=BATCH, 

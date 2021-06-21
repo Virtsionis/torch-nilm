@@ -131,7 +131,7 @@ class MyChunkList(Dataset):
         self.device = device
         self.window_size = window_size
         self.transform = transform
-
+        print(filename)
         meterlist, mainlist = self.load_from_file(filename)
 
         meterps, mainps, num_meters = self.get_generators(meterlist, mainlist,
