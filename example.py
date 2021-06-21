@@ -11,7 +11,7 @@ from modules.MyDataSet import MyChunk, MyChunkList
 with torch.no_grad():
     torch.cuda.empty_cache()
 
-clean = True
+clean = False
 ROOT = 'output'
 data_dir = '../Datasets'
 train_file_dir = 'dates/train/'
@@ -36,8 +36,10 @@ mod_list = [
     #             'SAED',
     #             'FNET',
     #             'WGRU',
-    # 'ConvFourier'
-    'VIBSeq2Point'
+    # 'ConvFourier',
+    'VIB_SAED',
+    # 'VIBFNET',
+    # 'VIBSeq2Point',
 ]
 cat_list = [x for x in ['Single', 'Multi']]
 tree_levels = {'root': ROOT, 'l1': ['results'], 'l2': dev_list, 'l3': mod_list, 'experiments': cat_list}
@@ -51,7 +53,7 @@ ITERATIONS = 1
 SAMPLE_PERIOD = 6
 WINDOW = 50
 device = 'fridge'
-BATCH = 1024
+BATCH = 4
 
 model_hparams = {
     'SimpleGru'   : {},
@@ -59,11 +61,14 @@ model_hparams = {
     'FFED'        : {},
     'WGRU'        : {'dropout': 0.25},
     'S2P'         : {'window_size': WINDOW, 'dropout': 0.25},
-    'VIBSeq2Point': {'window_size': WINDOW, 'dropout': 0},
     'ConvFourier' : {'window_size': WINDOW, 'dropout': 0.25},
     'SF2P'        : {'window_size': WINDOW, 'dropout': 0.25},
     'FNET'        : {'depth'    : 2, 'kernel_size': 5, 'cnn_dim': 64,
-                     'input_dim': WINDOW, 'hidden_dim': WINDOW * 8, 'dropout': 0.25}
+                     'input_dim': WINDOW, 'hidden_dim': WINDOW * 8, 'dropout': 0.25},
+    'VIBSeq2Point': {'window_size': WINDOW, 'dropout': 0},
+    'VIB_SAED'    : {'window_size': WINDOW},
+    'VIBFNET'     : {'depth'    : 2, 'kernel_size': 5, 'cnn_dim': 64,
+                     'input_dim': WINDOW, 'hidden_dim': WINDOW * 8, 'dropout': 0}
 }
 
 test_houses = []

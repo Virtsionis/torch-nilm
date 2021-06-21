@@ -6,10 +6,10 @@ import pytorch_lightning as pl
 import torch.nn.functional as F
 from modules.NILM_metrics import NILM_metrics
 from neural_networks.base_models import BaseModel
-from neural_networks.models import WGRU, S2P, SAED, SimpleGru, FFED, FNET, ConvFourier
+from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, FFED, FNET, ConvFourier
 
 # Setting the seed
-from neural_networks.variational import VIBSeq2Point
+from neural_networks.variational import VIBSeq2Point, ToyNet, VIBFnet, VIB_SAED
 
 pl.seed_everything(42)
 
@@ -29,12 +29,14 @@ ON_THRESHOLDS = {'dish washer'    : 10,
 
 def create_model(model_name, model_hparams):
     model_dict = {'WGRU'        : WGRU,
-                  'S2P'         : S2P,
+                  'S2P'         : Seq2Point,
                   'SAED'        : SAED,
                   'SimpleGru'   : SimpleGru,
                   'FFED'        : FFED,
                   'FNET'        : FNET,
                   'ConvFourier' : ConvFourier,
+                  'VIB_SAED'    : VIB_SAED,
+                  'VIBFNET'     : VIBFnet,
                   'VIBSeq2Point': VIBSeq2Point}
 
     if model_name in model_dict:
@@ -171,8 +173,9 @@ class VIBTrainingTools(ClassicTrainingTools):
         (mu, std), logit = self(x)
         class_loss = F.mse_loss(logit.squeeze(), y.squeeze()).div(math.log(2))
 
-        info_loss = -0.5 * (1 + 2 * std.log() - mu.pow(2) - std.pow(2)).sum().div(math.log(2))
+        info_loss = -0.5 * (1 + 2 * std.log() - mu.pow(2) - std.pow(2)).sum(1).mean().div(math.log(2))
         total_loss = class_loss + self.beta * info_loss
+        # total_loss = class_loss
 
         # loss = F.mse_loss(outputs.squeeze(1), y)
         tensorboard_logs = {'train_loss': total_loss}

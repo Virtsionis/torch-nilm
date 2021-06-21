@@ -38,34 +38,10 @@ class _Cnn1(nn.Module):
         return self.conv(x)
 
 
-class _CnnF(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, dropout):
-        super(_CnnF, self).__init__()
-
-        left, right = kernel_size // 2, kernel_size // 2
-        if kernel_size % 2 == 0:
-            right -= 1
-        padding = (left, right, 0, 0)
-
-        self.conv = nn.Sequential(
-            nn.ZeroPad2d(padding),
-            nn.Conv1d(in_channels, out_channels, kernel_size),
-            nn.Dropout(dropout),
-            nn.ReLU(inplace=True),
-        )
-
-    def forward(self, x):
-        x = self.conv(x)
-        # x = x.permute(0, 2, 1)
-        # attn_output, attn_output_weights = multihead_attn(query, key, value)
-        x = torch.fft.fft(torch.fft.fft(x, dim=-2), dim=-1).real
-        return x
-
-
-class S2P(BaseModel):
+class Seq2Point(BaseModel):
 
     def __init__(self, window_size, dropout=0, lr=None):
-        super(S2P, self).__init__()
+        super(Seq2Point, self).__init__()
         self.MODEL_NAME = 'Sequence2Point model'
         self.drop = dropout
         self.lr = lr
@@ -94,14 +70,11 @@ class S2P(BaseModel):
         out = self.output(x)
         return out
 
-    def supports_vib(self) -> bool:
-        return False
 
-
-class PAF(nn.Module):
+class PayAttention2Fourier(nn.Module):
 
     def __init__(self, window_size, dropout=0, lr=None):
-        super(PAF, self).__init__()
+        super(PayAttention2Fourier, self).__init__()
         self.MODEL_NAME = 'PAF'
         self.drop = dropout
         self.lr = lr
@@ -182,7 +155,7 @@ class WGRU(nn.Module):
         return out
 
 
-class SAED(nn.Module):
+class SAED(BaseModel):
 
     def __init__(self, window_size, mode='dot', hidden_dim=16,
                  num_heads=1, dropout=0, lr=None):
@@ -343,7 +316,9 @@ class FNETBLock(nn.Module):
 
     def forward(self, x, mask=None):
         x = x
-        fft_out = torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2).real
+        # fft_out = torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2).real
+        fft_out = torch.fft.fft(x, dim=-1)
+        fft_out = torch.abs(fft_out)
         x = x + self.dropout(fft_out)
         x = self.norm1(x)
 
@@ -355,23 +330,23 @@ class FNETBLock(nn.Module):
         return x
 
 
-class FNET(nn.Module):
+class FNET(BaseModel):
 
     def __init__(self, depth, kernel_size, cnn_dim, **block_args):
         super(FNET, self).__init__()
 
-        drop = block_args['dropout']
-        input_dim = block_args['input_dim']
-        dense_in = input_dim * cnn_dim // 2
+        self.drop = block_args['dropout']
+        self.input_dim = block_args['input_dim']
+        self.dense_in = self.input_dim * cnn_dim // 2
 
-        self.conv = _Cnn1(1, cnn_dim, kernel_size=kernel_size, dropout=drop)
+        self.conv = _Cnn1(1, cnn_dim, kernel_size=kernel_size, dropout=self.drop)
         self.pool = nn.LPPool1d(norm_type=2, kernel_size=2, stride=2)
 
         self.fnet_layers = nn.ModuleList([FNETBLock(**block_args) for _ in range(depth)])
 
         self.flat = nn.Flatten()
-        self.dense1 = _Dense(dense_in, cnn_dim, drop)
-        self.dense2 = _Dense(cnn_dim, cnn_dim // 2, drop)
+        self.dense1 = _Dense(self.dense_in, cnn_dim, self.drop)
+        self.dense2 = _Dense(cnn_dim, cnn_dim // 2, self.drop)
         self.output = nn.Linear(cnn_dim // 2, 1)
 
     def forward(self, x):
