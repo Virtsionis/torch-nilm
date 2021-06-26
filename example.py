@@ -31,13 +31,13 @@ dev_list = ['fridge',
 mod_list = [
     #             'SF2P',
     # 'S2P',
-    #             'SimpleGru',
+                'SimpleGru',
     #             'FFED',
-    #             'SAED',
-    #             'FNET',
-    #             'WGRU',
+                'SAED',
+                'FNET',
+                'WGRU',
     # 'ConvFourier',
-    'VIB_SAED',
+    # 'VIB_SAED',
     # 'VIBFNET',
     # 'VIBSeq2Point',
 ]
@@ -53,7 +53,7 @@ ITERATIONS = 1
 SAMPLE_PERIOD = 6
 WINDOW = 50
 device = 'fridge'
-BATCH = 4
+BATCH = 512
 
 model_hparams = {
     'SimpleGru'   : {},
@@ -64,10 +64,10 @@ model_hparams = {
     'ConvFourier' : {'window_size': WINDOW, 'dropout': 0.25},
     'SF2P'        : {'window_size': WINDOW, 'dropout': 0.25},
     'FNET'        : {'depth'    : 2, 'kernel_size': 5, 'cnn_dim': 64,
-                     'input_dim': WINDOW, 'hidden_dim': WINDOW * 8, 'dropout': 0.25},
+                     'input_dim': WINDOW, 'hidden_dim': WINDOW * 8, 'dropout': 0},
     'VIBSeq2Point': {'window_size': WINDOW, 'dropout': 0},
     'VIB_SAED'    : {'window_size': WINDOW},
-    'VIBFNET'     : {'depth'    : 2, 'kernel_size': 5, 'cnn_dim': 64,
+    'VIBFNET'     : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 64,
                      'input_dim': WINDOW, 'hidden_dim': WINDOW * 8, 'dropout': 0}
 }
 

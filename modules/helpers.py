@@ -129,7 +129,7 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
         model_name - Name of the model you want to run.
             It's used to look up the class in "model_dict"
     """
-    trainer = pl.Trainer(gpus=1, max_epochs=epochs)
+    trainer = pl.Trainer(gpus=1, max_epochs=epochs, auto_lr_find=True)
     model = TrainingToolsFactory.build_and_equip_model(model_name=model_name, **kwargs)
     trainer.fit(model, train_loader)
 

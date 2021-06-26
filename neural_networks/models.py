@@ -19,7 +19,7 @@ class _Dense(nn.Module):
 
 
 class _Cnn1(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, dropout):
+    def __init__(self, in_channels, out_channels, kernel_size, dropout, groups=1):
         super(_Cnn1, self).__init__()
 
         left, right = kernel_size // 2, kernel_size // 2
@@ -29,7 +29,7 @@ class _Cnn1(nn.Module):
 
         self.conv = nn.Sequential(
             nn.ZeroPad2d(padding),
-            nn.Conv1d(in_channels, out_channels, kernel_size),
+            nn.Conv1d(in_channels, out_channels, kernel_size, groups=groups),
             nn.Dropout(dropout),
             nn.ReLU(inplace=True),
         )
@@ -49,7 +49,7 @@ class Seq2Point(BaseModel):
         self.dense_input = 50 * window_size  # 50 is the out_features of last CNN1
 
         self.conv = nn.Sequential(
-            _Cnn1(1, 30, kernel_size=10, dropout=self.drop),
+            _Cnn1(1, 30, kernel_size=10, dropout=self.drop, groups=1),
             _Cnn1(30, 40, kernel_size=8, dropout=self.drop),
             _Cnn1(40, 50, kernel_size=6, dropout=self.drop),
             _Cnn1(50, 50, kernel_size=5, dropout=self.drop),
@@ -62,9 +62,7 @@ class Seq2Point(BaseModel):
     def forward(self, x):
         # x must be in shape [batch_size, 1, window_size]
         # eg: [1024, 1, 50]
-        x = x
         x = x.unsqueeze(1)
-
         x = self.conv(x)
         x = self.dense(x)
         out = self.output(x)
@@ -111,7 +109,7 @@ class PayAttention2Fourier(nn.Module):
         return mlp
 
 
-class WGRU(nn.Module):
+class WGRU(BaseModel):
 
     def __init__(self, dropout=0, lr=None):
         super(WGRU, self).__init__()
@@ -119,7 +117,7 @@ class WGRU(nn.Module):
         self.drop = dropout
         self.lr = lr
 
-        self.conv1 = _Cnn1(1, 16, kernel_size=4, dropout=self.drop)
+        self.conv1 = _Cnn1(3, 16, kernel_size=4, dropout=self.drop)
 
         self.b1 = nn.GRU(16, 64, batch_first=True,
                          bidirectional=True,
@@ -135,7 +133,6 @@ class WGRU(nn.Module):
     def forward(self, x):
         # x must be in shape [batch_size, 1, window_size]
         # eg: [1024, 1, 50]
-        x = x
         x = x.unsqueeze(1)
         x = self.conv1(x)
         # x (aka output of conv1) shape is [batch_size, out_channels=16, window_size-kernel+1]
@@ -215,7 +212,7 @@ class SAED(BaseModel):
         return out
 
 
-class SimpleGru(nn.Module):
+class SimpleGru(BaseModel):
 
     def __init__(self, hidden_dim=16, dropout=0, lr=None):
         super(SimpleGru, self).__init__()
@@ -315,7 +312,6 @@ class FNETBLock(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, mask=None):
-        x = x
         # fft_out = torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2).real
         fft_out = torch.fft.fft(x, dim=-1)
         fft_out = torch.abs(fft_out)

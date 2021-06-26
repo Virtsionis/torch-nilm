@@ -43,7 +43,11 @@ class VIBNet(BaseModel):
             mu = expand(mu)
             std = expand(std)
 
-        eps = Variable(cuda(std.data.new(std.size()).normal_(std=0.01), std.is_cuda))
+        noise_distribution = torch.distributions.LogNormal(0, 0.001)
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+        eps = noise_distribution.sample(std.size()).to(device)
+        # eps = Variable(cuda(std.data.new(std.size()).normal_(std=0.01), std.is_cuda))
 
         return mu + eps * std
 

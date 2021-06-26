@@ -62,7 +62,7 @@ class TrainingToolsFactory:
 
 class ClassicTrainingTools(pl.LightningModule):
 
-    def __init__(self, model: BaseModel, model_hparams, eval_params):
+    def __init__(self, model: BaseModel, model_hparams, eval_params, learning_rate=0.1):
         """
         Inputs:
             model_name - Name of the model to run. Used for creating the model (see function below)
@@ -70,7 +70,7 @@ class ClassicTrainingTools(pl.LightningModule):
         """
         super().__init__()
         # Exports the hyperparameters to a YAML file, and create "self.hparams" namespace
-        # self.save_hyperparameters()
+        self.save_hyperparameters()
         # Create model
         self.model = model
 
@@ -85,7 +85,11 @@ class ClassicTrainingTools(pl.LightningModule):
         return self.model(x)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters())
+        # print(f"learning rate {self.model.lr}")
+        # print(f"learning rate {self.lr}")
+        # print(f"model params {[p for p in self.model.parameters()]}")
+        # print(f"params {[p for p in self.parameters()]}")
+        return torch.optim.Adam(self.parameters(), self.hparams.learning_rate)
 
     def training_step(self, batch, batch_idx):
         # x must be in shape [batch_size, 1, window_size]
