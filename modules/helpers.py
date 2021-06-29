@@ -149,7 +149,7 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
         test_loader = DataLoader(test_dataset, batch_size=batch_size,
                                  shuffle=False, num_workers=8)
 
-        ground = test_dataset.meterchunk
+        ground = test_dataset.meterchunk.numpy()
         model.set_ground(ground)
 
         trainer.test(model, test_dataloaders=test_loader)

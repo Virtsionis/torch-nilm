@@ -15,7 +15,7 @@ pl.seed_everything(42)
 
 # Ensure that all operations are deterministic on GPU (if used) for reproducibility
 torch.backends.cudnn.determinstic = True
-torch.backends.cudnn.benchmark = False
+# torch.backends.cudnn.benchmark = False
 
 device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
 print("Device:", device)
@@ -32,9 +32,9 @@ def create_model(model_name, model_hparams):
                   'S2P'         : Seq2Point,
                   'SAED'        : SAED,
                   'SimpleGru'   : SimpleGru,
-                  'FFED'        : FFED,
+                  # 'FFED'        : FFED,
                   'FNET'        : FNET,
-                  'ConvFourier' : ConvFourier,
+                  # 'ConvFourier' : ConvFourier,
                   'VIB_SAED'    : VIB_SAED,
                   'VIBFNET'     : VIBFnet,
                   'VIBSeq2Point': VIBSeq2Point}
@@ -62,7 +62,7 @@ class TrainingToolsFactory:
 
 class ClassicTrainingTools(pl.LightningModule):
 
-    def __init__(self, model: BaseModel, model_hparams, eval_params, learning_rate=0.1):
+    def __init__(self, model: BaseModel, model_hparams, eval_params, learning_rate=0.001):
         """
         Inputs:
             model_name - Name of the model to run. Used for creating the model (see function below)
@@ -89,7 +89,7 @@ class ClassicTrainingTools(pl.LightningModule):
         # print(f"learning rate {self.lr}")
         # print(f"model params {[p for p in self.model.parameters()]}")
         # print(f"params {[p for p in self.parameters()]}")
-        return torch.optim.Adam(self.parameters(), self.hparams.learning_rate)
+        return torch.optim.Adam(self.parameters())
 
     def training_step(self, batch, batch_idx):
         # x must be in shape [batch_size, 1, window_size]

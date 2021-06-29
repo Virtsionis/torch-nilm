@@ -31,16 +31,19 @@ dev_list = ['fridge',
 mod_list = [
     #             'SF2P',
     # 'S2P',
-                'SimpleGru',
+    #             'SimpleGru',
     #             'FFED',
-                'SAED',
-                'FNET',
-                'WGRU',
+    #             'SAED',
+    #             'FNET',
+    #             'WGRU',
     # 'ConvFourier',
-    # 'VIB_SAED',
-    # 'VIBFNET',
-    # 'VIBSeq2Point',
+    'VIB_SAED',
+    'VIBFNET',
+    'VIBSeq2Point',
 ]
+# REFIT,5,2014-09-01,2014-10-01
+# REFIT,6,2014-09-01,2014-10-01
+# REFIT,20,2015-01-01,2015-02-01
 cat_list = [x for x in ['Single', 'Multi']]
 tree_levels = {'root': ROOT, 'l1': ['results'], 'l2': dev_list, 'l3': mod_list, 'experiments': cat_list}
 create_tree_dir(tree_levels=tree_levels, clean=clean)

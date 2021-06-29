@@ -117,7 +117,7 @@ class WGRU(BaseModel):
         self.drop = dropout
         self.lr = lr
 
-        self.conv1 = _Cnn1(3, 16, kernel_size=4, dropout=self.drop)
+        self.conv1 = _Cnn1(1, 16, kernel_size=4, dropout=self.drop)
 
         self.b1 = nn.GRU(16, 64, batch_first=True,
                          bidirectional=True,
