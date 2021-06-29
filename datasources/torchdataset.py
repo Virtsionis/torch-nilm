@@ -168,10 +168,6 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
         super().__init__(datasource, building, device,
                          dates[0], dates[1], window_size, mmax,
                          sample_period, chunksize)
-        if test:
-            self.mmax = mmax
-        else:
-            self.mmax = None
 
     def __len__(self):
         return len(self.mainchunk)
