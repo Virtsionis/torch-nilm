@@ -42,6 +42,8 @@ def NILM_metrics(pred, ground, threshold=40, mmax=None, round_digit=3):
     if mmax:
         threshold = threshold/mmax
 
+    print(f"Threshold {threshold}")
+
     if torch.is_tensor(pred):
         pr = pred.numpy()
     else:

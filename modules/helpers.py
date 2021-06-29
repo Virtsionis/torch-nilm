@@ -2,17 +2,18 @@ import os, shutil
 import pandas as pd
 import numpy as np
 import pytorch_lightning as pl
-from modules.MyTrainer import NILMTrainer
 from torch.utils.data import DataLoader
 
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityIterableDataset, ElectricityDataset
+from lab.training_tools import TrainingToolsFactory
+
 
 def create_tree_dir(tree_levels={}, clean=False):
     tree_gen = (level for level in tree_levels)
     level = next(tree_gen)
     end = False
-    if level=='root':
+    if level == 'root':
         print(level)
         root_path = os.getcwd() + '/' + tree_levels[level]
         if clean and os.path.exists(root_path):
@@ -37,18 +38,18 @@ def create_tree_dir(tree_levels={}, clean=False):
                         paths.append(path)
             base_paths = paths
         except:
-            end=True
+            end = True
     print(1)
+
 
 def save_report(root_dir=None, model_name=None, device=None, exp_type=None,
                 experiment_name=None, iteration=None, results={},
                 preds=None, ground=None):
-
     root_dir = os.getcwd() + '/' + root_dir
-    path = '/'.join([root_dir,'results',device,model_name,
-                     exp_type,experiment_name,''])
+    path = '/'.join([root_dir, 'results', device, model_name,
+                     exp_type, experiment_name, ''])
     report_filename = 'REPORT_' + experiment_name + '.csv'
-    data_filename = experiment_name + '_iter_' + str(iteration)+'.csv'
+    data_filename = experiment_name + '_iter_' + str(iteration) + '.csv'
 
     print('Report saved at: ', path)
 
@@ -56,40 +57,40 @@ def save_report(root_dir=None, model_name=None, device=None, exp_type=None,
         os.mkdir(path)
 
     if report_filename in os.listdir(path):
-        report = pd.read_csv(path+report_filename)
+        report = pd.read_csv(path + report_filename)
     else:
-        cols = ['recall','f1','precision',
-                'accuracy','MAE','RETE']
+        cols = ['recall', 'f1', 'precision',
+                'accuracy', 'MAE', 'RETE']
         report = pd.DataFrame(columns=cols)
     report = report.append(results, ignore_index=True)
     report.fillna(np.nan, inplace=True)
-    report.to_csv(path+report_filename, index=False)
+    report.to_csv(path + report_filename, index=False)
 
-    cols = ['ground','preds']
+    cols = ['ground', 'preds']
     res_data = pd.DataFrame(list(zip(ground, preds)),
                             columns=cols)
-    res_data.to_csv(path+data_filename, index=False)
+    res_data.to_csv(path + data_filename, index=False)
+
 
 def display_res(root_dir=None, model_name=None, device=None,
                 exp_type=None, experiment_name=None, iteration=None,
                 low_lim=None, upper_lim=None):
-
-    if low_lim>upper_lim:
+    if low_lim > upper_lim:
         low_lim, upper_lim = upper_lim, low_lim
 
     root_dir = os.getcwd() + '/' + root_dir
 
-    path = '/'.join([root_dir,'results',device,model_name,
-                     exp_type,experiment_name,''])
+    path = '/'.join([root_dir, 'results', device, model_name,
+                     exp_type, experiment_name, ''])
 
     if os.path.exists(path):
         report_filename = 'REPORT_' + experiment_name + '.csv'
-        data_filename = experiment_name + '_iter_' + str(iteration)+'.csv'
+        data_filename = experiment_name + '_iter_' + str(iteration) + '.csv'
 
         report = pd.read_csv(path + report_filename)
 
         if int(iteration) > 0:
-            print(report.iloc[int(iteration)-1:int(iteration)])
+            print(report.iloc[int(iteration) - 1:int(iteration)])
         else:
             print(report.iloc[int(iteration)])
         data = pd.read_csv(path + data_filename)
@@ -98,8 +99,9 @@ def display_res(root_dir=None, model_name=None, device=None,
 
 
 def final_device_report(root_dir=None, model_name=None, device=None, exp_type=None,
-                experiment_name=None, iteration=None,):
+                        experiment_name=None, iteration=None, ):
     pass
+
 
 def train_model(model_name, train_loader, test_loader,
                 epochs=5, **kwargs):
@@ -107,9 +109,8 @@ def train_model(model_name, train_loader, test_loader,
     Inputs:
         model_name - Name of the model you want to run. Is used to look up the class in "model_dict"
     """
-    trainer = pl.Trainer(gpus=1,max_epochs=epochs)
-
-    model = NILMTrainer(model_name=model_name,**kwargs)
+    trainer = pl.Trainer(gpus=1, max_epochs=epochs)
+    model = TrainingToolsFactory.build_and_equip_model(model_name=model_name, **kwargs)
     trainer.fit(model, train_loader)
 
     test_result = trainer.test(model, test_dataloaders=test_loader)
@@ -120,7 +121,7 @@ def train_model(model_name, train_loader, test_loader,
 
 
 def train_eval(model_name, train_loader, exp_type, tests_params,
-               sample_period, batch_size,experiment_name, iteration,
+               sample_period, batch_size, experiment_name, iteration,
                device, mmax, window_size, root_dir, data_dir,
                epochs=5, **kwargs):
     """
@@ -128,31 +129,27 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
         model_name - Name of the model you want to run.
             It's used to look up the class in "model_dict"
     """
-    trainer = pl.Trainer(gpus=1,max_epochs=epochs)
-
-
-    model = NILMTrainer(model_name=model_name,**kwargs)
-
+    trainer = pl.Trainer(gpus=1, max_epochs=epochs, auto_lr_find=True)
+    model = TrainingToolsFactory.build_and_equip_model(model_name=model_name, **kwargs)
     trainer.fit(model, train_loader)
 
     for i in range(len(tests_params)):
-
         building = tests_params['test_house'][i]
         dataset = tests_params['test_set'][i]
         dates = tests_params['test_date'][i]
-        print(80*'#')
+        print(80 * '#')
         print('Evaluate house {} of {} for {}'.format(building, dataset, dates))
-        print(80*'#')
+        print(80 * '#')
 
         datasource = DatasourceFactory.create_datasource(dataset)
         test_dataset = ElectricityDataset(datasource=datasource, building=int(building),
-                               window_size=window_size, device=device,
-                               dates=dates, sample_period=sample_period)
+                                          window_size=window_size, device=device,
+                                          dates=dates, sample_period=sample_period)
 
         test_loader = DataLoader(test_dataset, batch_size=batch_size,
-                                shuffle=False, num_workers=8)
+                                 shuffle=False, num_workers=8)
 
-        ground = test_dataset.meterchunk
+        ground = test_dataset.meterchunk.numpy()
         model.set_ground(ground)
 
         trainer.test(model, test_dataloaders=test_loader)
@@ -160,6 +157,6 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
         results = test_result['metrics']
         preds = test_result['preds']
         final_experiment_name = experiment_name + 'test_' + building + '_' + dataset
-        save_report(root_dir, model_name, device, exp_type,final_experiment_name,
+        save_report(root_dir, model_name, device, exp_type, final_experiment_name,
                     iteration, results, preds, ground)
         del test_dataset, test_loader, ground, final_experiment_name

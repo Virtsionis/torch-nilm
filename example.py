@@ -3,7 +3,6 @@ import pandas as pd
 
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityDataset
-from modules.MyTrainer import NILMTrainer
 from modules.helpers import create_tree_dir, save_report, train_model, display_res, train_eval
 from torch.utils.data import Dataset, DataLoader
 
@@ -12,7 +11,7 @@ from modules.MyDataSet import MyChunk, MyChunkList
 with torch.no_grad():
     torch.cuda.empty_cache()
 
-clean = True
+clean = False
 ROOT = 'output'
 data_dir = '../Datasets'
 train_file_dir = 'dates/train/'
@@ -31,14 +30,20 @@ dev_list = ['fridge',
             ]
 mod_list = [
     #             'SF2P',
-    #             'S2P',
+    # 'S2P',
     #             'SimpleGru',
     #             'FFED',
     #             'SAED',
     #             'FNET',
     #             'WGRU',
-    'ConvFourier'
+    # 'ConvFourier',
+    'VIB_SAED',
+    'VIBFNET',
+    'VIBSeq2Point',
 ]
+# REFIT,5,2014-09-01,2014-10-01
+# REFIT,6,2014-09-01,2014-10-01
+# REFIT,20,2015-01-01,2015-02-01
 cat_list = [x for x in ['Single', 'Multi']]
 tree_levels = {'root': ROOT, 'l1': ['results'], 'l2': dev_list, 'l3': mod_list, 'experiments': cat_list}
 create_tree_dir(tree_levels=tree_levels, clean=clean)
@@ -51,18 +56,22 @@ ITERATIONS = 1
 SAMPLE_PERIOD = 6
 WINDOW = 50
 device = 'fridge'
-BATCH = 1024
+BATCH = 512
 
 model_hparams = {
-    'SimpleGru'  : {},
-    'SAED'       : {'window_size': WINDOW},
-    'FFED'       : {},
-    'WGRU'       : {'dropout': 0.25},
-    'S2P'        : {'window_size': WINDOW, 'dropout': 0.25},
-    'ConvFourier': {'window_size': WINDOW, 'dropout': 0.25},
-    'SF2P'       : {'window_size': WINDOW, 'dropout': 0.25},
-    'FNET'       : {'depth'    : 2, 'kernel_size': 5, 'cnn_dim': 64,
-                    'input_dim': WINDOW, 'hidden_dim': WINDOW * 8, 'dropout': 0.25}
+    'SimpleGru'   : {},
+    'SAED'        : {'window_size': WINDOW},
+    'FFED'        : {},
+    'WGRU'        : {'dropout': 0.25},
+    'S2P'         : {'window_size': WINDOW, 'dropout': 0.25},
+    'ConvFourier' : {'window_size': WINDOW, 'dropout': 0.25},
+    'SF2P'        : {'window_size': WINDOW, 'dropout': 0.25},
+    'FNET'        : {'depth'    : 2, 'kernel_size': 5, 'cnn_dim': 64,
+                     'input_dim': WINDOW, 'hidden_dim': WINDOW * 8, 'dropout': 0},
+    'VIBSeq2Point': {'window_size': WINDOW, 'dropout': 0},
+    'VIB_SAED'    : {'window_size': WINDOW},
+    'VIBFNET'     : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 64,
+                     'input_dim': WINDOW, 'hidden_dim': WINDOW * 8, 'dropout': 0}
 }
 
 test_houses = []
@@ -92,19 +101,20 @@ if exp_type == 'Single':
     path = data_dir + '/{}/{}.h5'.format(train_set, train_set)
     print(path)
     datasource = DatasourceFactory.create_datasource(train_set)
-    train_dataset = ElectricityDataset(datasource=datasource,
-                                       building=int(train_house),
-                                       device=device,
-                                       start_date=train_dates[0],
-                                       end_date=train_dates[1],
-                                       transform=None,
-                                       window_size=WINDOW,
-                                       mmax=None,
-                                       sample_period=SAMPLE_PERIOD,
-                                       chunksize=1000*BATCH,
-                                       batch_size=BATCH)
-    # train_dataset = MyChunk(path=path, building=int(train_house), window_size=WINDOW,
-    #                         device=device, dates=train_dates, sample_period=SAMPLE_PERIOD)
+    # train_dataset = ElectricityDataset(datasource=datasource,
+    #                                    building=int(train_house),
+    #                                    device=device,
+    #                                    start_date=train_dates[0],
+    #                                    end_date=train_dates[1],
+    #                                    transform=None,
+    #                                    window_size=WINDOW,
+    #                                    mmax=None,
+    #                                    sample_period=SAMPLE_PERIOD,
+    #                                    chunksize=1000*BATCH,
+    #                                    batch_size=BATCH)
+    train_dataset = ElectricityDataset(datasource=datasource, building=int(train_house), window_size=WINDOW,
+                                       device=device, dates=train_dates, sample_period=SAMPLE_PERIOD)
+
 else:
     for line in train_file:
         toks = line.split(',')
@@ -115,7 +125,7 @@ else:
                                 window_size=WINDOW, sample_period=SAMPLE_PERIOD)
 
 train_loader = DataLoader(train_dataset, batch_size=BATCH,
-                          shuffle=False, num_workers=1)
+                          shuffle=True, num_workers=1)
 mmax = train_dataset.mmax
 
 experiments = []

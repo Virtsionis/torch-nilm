@@ -10,12 +10,24 @@ from torch.utils.data import Dataset, IterableDataset
 
 class BaseElectricityDataset(ABC):
 
-    def __init__(self):
-        pass
+    def __init__(self, datasource: Datasource, building, device, start_date,
+                 end_date, window_size=50, mmax=None, sample_period=None,
+                 chunksize: int = 10000):
+        self.building = building
+        self.device = device
+        self.mmax = mmax
+        self.chunksize = chunksize
+        self.start_date = start_date
+        self.end_date = end_date
+        self.sample_period = sample_period
+        self.datasource = datasource
+        self.window_size = window_size
 
-    def _init_generators(self, building, device, start_date,
+        self._init_generators(datasource, building, device, start_date, end_date, sample_period, chunksize)
+
+    def _init_generators(self, datasource: Datasource, building, device, start_date,
                          end_date, sample_period, chunksize):
-
+        self.datasource = datasource
         self.mains_generator = self.datasource.get_mains_generator(start=start_date,
                                                                    end=end_date,
                                                                    sample_period=sample_period,
@@ -79,9 +91,6 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
     def __init__(self, datasource: Datasource, building, device,
                  start_date: str, end_date: str, window_size=50, mmax=None,
                  sample_period=None, chunksize: int = 10000, batch_size=32):
-
-        super(BaseElectricityDataset).__init__()
-
         """
         Args:
             datasource(string): datasource object, indicates to target dataset
@@ -90,19 +99,10 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
             dates(list): list with the start and end(optional) dates for training window [start, end]
                         eg:['2016-04-01','2017-04-01']
         """
-        self.building = building
-        self.device = device
-        self.mmax = mmax
+        super().__init__(datasource, building, device,
+                         start_date, end_date, window_size, mmax,
+                         sample_period, chunksize, batch_size)
         self.batch_size = batch_size
-        self.chunksize = chunksize
-        self.start_date = start_date
-        self.end_date = end_date
-        self.sample_period = sample_period
-
-        self.datasource = datasource
-        self.window_size = window_size
-
-        self._init_generators(building, device, start_date, end_date, sample_period, chunksize)
 
     def __iter__(self) -> Iterator[T_co]:
         worker_info = torch.utils.data.get_worker_info()
@@ -155,30 +155,19 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
     """ElectricityDataset dataset."""
 
     def __init__(self, datasource, building, device, dates=None,
-                 window_size=50, test=False, chunksize=None,
-                 mmax=None, sample_period=None,**load_kwargs):
-        super(BaseElectricityDataset).__init__()
+                 window_size=50, test=False, chunksize=10 ** 6,
+                 mmax=None, sample_period=None, **load_kwargs):
         """
         Args:
-            datasource(string): datasource object, indicates to target dataset
+            datasource(Datasource): datasource object, indicates to target dataset
             building(int): the desired building
             device(string): the desired device
             dates(list): list with the start and end(optional) dates for training window [start, end]
                         eg:['2016-04-01','2017-04-01']
         """
-        if test:
-            self.mmax = mmax
-        else:
-            self.mmax = None
-
-        self.sample_period = sample_period
-        self.datasource = datasource
-        self.building = building
-        self.device = device
-        self.window_size = window_size
-
-        self._init_generators(building, device, start_date=dates[0], end_date=dates[1],
-                              sample_period=sample_period, chunksize=10**6)
+        super().__init__(datasource, building, device,
+                         dates[0], dates[1], window_size, mmax,
+                         sample_period, chunksize)
 
     def __len__(self):
         return len(self.mainchunk)
