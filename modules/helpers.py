@@ -5,6 +5,7 @@ import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 from modules.MyTrainer import NILMTrainer
 from datasources.datasource import DatasourceFactory
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from datasources.torchdataset import ElectricityIterableDataset, ElectricityDataset
 
 from pytorch_lightning.loggers import WandbLogger
@@ -122,28 +123,42 @@ def train_model(model_name, train_loader, test_loader,
 
 def train_eval(model_name, train_loader, exp_type, tests_params,
                sample_period, batch_size,experiment_name, iteration,
-               device, mmax, window_size, root_dir, data_dir,
+               device, mmax, window_size, root_dir, val_loader=None,
                epochs=5, saveReport=True, logger=True, **kwargs):
     """
     Inputs:
         model_name - Name of the model you want to run.
             It's used to look up the class in "model_dict"
     """
+    early_stop_callback = EarlyStopping(
+                            monitor='val_loss',
+                            patience=epochs,
+                            mode='min',
+                            min_delta=5e-5,
+                            # mode='auto',
+                            check_finite=True,
+                            # stopping_threshold=0.0002,
+                            # divergence_threshold=0.0001,
+                            check_on_train_epoch_end=True,
+                            verbose=True
+                        )
+
     if logger:
         wandb_logger = WandbLogger(name=experiment_name,project='50 epochs comparison')
         trainer = pl.Trainer(gpus=1,
-                            max_epochs=epochs,
-                            logger=wandb_logger,
-                            #log_save_interval=10
+                             max_epochs=epochs,
+                             logger=wandb_logger,
+                             callbacks=[early_stop_callback],
                             )
     else:
         trainer = pl.Trainer(gpus=1,
-                            max_epochs=epochs,
+                             max_epochs=epochs,
+                             callbacks=[early_stop_callback],
                             )
 
     model = NILMTrainer(model_name=model_name,**kwargs)
 
-    trainer.fit(model, train_loader)
+    trainer.fit(model, train_loader, val_loader)
 
     for i in range(len(tests_params)):
 
@@ -156,11 +171,11 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
 
         datasource = DatasourceFactory.create_datasource(dataset)
         test_dataset = ElectricityDataset(datasource=datasource, building=int(building),
-                               window_size=window_size, device=device,
-                               dates=dates, sample_period=sample_period)
+                                          window_size=window_size, device=device, mmax=mmax,
+                                          dates=dates, sample_period=sample_period)
 
         test_loader = DataLoader(test_dataset, batch_size=batch_size,
-                                shuffle=False, num_workers=8)
+                                 shuffle=False, num_workers=8)
 
         ground = test_dataset.meterchunk
         model.set_ground(ground)

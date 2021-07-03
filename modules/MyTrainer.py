@@ -74,14 +74,23 @@ class NILMTrainer(pl.LightningModule):
         outputs = self(x)
         loss = F.mse_loss(outputs.squeeze(1), y)
 
-        tensorboard_logs = {'train_loss': loss}
+        tensorboard_logs = {'loss': loss}
         return {'loss': loss, 'log': tensorboard_logs}
 
     def train_epoch_end(self, outputs):
         # outputs is a list of whatever you returned in `training_step`
-        train_loss = torch.stack([x['loss'] for x in outputs]).mean()
-        tensorboard_logs = {'train_loss': train_loss}
-        self.log("train_loss", train_loss, 'log', tensorboard_logs)
+        train_avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
+        tensorboard_logs = {'train_avg_loss': train_avg_loss}
+        self.log("train_avg_loss", train_avg_loss, 'log', tensorboard_logs)
+        return {'train_avg_loss': train_avg_loss, 'log': tensorboard_logs}
+
+    def validation_step(self, batch, batch_idx):
+        # x must be in shape [batch_size, 1, window_size]
+        x, y = batch
+        # Forward pass
+        outputs = self(x)
+        val_loss = F.mse_loss(outputs.squeeze(1), y)
+        self.log('val_loss', val_loss)
 
     def test_step(self, batch, batch_idx):
         x, y = batch

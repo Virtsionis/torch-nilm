@@ -19,23 +19,23 @@ train_file_dir = 'dates2/train/'
 test_file_dir = 'dates2/test/'
 
 dev_list = [
-            # 'dish washer',
+            # 'kettle',
+            # 'fridge',
             # 'microwave',
             # 'washing machine',
-            # 'kettle',
+            'dish washer',
 #             'tumble dryer',
-            # 'fridge',
 #             'washer dryer',
-            # 'television',
             # 'computer',
-            'electric space heater'
+            # 'electric space heater',
+            # 'television',
            ]
 mod_list = [
-#             'PAF'
+            # 'PAF',
             # 'PAFnet',
             # 'S2P',
-            # 'SimpleGru',
             'SAED',
+            'SimpleGru',
             # 'FFED',
             # 'WGRU',
             # 'FNET',
@@ -46,17 +46,17 @@ tree_levels = {'root': ROOT, 'l1': ['results'], 'l2': dev_list, 'l3': mod_list, 
 create_tree_dir(tree_levels=tree_levels, clean=clean)
 
 # Experiment Settings
-exp_type = 'Multi'#'Single'
+exp_type = 'Single'#'Multi'#
 
-EPOCHS = 1
+EPOCHS = 5
 ITERATIONS = 1
 SAVE_REPORT = False
 LOGGER = False
 
-SAMPLE_PERIOD = 10
+SAMPLE_PERIOD = 6
 
 BATCH = 512
-dropout = 0.5
+dropout = 0.001
 
 windows = {
             'fridge': 50,
@@ -129,11 +129,12 @@ for device in dev_list:
             train_set = toks[0]
             break
         train_file.close()
-        print('ELAAAAA',str(train_filename))
         train_dataset = MyChunkList(device,filename=str(train_filename),
                                     window_size=WINDOW, sample_period=SAMPLE_PERIOD)
 
-    train_loader = DataLoader(train_dataset, batch_size=BATCH, 
+    val_loader = DataLoader(train_dataset, batch_size=BATCH,
+                             shuffle=False, num_workers=8)
+    train_loader = DataLoader(train_dataset, batch_size=BATCH,
                               shuffle=True, num_workers=8)
     mmax = train_dataset.mmax
 
@@ -166,7 +167,7 @@ for device in dev_list:
                        mmax,
                        WINDOW,
                        ROOT,
-                       data_dir,
+                       val_loader=val_loader,
                        epochs=EPOCHS,
                        saveReport=SAVE_REPORT,
                        logger=LOGGER,
