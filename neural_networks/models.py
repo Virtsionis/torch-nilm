@@ -312,9 +312,73 @@ class FNETBLock(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, mask=None):
+        fft_out = torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2).real
+        # fft_out = torch.fft.fft(x, dim=-1)
+        # fft_out = torch.abs(fft_out)
+        x = x + self.dropout(fft_out)
+        x = self.norm1(x)
+
+        # MLP part
+        linear_out = self.linear_net(x)
+        x = x + self.dropout(linear_out)
+        x = self.norm2(x)
+
+        return x
+
+
+class ShortFNETBLock(nn.Module):
+
+    def __init__(self, input_dim, hidden_dim, dropout=0.0):
+        """
+        Inputs:
+            input_dim - Dimensionality of the input (seq_len)
+            hidden_dim - Dimensionality of the hidden layer in the MLP
+            dropout - Dropout probability to use in the dropout layers
+        """
+        super().__init__()
+
+        # Two-layer MLP
+        self.linear_net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.Dropout(dropout),
+            nn.ReLU(inplace=True),
+            nn.Linear(hidden_dim, input_dim)
+        )
+
+        # Layers to apply in between the main layers
+        self.norm1 = nn.LayerNorm(input_dim)
+        self.norm2 = nn.LayerNorm(input_dim)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x, mask=None):
+        """
+        stft-torch.Size([1024, 17, 201, 2])     torch.stft(xf, n_fft=xdim2)
+             torch.Size([1024, 26, 134, 2])
+             torch.Size([1024, 26, 33, 2])
+        2nd fft-torch.Size([1024, 17, 201, 2])  torch.fft.fft(stft, dim=-2).real
+        1st fft-torch.Size([1024, 32, 50])      torch.fft.fft(x, dim=-1).shape
+        double fft-torch.Size([1024, 32, 50])   torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2).real
+        """
+        # print(f"x shape {x.shape}")  x shape torch.Size([1024, 32, 50])
+        batch = x.shape[0]
+        xdim2 = x.shape[1]
+        xdim3 = x.shape[2]
+        xf = x.reshape((batch, xdim2 * xdim3))
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        # windowvalues = torch.hann_window(xdim3, device=device)
+        # windowvalues = torch.blackman_window(xdim3, device=device)
+        windowvalues = torch.kaiser_window(window_length=xdim3, periodic=True, beta=5.0, device=device)
+        # windowvalues = torch.bartlett_window(xdim3, device=device)
+        # windowvalues = torch.normal(0, 0.1, size=(1, xdim3), device=device).ravel()
+        fft_out = torch.stft(xf, n_fft=xdim3, normalized=False, window=windowvalues)
+        fft_out = fft_out.reshape((batch, -1))[:, -xdim2*xdim3:].reshape((batch, xdim2, xdim3))
+        # print(f"shape {fft_out.shape}")
+        fft_out = torch.fft.fft(fft_out, dim=-2).real
+        # x = self.dropout(fft_out)
+
         # fft_out = torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2).real
-        fft_out = torch.fft.fft(x, dim=-1)
-        fft_out = torch.abs(fft_out)
+        # fft_out = torch.fft.fft(x, dim=-1)
+        # fft_out = torch.abs(fft_out)
         x = x + self.dropout(fft_out)
         x = self.norm1(x)
 
@@ -338,7 +402,7 @@ class FNET(BaseModel):
         self.conv = _Cnn1(1, cnn_dim, kernel_size=kernel_size, dropout=self.drop)
         self.pool = nn.LPPool1d(norm_type=2, kernel_size=2, stride=2)
 
-        self.fnet_layers = nn.ModuleList([FNETBLock(**block_args) for _ in range(depth)])
+        self.fnet_layers = nn.ModuleList([ShortFNETBLock(**block_args) for _ in range(depth)])
 
         self.flat = nn.Flatten()
         self.dense1 = _Dense(self.dense_in, cnn_dim, self.drop)

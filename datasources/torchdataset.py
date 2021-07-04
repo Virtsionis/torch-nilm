@@ -11,11 +11,17 @@ from torch.utils.data import Dataset, IterableDataset
 class BaseElectricityDataset(ABC):
 
     def __init__(self, datasource: Datasource, building, device, start_date,
-                 end_date, window_size=50, mmax=None, sample_period=None,
+                 end_date, window_size=50, mmax=None,
+                 means=None, stds=None, meter_means=None, meter_stds=None,
+                 sample_period=None,
                  chunksize: int = 10000):
         self.building = building
         self.device = device
         self.mmax = mmax
+        self.means = means
+        self.stds = stds
+        self.meter_means = meter_means
+        self.meter_stds = meter_stds
         self.chunksize = chunksize
         self.start_date = start_date
         self.end_date = end_date
@@ -50,7 +56,8 @@ class BaseElectricityDataset(ABC):
             meterchunk = next(self.appliance_generator)
 
             mainchunk, meterchunk = self._align_chunks(mainchunk, meterchunk)
-            mainchunk, meterchunk = self._normalize_chunks(mainchunk, meterchunk)
+            # mainchunk, meterchunk = self._normalize_chunks(mainchunk, meterchunk)
+            mainchunk, meterchunk = self._standardize_chunks(mainchunk, meterchunk)
             mainchunk, meterchunk = self._replace_nans(mainchunk, meterchunk)
             mainchunk, meterchunk = self._apply_rolling_window(mainchunk, meterchunk)
             self.mainchunk, self.meterchunk = torch.from_numpy(np.array(mainchunk)), torch.from_numpy(
@@ -76,6 +83,19 @@ class BaseElectricityDataset(ABC):
         meterchunk = meterchunk / self.mmax
         return mainchunk, meterchunk
 
+    def _standardize_chunks(self, mainchunk, meterchunk):
+        if self.means is None and self.stds is None:
+            self.means = mainchunk.mean()
+            self.stds = mainchunk.std()
+
+        if self.meter_means is None and self.meter_stds is None:
+            self.meter_means = meterchunk.mean()
+            self.meter_stds = meterchunk.std()
+
+        mainchunk = (mainchunk - self.means) / self.stds
+        meterchunk = (meterchunk - self.meter_means) / self.meter_stds
+        return mainchunk, meterchunk
+
     def _align_chunks(self, mainchunk, meterchunk):
         mainchunk = mainchunk[~mainchunk.index.duplicated()]
         meterchunk = meterchunk[~meterchunk.index.duplicated()]
@@ -89,7 +109,8 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
     """ElectricityIterableDataset dataset."""
 
     def __init__(self, datasource: Datasource, building, device,
-                 start_date: str, end_date: str, window_size=50, mmax=None,
+                 start_date: str, end_date: str, window_size=50, mmax=None, means=None, stds=None,
+                 meter_means=None, meter_stds=None,
                  sample_period=None, chunksize: int = 10000, batch_size=32):
         """
         Args:
@@ -101,6 +122,7 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
         """
         super().__init__(datasource, building, device,
                          start_date, end_date, window_size, mmax,
+                         means, stds, meter_means, meter_stds,
                          sample_period, chunksize, batch_size)
         self.batch_size = batch_size
 
@@ -156,7 +178,8 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
 
     def __init__(self, datasource, building, device, dates=None,
                  window_size=50, test=False, chunksize=10 ** 6,
-                 mmax=None, sample_period=None, **load_kwargs):
+                 mmax=None, means=None, stds=None, meter_means=None, meter_stds=None,
+                 sample_period=None, **load_kwargs):
         """
         Args:
             datasource(Datasource): datasource object, indicates to target dataset
@@ -167,6 +190,7 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
         """
         super().__init__(datasource, building, device,
                          dates[0], dates[1], window_size, mmax,
+                         means, stds, meter_means, meter_stds,
                          sample_period, chunksize)
 
     def __len__(self):

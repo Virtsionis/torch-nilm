@@ -34,12 +34,12 @@ mod_list = [
     #             'SimpleGru',
     #             'FFED',
     #             'SAED',
-    #             'FNET',
+                'FNET',
     #             'WGRU',
     # 'ConvFourier',
-    'VIB_SAED',
+    # 'VIB_SAED',
     'VIBFNET',
-    'VIBSeq2Point',
+    # 'VIBSeq2Point',
 ]
 # REFIT,5,2014-09-01,2014-10-01
 # REFIT,6,2014-09-01,2014-10-01
@@ -50,13 +50,13 @@ create_tree_dir(tree_levels=tree_levels, clean=clean)
 
 exp_type = 'Single'  # 'Multi'
 
-EPOCHS = 5
+EPOCHS = 1
 ITERATIONS = 1
 
 SAMPLE_PERIOD = 6
 WINDOW = 50
 device = 'fridge'
-BATCH = 512
+BATCH = 1024
 
 model_hparams = {
     'SimpleGru'   : {},
@@ -66,11 +66,11 @@ model_hparams = {
     'S2P'         : {'window_size': WINDOW, 'dropout': 0.25},
     'ConvFourier' : {'window_size': WINDOW, 'dropout': 0.25},
     'SF2P'        : {'window_size': WINDOW, 'dropout': 0.25},
-    'FNET'        : {'depth'    : 2, 'kernel_size': 5, 'cnn_dim': 64,
+    'FNET'        : {'depth'    : 32, 'kernel_size': 5, 'cnn_dim': 64,
                      'input_dim': WINDOW, 'hidden_dim': WINDOW * 8, 'dropout': 0},
     'VIBSeq2Point': {'window_size': WINDOW, 'dropout': 0},
     'VIB_SAED'    : {'window_size': WINDOW},
-    'VIBFNET'     : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 64,
+    'VIBFNET'     : {'depth'    : 32, 'kernel_size': 5, 'cnn_dim': 64,
                      'input_dim': WINDOW, 'hidden_dim': WINDOW * 8, 'dropout': 0}
 }
 
@@ -127,12 +127,16 @@ else:
 train_loader = DataLoader(train_dataset, batch_size=BATCH,
                           shuffle=True, num_workers=1)
 mmax = train_dataset.mmax
+means = train_dataset.means
+stds = train_dataset.stds
 
 experiments = []
 experiment_name = '_'.join([device, exp_type, 'Train', train_set, '', ])
 print(experiment_name)
 eval_params = {'device'     : device,
                'mmax'       : mmax,
+               'means'       : train_dataset.meter_means,
+               'stds'       : train_dataset.meter_stds,
                'groundtruth': ''}
 for model_name in mod_list:
     print('#' * 40)
@@ -154,6 +158,10 @@ for model_name in mod_list:
                    iteration,
                    device,
                    mmax,
+                   means,
+                   stds,
+                   train_dataset.meter_means,
+                   train_dataset.meter_stds,
                    WINDOW,
                    ROOT,
                    data_dir,

@@ -122,7 +122,8 @@ def train_model(model_name, train_loader, test_loader,
 
 def train_eval(model_name, train_loader, exp_type, tests_params,
                sample_period, batch_size, experiment_name, iteration,
-               device, mmax, window_size, root_dir, data_dir,
+               device, mmax, means, stds, meter_means, meter_stds,
+               window_size, root_dir, data_dir,
                epochs=5, **kwargs):
     """
     Inputs:
@@ -144,7 +145,9 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
         datasource = DatasourceFactory.create_datasource(dataset)
         test_dataset = ElectricityDataset(datasource=datasource, building=int(building),
                                           window_size=window_size, device=device,
-                                          dates=dates, sample_period=sample_period)
+                                          dates=dates, mmax=mmax, means=means, stds=stds,
+                                          meter_means=meter_means, meter_stds=meter_stds,
+                                          sample_period=sample_period)
 
         test_loader = DataLoader(test_dataset, batch_size=batch_size,
                                  shuffle=False, num_workers=8)

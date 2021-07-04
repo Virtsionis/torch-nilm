@@ -132,9 +132,13 @@ class ClassicTrainingTools(pl.LightningModule):
                                     self.eval_params['mmax'], \
                                     self.eval_params['groundtruth']
 
+        means = self.eval_params['means']
+        stds = self.eval_params['stds']
         res = NILM_metrics(pred=self.final_preds,
                            ground=groundtruth,
                            mmax=mmax,
+                           means=means,
+                           stds=stds,
                            threshold=ON_THRESHOLDS[device])
 
         results = {'model'  : self.model_name,
