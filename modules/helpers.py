@@ -1,3 +1,4 @@
+import torch
 import os, shutil
 import numpy as np
 import pandas as pd
@@ -95,6 +96,11 @@ def display_res(root_dir=None, model_name=None, device=None,
         else:
             print(report.iloc[int(iteration)])
         data = pd.read_csv(path + data_filename)
+
+        if 'object' in str(data.dtypes[0]):
+            data['ground'] = data['ground'].str.replace('tensor', '', regex=True).str.replace('(', '', regex=True).str.replace(')', '', regex=True)
+            data['ground'] = data['ground'].astype('float64')
+
         data['ground'][low_lim:upper_lim].plot.line()
         data['preds'][low_lim:upper_lim].plot.line()
 
@@ -124,7 +130,7 @@ def train_model(model_name, train_loader, test_loader,
 def train_eval(model_name, train_loader, exp_type, tests_params,
                sample_period, batch_size,experiment_name, iteration,
                device, mmax, window_size, root_dir, val_loader=None,
-               epochs=5, saveReport=True, logger=True, **kwargs):
+               epochs=5, saveReport=True, logger=True, save_model=False, **kwargs):
     """
     Inputs:
         model_name - Name of the model you want to run.
@@ -134,7 +140,7 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
                             monitor='val_loss',
                             patience=epochs,
                             mode='min',
-                            min_delta=5e-5,
+                            min_delta=1e-06,
                             # mode='auto',
                             check_finite=True,
                             # stopping_threshold=0.0002,
@@ -148,17 +154,29 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
         trainer = pl.Trainer(gpus=1,
                              max_epochs=epochs,
                              logger=wandb_logger,
-                             callbacks=[early_stop_callback],
+                            #  callbacks=[early_stop_callback],
                             )
     else:
         trainer = pl.Trainer(gpus=1,
                              max_epochs=epochs,
-                             callbacks=[early_stop_callback],
+                            #  callbacks=[early_stop_callback],
                             )
 
     model = NILMTrainer(model_name=model_name,**kwargs)
 
-    trainer.fit(model, train_loader, val_loader)
+    # trainer.fit(model, train_loader, val_loader)
+    trainer.fit(model, train_loader)
+
+    if save_model:
+        model_path = '/'.join([root_dir,'results',device,
+                               model_name,exp_type,'models',''])
+
+        model_filename = experiment_name + '_iter_' + str(iteration)+'.ckpt'
+
+        if not os.path.exists(model_path):
+            os.mkdir(model_path)
+        trainer.save_checkpoint(model_path + model_filename)
+        print('Model checkpoint saved at: ', model_path)
 
     for i in range(len(tests_params)):
 
@@ -177,7 +195,7 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
         test_loader = DataLoader(test_dataset, batch_size=batch_size,
                                  shuffle=False, num_workers=8)
 
-        ground = test_dataset.meterchunk
+        ground = test_dataset.meterchunk.numpy()
         model.set_ground(ground)
 
         trainer.test(model, test_dataloaders=test_loader)
@@ -189,3 +207,75 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
             save_report(root_dir, model_name, device, exp_type,final_experiment_name,
                         iteration, results, preds, ground)
             del test_dataset, test_loader, ground, final_experiment_name
+
+
+
+
+
+# def train_save(model_name, train_loader, exp_type, root_dir, experiment_name,
+#                iteration, device, epochs=5, **kwargs):
+
+#     trainer = pl.Trainer(gpus=1,
+#                          max_epochs=epochs,
+#                         )
+
+#     model = NILMTrainer(model_name=model_name,**kwargs)
+
+#     trainer.fit(model, train_loader)
+
+#     model_path = '/'.join([root_dir,'results',device,
+#                            model_name,exp_type,'models',''])
+
+#     model_filename = experiment_name + '_iter_' + str(iteration)+'.ckpt'
+#     save_path = model_path + model_filename
+
+#     if not os.path.exists(model_path):
+#         os.mkdir(model_path)
+
+#     trainer.save_checkpoint(save_path)
+#     print('Model checkpoint saved at: ', save_path)
+
+#     return save_path
+
+
+# def eval(model_name, model_path, train_loader, exp_type, tests_params,
+#          sample_period, batch_size,experiment_name, iteration,
+#          device, mmax, window_size, root_dir, val_loader=None,
+#          epochs=5, saveReport=True, logger=True, save_model=False):
+#     """
+#     Inputs:
+#         model_name - Name of the model you want to run.
+#             It's used to look up the class in "model_dict"
+#     """
+#     kwargs = {'file_path': model_path}
+#     model = NILMTrainer(model_name=model_name + '_transfer',**kwargs)
+
+#     for i in range(len(tests_params)):
+
+#         building = tests_params['test_house'][i]
+#         dataset = tests_params['test_set'][i]
+#         dates = tests_params['test_date'][i]
+#         print(80*'#')
+#         print('Evaluate house {} of {} for {}'.format(building, dataset, dates))
+#         print(80*'#')
+
+#         datasource = DatasourceFactory.create_datasource(dataset)
+#         test_dataset = ElectricityDataset(datasource=datasource, building=int(building),
+#                                           window_size=window_size, device=device, mmax=mmax,
+#                                           dates=dates, sample_period=sample_period)
+
+#         test_loader = DataLoader(test_dataset, batch_size=batch_size,
+#                                  shuffle=False, num_workers=8)
+
+#         ground = test_dataset.meterchunk.numpy()
+#         model.set_ground(ground)
+
+#         trainer.test(model, test_dataloaders=test_loader)
+#         if saveReport:
+#             test_result = model.get_res()
+#             results = test_result['metrics']
+#             preds = test_result['preds']
+#             final_experiment_name = experiment_name + 'test_' + building + '_' + dataset
+#             save_report(root_dir, model_name, device, exp_type,final_experiment_name,
+#                         iteration, results, preds, ground)
+#             del test_dataset, test_loader, ground, final_experiment_name

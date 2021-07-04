@@ -12,30 +12,30 @@ from modules.MyDataSet import MyChunkList #,MyChunk
 with torch.no_grad():
     torch.cuda.empty_cache()
 
-clean = True
-ROOT = 'SAED_RESULTS'#'ablation_study'#'output'
+clean = False
+ROOT = 'FINAL_FINAL_ABLATION_10_epochs'#'final_ablation_study'#'ablation_study'#'output'
 data_dir = '/mnt/B40864F10864B450/WorkSpace/PHD/PHD_exps/data'
-train_file_dir = 'dates2/train/'
-test_file_dir = 'dates2/test/'
+train_file_dir = 'dates/train/'
+test_file_dir = 'dates/test/'
 
 dev_list = [
             # 'kettle',
             # 'fridge',
             # 'microwave',
             # 'washing machine',
-            'dish washer',
+            # 'dish washer',
+            # 'computer',
+            'television',
+            'electric space heater',
 #             'tumble dryer',
 #             'washer dryer',
-            # 'computer',
-            # 'electric space heater',
-            # 'television',
            ]
 mod_list = [
             # 'PAF',
             # 'PAFnet',
             # 'S2P',
-            'SAED',
             'SimpleGru',
+            'SAED',
             # 'FFED',
             # 'WGRU',
             # 'FNET',
@@ -48,9 +48,10 @@ create_tree_dir(tree_levels=tree_levels, clean=clean)
 # Experiment Settings
 exp_type = 'Single'#'Multi'#
 
-EPOCHS = 5
-ITERATIONS = 1
-SAVE_REPORT = False
+EPOCHS = 10
+ITERATIONS = 3
+SAVE_REPORT = True
+SAVE_MODEL = False
 LOGGER = False
 
 SAMPLE_PERIOD = 6
@@ -170,6 +171,7 @@ for device in dev_list:
                        val_loader=val_loader,
                        epochs=EPOCHS,
                        saveReport=SAVE_REPORT,
+                       save_model=SAVE_MODEL,
                        logger=LOGGER,
                        eval_params=eval_params,
                        model_hparams=model_hparams[model_name])

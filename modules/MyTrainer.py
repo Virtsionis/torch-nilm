@@ -4,6 +4,7 @@ import pytorch_lightning as pl
 import torch.nn.functional as F
 from modules.NILM_metrics import NILM_metrics
 from modules.models import WGRU, S2P, PAF, PAFnet,  SAED, SimpleGru, FFED, FNET, ConvFourier
+from modules.transfer_models import SAED_transfer
 # Setting the seed
 pl.seed_everything(42)
 
@@ -33,7 +34,9 @@ def create_model(model_name, model_hparams):
                   'SimpleGru':SimpleGru,
                   'FFED':FFED,
                   'FNET':FNET,
-                  'ConvFourier': ConvFourier,}
+                  'ConvFourier': ConvFourier,
+                  'SAED_transfer':SAED_transfer,
+                  }
     if model_name in model_dict:
         return model_dict[model_name](**model_hparams)
     else:
