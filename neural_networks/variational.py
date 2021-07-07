@@ -7,7 +7,7 @@ from torch import nn
 from torch.autograd import Variable
 
 from neural_networks.base_models import BaseModel
-from neural_networks.models import Seq2Point, _Dense, _Cnn1, FNET, SAED
+from neural_networks.models import Seq2Point, _Dense, _Cnn1, FNET, SAED, ShortNeuralFourier
 
 
 def cuda(tensor, is_cuda):
@@ -54,6 +54,41 @@ class VIBNet(BaseModel):
     def weight_init(self):
         for m in self._modules:
             xavier_init(self._modules[m])
+
+
+class VIBShortNeuralFourier(ShortNeuralFourier, VIBNet):
+    def __init__(self, window_size):
+        super().__init__(window_size)
+
+    def forward(self, x, num_sample=1):
+        x = x.unsqueeze(1)
+        x = self.conv(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        # x = self.conv4(x)
+        batch = x.shape[0]
+        xdim2 = x.shape[1]
+        xdim3 = x.shape[2]
+        x = x.reshape((batch, xdim2 * xdim3))
+        xdim3 = self.window_size // 10
+        windowvalues = torch.kaiser_window(window_length=xdim3, periodic=True, beta=5.0, device=self.device)
+        fft_out = torch.stft(x, n_fft=xdim3, normalized=False, window=windowvalues)
+        fft_out = fft_out.reshape((batch, -1))[:, -xdim2 * xdim3:].reshape((batch, xdim2, xdim3))
+        fft_out = torch.fft.fft(fft_out, dim=-2)
+        mu = fft_out.real.reshape((batch, -1))
+        std = fft_out.imag.reshape((batch, -1))
+        std = F.softplus(std, beta=1)
+        encoding = self.reparametrize_n(mu, std, num_sample)
+        logit = self.output(encoding)
+
+        if num_sample == 1:
+            pass
+        elif num_sample > 1:
+            logit = F.softmax(logit, dim=2).mean(0)
+
+        return (mu, std), logit
+        # print(f"Fourier shape {fft_out.real.reshape((batch, -1)).shape}")
+        # return self.output(fft_out.reshape((batch, -1)))
 
 
 class VIB_SAED(SAED, VIBNet):

@@ -34,12 +34,14 @@ mod_list = [
     #             'SimpleGru',
     #             'FFED',
     #             'SAED',
-                'FNET',
+    #             'FNET',
     #             'WGRU',
     # 'ConvFourier',
     # 'VIB_SAED',
-    'VIBFNET',
+    # 'VIBFNET',
     # 'VIBSeq2Point',
+    'ShortNeuralFourier',
+    'VIBShortNeuralFourier'
 ]
 # REFIT,5,2014-09-01,2014-10-01
 # REFIT,6,2014-09-01,2014-10-01
@@ -66,12 +68,14 @@ model_hparams = {
     'S2P'         : {'window_size': WINDOW, 'dropout': 0.25},
     'ConvFourier' : {'window_size': WINDOW, 'dropout': 0.25},
     'SF2P'        : {'window_size': WINDOW, 'dropout': 0.25},
-    'FNET'        : {'depth'    : 32, 'kernel_size': 5, 'cnn_dim': 64,
+    'FNET'        : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 64,
                      'input_dim': WINDOW, 'hidden_dim': WINDOW * 8, 'dropout': 0},
     'VIBSeq2Point': {'window_size': WINDOW, 'dropout': 0},
     'VIB_SAED'    : {'window_size': WINDOW},
-    'VIBFNET'     : {'depth'    : 32, 'kernel_size': 5, 'cnn_dim': 64,
-                     'input_dim': WINDOW, 'hidden_dim': WINDOW * 8, 'dropout': 0}
+    'VIBFNET'     : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 64,
+                     'input_dim': WINDOW, 'hidden_dim': WINDOW * 8, 'dropout': 0},
+    'ShortNeuralFourier': {'window_size': WINDOW},
+    'VIBShortNeuralFourier': {'window_size': WINDOW}
 }
 
 test_houses = []

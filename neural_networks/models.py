@@ -371,7 +371,7 @@ class ShortFNETBLock(nn.Module):
         # windowvalues = torch.bartlett_window(xdim3, device=device)
         # windowvalues = torch.normal(0, 0.1, size=(1, xdim3), device=device).ravel()
         fft_out = torch.stft(xf, n_fft=xdim3, normalized=False, window=windowvalues)
-        fft_out = fft_out.reshape((batch, -1))[:, -xdim2*xdim3:].reshape((batch, xdim2, xdim3))
+        fft_out = fft_out.reshape((batch, -1))[:, -xdim2 * xdim3:].reshape((batch, xdim2, xdim3))
         # print(f"shape {fft_out.shape}")
         fft_out = torch.fft.fft(fft_out, dim=-2).real
         # x = self.dropout(fft_out)
@@ -445,6 +445,39 @@ class FImag(nn.Module):
         # x = torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2)
         x = torch.fft.fft(x, dim=-1)
         return x.imag
+
+
+class ShortNeuralFourier(BaseModel):
+    def __init__(self, window_size):
+        super().__init__()
+        self.window_size = window_size
+        cnn_dim = 128
+        kernel_size = 2
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.conv = _Cnn1(1, 4*cnn_dim, kernel_size=kernel_size, dropout=0)
+        self.conv2 = _Cnn1(4*cnn_dim, 2*cnn_dim, kernel_size=kernel_size, dropout=0)
+        self.conv3 = _Cnn1(2*cnn_dim, cnn_dim, kernel_size=kernel_size, dropout=0)
+        self.conv4 = _Cnn1(cnn_dim, cnn_dim, kernel_size=kernel_size, dropout=0)
+        self.output = nn.Linear(cnn_dim * 5, 1)
+
+    def forward(self, x):
+        # print(f"X shape {x.shape}")
+        x = x.unsqueeze(1)
+        x = self.conv(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        # x = self.conv4(x)
+        batch = x.shape[0]
+        xdim2 = x.shape[1]
+        xdim3 = x.shape[2]
+        x = x.reshape((batch, xdim2 * xdim3))
+        xdim3 = self.window_size // 10
+        windowvalues = torch.kaiser_window(window_length=xdim3, periodic=True, beta=5.0, device=self.device)
+        fft_out = torch.stft(x, n_fft=xdim3, normalized=False, window=windowvalues)
+        fft_out = fft_out.reshape((batch, -1))[:, -xdim2 * xdim3:].reshape((batch, xdim2, xdim3))
+        fft_out = torch.fft.fft(fft_out, dim=-2).real
+        # print(f"Fourier shape {fft_out.real.reshape((batch, -1)).shape}")
+        return self.output(fft_out.reshape((batch, -1)))
 
 
 class ConvFourier(nn.Module):

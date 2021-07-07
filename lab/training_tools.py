@@ -6,10 +6,10 @@ import pytorch_lightning as pl
 import torch.nn.functional as F
 from modules.NILM_metrics import NILM_metrics
 from neural_networks.base_models import BaseModel
-from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, FFED, FNET, ConvFourier
+from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, FFED, FNET, ConvFourier, ShortNeuralFourier
 
 # Setting the seed
-from neural_networks.variational import VIBSeq2Point, ToyNet, VIBFnet, VIB_SAED
+from neural_networks.variational import VIBSeq2Point, ToyNet, VIBFnet, VIB_SAED, VIBShortNeuralFourier
 
 pl.seed_everything(42)
 
@@ -28,16 +28,19 @@ ON_THRESHOLDS = {'dish washer'    : 10,
 
 
 def create_model(model_name, model_hparams):
-    model_dict = {'WGRU'        : WGRU,
-                  'S2P'         : Seq2Point,
-                  'SAED'        : SAED,
-                  'SimpleGru'   : SimpleGru,
+    model_dict = {'WGRU'              : WGRU,
+                  'S2P'               : Seq2Point,
+                  'SAED'              : SAED,
+                  'SimpleGru'         : SimpleGru,
                   # 'FFED'        : FFED,
-                  'FNET'        : FNET,
+                  'FNET'              : FNET,
                   # 'ConvFourier' : ConvFourier,
-                  'VIB_SAED'    : VIB_SAED,
-                  'VIBFNET'     : VIBFnet,
-                  'VIBSeq2Point': VIBSeq2Point}
+                  'VIB_SAED'          : VIB_SAED,
+                  'VIBFNET'           : VIBFnet,
+                  'VIBSeq2Point'      : VIBSeq2Point,
+                  'ShortNeuralFourier': ShortNeuralFourier,
+                  'VIBShortNeuralFourier': VIBShortNeuralFourier,
+                  }
 
     if model_name in model_dict:
         return model_dict[model_name](**model_hparams)
@@ -90,6 +93,7 @@ class ClassicTrainingTools(pl.LightningModule):
         # print(f"model params {[p for p in self.model.parameters()]}")
         # print(f"params {[p for p in self.parameters()]}")
         return torch.optim.Adam(self.parameters())
+        # return torch.optim.SGD(self.parameters(), lr=0.001)
 
     def training_step(self, batch, batch_idx):
         # x must be in shape [batch_size, 1, window_size]
