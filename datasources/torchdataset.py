@@ -6,6 +6,8 @@ from collections import deque
 from torch.utils.data.dataset import T_co
 from datasources.datasource import Datasource
 from torch.utils.data import Dataset, IterableDataset
+from skimage.restoration import denoise_wavelet
+from lab.training_tools import ON_THRESHOLDS
 
 
 class BaseElectricityDataset(ABC):
@@ -28,6 +30,7 @@ class BaseElectricityDataset(ABC):
         self.sample_period = sample_period
         self.datasource = datasource
         self.window_size = window_size
+        self.threshold = ON_THRESHOLDS[device]
 
         self._init_generators(datasource, building, device, start_date, end_date, sample_period, chunksize)
 
@@ -57,8 +60,10 @@ class BaseElectricityDataset(ABC):
 
             mainchunk, meterchunk = self._align_chunks(mainchunk, meterchunk)
             # mainchunk, meterchunk = self._normalize_chunks(mainchunk, meterchunk)
-            mainchunk, meterchunk = self._standardize_chunks(mainchunk, meterchunk)
             mainchunk, meterchunk = self._replace_nans(mainchunk, meterchunk)
+            mainchunk, meterchunk = self._replace_with_zero_small_values(mainchunk, meterchunk, self.threshold)
+            mainchunk, meterchunk = self._denoise(mainchunk, meterchunk)
+            mainchunk, meterchunk = self._standardize_chunks(mainchunk, meterchunk)
             mainchunk, meterchunk = self._apply_rolling_window(mainchunk, meterchunk)
             self.mainchunk, self.meterchunk = torch.from_numpy(np.array(mainchunk)), torch.from_numpy(
                 np.array(meterchunk))
@@ -102,6 +107,16 @@ class BaseElectricityDataset(ABC):
         ix = mainchunk.index.intersection(meterchunk.index)
         mainchunk = mainchunk[ix]
         meterchunk = meterchunk[ix]
+        return mainchunk, meterchunk
+
+    def _replace_with_zero_small_values(self, mainchunk, meterchunk, threshold):
+        mainchunk[mainchunk < threshold] = 0
+        meterchunk[meterchunk < threshold] = 0
+        return mainchunk, meterchunk
+
+    def _denoise(self, mainchunk, meterchunk):
+        mainchunk = denoise_wavelet(mainchunk, wavelet='haar', wavelet_levels=3)
+        meterchunk = denoise_wavelet(meterchunk, wavelet='haar', wavelet_levels=3)
         return mainchunk, meterchunk
 
 

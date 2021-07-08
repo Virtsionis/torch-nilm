@@ -34,14 +34,14 @@ mod_list = [
     #             'SimpleGru',
     #             'FFED',
     #             'SAED',
-    #             'FNET',
+                'FNET',
     #             'WGRU',
     # 'ConvFourier',
     # 'VIB_SAED',
-    # 'VIBFNET',
+    'VIBFNET',
     # 'VIBSeq2Point',
-    'ShortNeuralFourier',
-    'VIBShortNeuralFourier'
+    # 'ShortNeuralFourier',
+    # 'VIBShortNeuralFourier'
 ]
 # REFIT,5,2014-09-01,2014-10-01
 # REFIT,6,2014-09-01,2014-10-01
@@ -56,9 +56,9 @@ EPOCHS = 1
 ITERATIONS = 1
 
 SAMPLE_PERIOD = 6
-WINDOW = 50
+WINDOW = 50 * 10
 device = 'fridge'
-BATCH = 1024
+BATCH = 512
 
 model_hparams = {
     'SimpleGru'   : {},
@@ -68,12 +68,12 @@ model_hparams = {
     'S2P'         : {'window_size': WINDOW, 'dropout': 0.25},
     'ConvFourier' : {'window_size': WINDOW, 'dropout': 0.25},
     'SF2P'        : {'window_size': WINDOW, 'dropout': 0.25},
-    'FNET'        : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 64,
-                     'input_dim': WINDOW, 'hidden_dim': WINDOW * 8, 'dropout': 0},
+    'FNET'        : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+                     'input_dim': WINDOW, 'hidden_dim': WINDOW * 16, 'dropout': 0},
     'VIBSeq2Point': {'window_size': WINDOW, 'dropout': 0},
     'VIB_SAED'    : {'window_size': WINDOW},
-    'VIBFNET'     : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 64,
-                     'input_dim': WINDOW, 'hidden_dim': WINDOW * 8, 'dropout': 0},
+    'VIBFNET'     : {'depth'    : 1, 'kernel_size': 2, 'cnn_dim': 128,
+                     'input_dim': WINDOW, 'hidden_dim': WINDOW * 16, 'dropout': 0},
     'ShortNeuralFourier': {'window_size': WINDOW},
     'VIBShortNeuralFourier': {'window_size': WINDOW}
 }

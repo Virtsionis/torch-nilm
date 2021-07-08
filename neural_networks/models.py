@@ -373,7 +373,9 @@ class ShortFNETBLock(nn.Module):
         fft_out = torch.stft(xf, n_fft=xdim3, normalized=False, window=windowvalues)
         fft_out = fft_out.reshape((batch, -1))[:, -xdim2 * xdim3:].reshape((batch, xdim2, xdim3))
         # print(f"shape {fft_out.shape}")
-        fft_out = torch.fft.fft(fft_out, dim=-2).real
+        fft_out = torch.fft.fft(fft_out, dim=-2)
+        img = fft_out.imag
+        fft_out = fft_out.real
         # x = self.dropout(fft_out)
 
         # fft_out = torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2).real
@@ -387,7 +389,7 @@ class ShortFNETBLock(nn.Module):
         x = x + self.dropout(linear_out)
         x = self.norm2(x)
 
-        return x
+        return x, img
 
 
 class FNET(BaseModel):
@@ -400,6 +402,7 @@ class FNET(BaseModel):
         self.dense_in = self.input_dim * cnn_dim // 2
 
         self.conv = _Cnn1(1, cnn_dim, kernel_size=kernel_size, dropout=self.drop)
+        self.conv2 = _Cnn1(cnn_dim, cnn_dim, kernel_size=kernel_size, dropout=self.drop)
         self.pool = nn.LPPool1d(norm_type=2, kernel_size=2, stride=2)
 
         self.fnet_layers = nn.ModuleList([ShortFNETBLock(**block_args) for _ in range(depth)])
@@ -407,6 +410,7 @@ class FNET(BaseModel):
         self.flat = nn.Flatten()
         self.dense1 = _Dense(self.dense_in, cnn_dim, self.drop)
         self.dense2 = _Dense(cnn_dim, cnn_dim // 2, self.drop)
+
         self.output = nn.Linear(cnn_dim // 2, 1)
 
     def forward(self, x):
@@ -419,7 +423,7 @@ class FNET(BaseModel):
         x = self.pool(x)
         x = x.transpose(1, 2).contiguous()
         for layer in self.fnet_layers:
-            x = layer(x)
+            x, imag = layer(x)
         x = self.flat(x)
         x = self.dense1(x)
         x = self.dense2(x)

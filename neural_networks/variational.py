@@ -43,7 +43,7 @@ class VIBNet(BaseModel):
             mu = expand(mu)
             std = expand(std)
 
-        noise_distribution = torch.distributions.LogNormal(0, 0.001)
+        noise_distribution = torch.distributions.LogNormal(0, 0.01)
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
         eps = noise_distribution.sample(std.size()).to(device)
@@ -156,19 +156,27 @@ class VIBFnet(FNET, VIBNet):
         self.dense2 = _Dense(cnn_dim, 2 * self.K, self.drop)
         self.output = nn.Linear(self.K, 1)
 
+        self.dense3 = _Dense(self.dense_in, cnn_dim, self.drop)
+        self.dense4 = _Dense(cnn_dim, cnn_dim // 2, self.drop)
+
     def forward(self, x, num_sample=1):
         x = x.unsqueeze(1)
         x = self.conv(x)
+
         x = x.transpose(1, 2).contiguous()
         x = self.pool(x)
         x = x.transpose(1, 2).contiguous()
         for layer in self.fnet_layers:
-            x = layer(x)
+            x, imag = layer(x)
         x = self.flat(x)
         x = self.dense1(x)
         statistics = self.dense2(x)
         mu = statistics[:, :self.K]
         std = F.softplus(statistics[:, self.K:], beta=1)
+        # imag = self.flat(imag)
+        # imag = self.dense3(imag)
+        # imag = self.dense4(imag)
+        # std = F.softplus(imag, beta=1)
         encoding = self.reparametrize_n(mu, std, num_sample)
         logit = self.output(encoding)
 
