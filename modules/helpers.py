@@ -44,7 +44,7 @@ def create_tree_dir(tree_levels={}, clean=False):
 
 def save_report(root_dir=None, model_name=None, device=None, exp_type=None,
                 experiment_name=None, iteration=None, results={},
-                preds=None, ground=None, model_hparams=None):
+                preds=None, ground=None, model_hparams=None, epochs=None):
     root_dir = os.getcwd() + '/' + root_dir
     path = '/'.join([root_dir, 'results', device, model_name,
                      exp_type, experiment_name, ''])
@@ -60,9 +60,9 @@ def save_report(root_dir=None, model_name=None, device=None, exp_type=None,
         report = pd.read_csv(path + report_filename)
     else:
         cols = ['recall', 'f1', 'precision',
-                'accuracy', 'MAE', 'RETE', 'hparams']
+                'accuracy', 'MAE', 'RETE', 'epochs', 'hparams']
         report = pd.DataFrame(columns=cols)
-    hparams = {'hparams': model_hparams}
+    hparams = {'hparams': model_hparams, 'epochs': epochs}
     report = report.append({**results, **hparams}, ignore_index=True)
     report.fillna(np.nan, inplace=True)
     report.to_csv(path + report_filename, index=False)
@@ -162,5 +162,5 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
         preds = test_result['preds']
         final_experiment_name = experiment_name + 'test_' + building + '_' + dataset
         save_report(root_dir, model_name, device, exp_type, final_experiment_name,
-                    iteration, results, preds, ground, model_hparams)
+                    iteration, results, preds, ground, model_hparams, epochs)
         del test_dataset, test_loader, ground, final_experiment_name
