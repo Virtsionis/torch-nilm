@@ -34,11 +34,11 @@ mod_list = [
     #             'SimpleGru',
     #             'FFED',
     #             'SAED',
-                'FNET',
-    #             'WGRU',
+    'FNET',
+    # 'WGRU',
     # 'ConvFourier',
     # 'VIB_SAED',
-    'VIBFNET',
+    # 'VIBFNET',
     # 'VIBSeq2Point',
     # 'ShortNeuralFourier',
     # 'VIBShortNeuralFourier'
@@ -52,7 +52,7 @@ create_tree_dir(tree_levels=tree_levels, clean=clean)
 
 exp_type = 'Single'  # 'Multi'
 
-EPOCHS = 1
+EPOCHS = 5
 ITERATIONS = 1
 
 SAMPLE_PERIOD = 6
@@ -61,20 +61,22 @@ device = 'fridge'
 BATCH = 512
 
 model_hparams = {
-    'SimpleGru'   : {},
-    'SAED'        : {'window_size': WINDOW},
-    'FFED'        : {},
-    'WGRU'        : {'dropout': 0.25},
-    'S2P'         : {'window_size': WINDOW, 'dropout': 0.25},
-    'ConvFourier' : {'window_size': WINDOW, 'dropout': 0.25},
-    'SF2P'        : {'window_size': WINDOW, 'dropout': 0.25},
-    'FNET'        : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
-                     'input_dim': WINDOW, 'hidden_dim': WINDOW * 16, 'dropout': 0},
-    'VIBSeq2Point': {'window_size': WINDOW, 'dropout': 0},
-    'VIB_SAED'    : {'window_size': WINDOW},
-    'VIBFNET'     : {'depth'    : 1, 'kernel_size': 2, 'cnn_dim': 128,
-                     'input_dim': WINDOW, 'hidden_dim': WINDOW * 16, 'dropout': 0},
-    'ShortNeuralFourier': {'window_size': WINDOW},
+    'SimpleGru'            : {},
+    'SAED'                 : {'window_size': WINDOW},
+    'FFED'                 : {},
+    'WGRU'                 : {'dropout': 0.25},
+    'S2P'                  : {'window_size': WINDOW, 'dropout': 0.25},
+    'ConvFourier'          : {'window_size': WINDOW, 'dropout': 0.25},
+    'SF2P'                 : {'window_size': WINDOW, 'dropout': 0.25},
+    'FNET'                 : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+                              'input_dim': WINDOW, 'hidden_dim': 50 * 4, 'dropout': 0},
+    'ShortFNET'            : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+                              'input_dim': WINDOW, 'hidden_dim': 50 * 4, 'dropout': 0},
+    'VIBSeq2Point'         : {'window_size': WINDOW, 'dropout': 0},
+    'VIB_SAED'             : {'window_size': WINDOW},
+    'VIBFNET'              : {'depth'    : 16, 'kernel_size': 2, 'cnn_dim': 128,
+                              'input_dim': WINDOW, 'hidden_dim': WINDOW * 2, 'dropout': 0},
+    'ShortNeuralFourier'   : {'window_size': WINDOW},
     'VIBShortNeuralFourier': {'window_size': WINDOW}
 }
 
@@ -139,7 +141,7 @@ experiment_name = '_'.join([device, exp_type, 'Train', train_set, '', ])
 print(experiment_name)
 eval_params = {'device'     : device,
                'mmax'       : mmax,
-               'means'       : train_dataset.meter_means,
+               'means'      : train_dataset.meter_means,
                'stds'       : train_dataset.meter_stds,
                'groundtruth': ''}
 for model_name in mod_list:

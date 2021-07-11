@@ -7,7 +7,7 @@ from torch import nn
 from torch.autograd import Variable
 
 from neural_networks.base_models import BaseModel
-from neural_networks.models import Seq2Point, _Dense, _Cnn1, FNET, SAED, ShortNeuralFourier
+from neural_networks.models import Seq2Point, LinearDropRelu, ConvDropRelu, FNET, SAED, ShortNeuralFourier
 
 
 def cuda(tensor, is_cuda):
@@ -96,7 +96,7 @@ class VIB_SAED(SAED, VIBNet):
                  num_heads=1, dropout=0, lr=None, K=32):
         super(VIB_SAED, self).__init__(window_size, mode, hidden_dim, num_heads, dropout, lr)
         self.K = K
-        self.dense = _Dense(128, 2 * K, self.drop)
+        self.dense = LinearDropRelu(128, 2 * K, self.drop)
         self.output = nn.Linear(K, 1)
 
     def forward(self, x, num_sample=1):
@@ -125,7 +125,7 @@ class VIBSeq2Point(Seq2Point, VIBNet):
     def __init__(self, window_size, dropout=0, lr=None, K=256):
         super(VIBSeq2Point, self).__init__(window_size, dropout, lr)
         self.K = K
-        self.dense = _Dense(self.dense_input, 2 * K, self.drop)
+        self.dense = LinearDropRelu(self.dense_input, 2 * K, self.drop)
         self.output = nn.Linear(K, 1)
 
     def forward(self, x, num_sample=1):
@@ -153,11 +153,11 @@ class VIBFnet(FNET, VIBNet):
         super(VIBFnet, self).__init__(depth, kernel_size, cnn_dim, **block_args)
         # self.K = K
         self.K = cnn_dim // 2
-        self.dense2 = _Dense(cnn_dim, 2 * self.K, self.drop)
+        self.dense2 = LinearDropRelu(cnn_dim, 2 * self.K, self.drop)
         self.output = nn.Linear(self.K, 1)
 
-        self.dense3 = _Dense(self.dense_in, cnn_dim, self.drop)
-        self.dense4 = _Dense(cnn_dim, cnn_dim // 2, self.drop)
+        self.dense3 = LinearDropRelu(self.dense_in, cnn_dim, self.drop)
+        self.dense4 = LinearDropRelu(cnn_dim, cnn_dim // 2, self.drop)
 
     def forward(self, x, num_sample=1):
         x = x.unsqueeze(1)
@@ -200,7 +200,7 @@ class ToyNet(VIBNet):
         self.dense_input = 50 * window_size  # 50 is the out_features of last CNN1
 
         self.encode = nn.Sequential(
-            _Cnn1(1, 50, kernel_size=5, dropout=0),
+            ConvDropRelu(1, 50, kernel_size=5, dropout=0),
             nn.Flatten(),
             nn.Linear(self.dense_input, 1024),
             nn.ReLU(True),

@@ -44,7 +44,7 @@ def create_tree_dir(tree_levels={}, clean=False):
 
 def save_report(root_dir=None, model_name=None, device=None, exp_type=None,
                 experiment_name=None, iteration=None, results={},
-                preds=None, ground=None):
+                preds=None, ground=None, model_hparams=None):
     root_dir = os.getcwd() + '/' + root_dir
     path = '/'.join([root_dir, 'results', device, model_name,
                      exp_type, experiment_name, ''])
@@ -54,15 +54,16 @@ def save_report(root_dir=None, model_name=None, device=None, exp_type=None,
     print('Report saved at: ', path)
 
     if not os.path.exists(path):
-        os.mkdir(path)
+        os.makedirs(path)
 
     if report_filename in os.listdir(path):
         report = pd.read_csv(path + report_filename)
     else:
         cols = ['recall', 'f1', 'precision',
-                'accuracy', 'MAE', 'RETE']
+                'accuracy', 'MAE', 'RETE', 'hparams']
         report = pd.DataFrame(columns=cols)
-    report = report.append(results, ignore_index=True)
+    hparams = {'hparams': model_hparams}
+    report = report.append({**results, **hparams}, ignore_index=True)
     report.fillna(np.nan, inplace=True)
     report.to_csv(path + report_filename, index=False)
 
@@ -123,7 +124,7 @@ def train_model(model_name, train_loader, test_loader,
 def train_eval(model_name, train_loader, exp_type, tests_params,
                sample_period, batch_size, experiment_name, iteration,
                device, mmax, means, stds, meter_means, meter_stds,
-               window_size, root_dir, data_dir,
+               window_size, root_dir, data_dir, model_hparams,
                epochs=5, **kwargs):
     """
     Inputs:
@@ -131,7 +132,7 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
             It's used to look up the class in "model_dict"
     """
     trainer = pl.Trainer(gpus=1, max_epochs=epochs, auto_lr_find=True)
-    model = TrainingToolsFactory.build_and_equip_model(model_name=model_name, **kwargs)
+    model = TrainingToolsFactory.build_and_equip_model(model_name=model_name, model_hparams=model_hparams, **kwargs)
     trainer.fit(model, train_loader)
 
     for i in range(len(tests_params)):
@@ -161,5 +162,5 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
         preds = test_result['preds']
         final_experiment_name = experiment_name + 'test_' + building + '_' + dataset
         save_report(root_dir, model_name, device, exp_type, final_experiment_name,
-                    iteration, results, preds, ground)
+                    iteration, results, preds, ground, model_hparams)
         del test_dataset, test_loader, ground, final_experiment_name

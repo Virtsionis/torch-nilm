@@ -6,7 +6,8 @@ import pytorch_lightning as pl
 import torch.nn.functional as F
 from modules.NILM_metrics import NILM_metrics
 from neural_networks.base_models import BaseModel
-from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, FFED, FNET, ConvFourier, ShortNeuralFourier
+from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, FFED, FNET, ConvFourier, ShortNeuralFourier, \
+    ShortFNET
 
 # Setting the seed
 from neural_networks.variational import VIBSeq2Point, ToyNet, VIBFnet, VIB_SAED, VIBShortNeuralFourier
@@ -28,17 +29,18 @@ ON_THRESHOLDS = {'dish washer'    : 10,
 
 
 def create_model(model_name, model_hparams):
-    model_dict = {'WGRU'              : WGRU,
-                  'S2P'               : Seq2Point,
-                  'SAED'              : SAED,
-                  'SimpleGru'         : SimpleGru,
+    model_dict = {'WGRU'                 : WGRU,
+                  'S2P'                  : Seq2Point,
+                  'SAED'                 : SAED,
+                  'SimpleGru'            : SimpleGru,
                   # 'FFED'        : FFED,
-                  'FNET'              : FNET,
+                  'FNET'                 : FNET,
+                  'ShortFNET'            : ShortFNET,
                   # 'ConvFourier' : ConvFourier,
-                  'VIB_SAED'          : VIB_SAED,
-                  'VIBFNET'           : VIBFnet,
-                  'VIBSeq2Point'      : VIBSeq2Point,
-                  'ShortNeuralFourier': ShortNeuralFourier,
+                  'VIB_SAED'             : VIB_SAED,
+                  'VIBFNET'              : VIBFnet,
+                  'VIBSeq2Point'         : VIBSeq2Point,
+                  'ShortNeuralFourier'   : ShortNeuralFourier,
                   'VIBShortNeuralFourier': VIBShortNeuralFourier,
                   }
 

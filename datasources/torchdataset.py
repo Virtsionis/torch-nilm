@@ -59,10 +59,10 @@ class BaseElectricityDataset(ABC):
             meterchunk = next(self.appliance_generator)
 
             mainchunk, meterchunk = self._align_chunks(mainchunk, meterchunk)
-            # mainchunk, meterchunk = self._normalize_chunks(mainchunk, meterchunk)
             mainchunk, meterchunk = self._replace_nans(mainchunk, meterchunk)
-            mainchunk, meterchunk = self._replace_with_zero_small_values(mainchunk, meterchunk, self.threshold)
-            mainchunk, meterchunk = self._denoise(mainchunk, meterchunk)
+            # mainchunk, meterchunk = self._replace_with_zero_small_values(mainchunk, meterchunk, self.threshold)
+            # mainchunk, meterchunk = self._normalize_chunks(mainchunk, meterchunk)
+            # mainchunk, meterchunk = self._denoise(mainchunk, meterchunk)
             mainchunk, meterchunk = self._standardize_chunks(mainchunk, meterchunk)
             mainchunk, meterchunk = self._apply_rolling_window(mainchunk, meterchunk)
             self.mainchunk, self.meterchunk = torch.from_numpy(np.array(mainchunk)), torch.from_numpy(
