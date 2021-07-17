@@ -257,7 +257,7 @@ class FFED(nn.Module):
 ## ENCODER BLOCK
 class FNETBLock(nn.Module):
 
-    def __init__(self, input_dim, hidden_dim, dropout=0.0):
+    def __init__(self, input_dim, hidden_dim, inverse_fft=False, dropout=0.0):
         """
         Inputs:
             input_dim - Dimensionality of the input (seq_len)
@@ -265,6 +265,9 @@ class FNETBLock(nn.Module):
             dropout - Dropout probability to use in the dropout layers
         """
         super().__init__()
+        self.consider_inverse_fft = inverse_fft
+        self.linear_real = nn.Linear(input_dim, input_dim)
+        self.linear_imag = nn.Linear(input_dim, input_dim)
 
         # Two-layer MLP
         self.linear_net = nn.Sequential(
@@ -280,25 +283,38 @@ class FNETBLock(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, mask=None):
-        fft_out = torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2)
+        fft_out = self.norm1(x)
+        fft_out = torch.fft.fft(fft_out, dim=-1)
+
+        if self.consider_inverse_fft:
+            fft_out_real = self.linear_real(fft_out.real).unsqueeze(-1)
+            fft_out_imag = self.linear_imag(fft_out.imag).unsqueeze(-1)
+            x_complex = torch.cat((fft_out_real, fft_out_imag), dim=-1)
+            x_complex = torch.view_as_complex(x_complex)
+            fft_out = torch.fft.ifft(x_complex, dim=-1)
+
+        fft_out = torch.fft.fft(fft_out, dim=-2)
         imag = fft_out.imag
         fft_out = fft_out.real
-        # fft_out = torch.fft.fft(x, dim=-1)
-        # fft_out = torch.abs(fft_out)
+
+        if self.consider_inverse_fft:
+            fft_out = torch.fft.ifft(fft_out).real
+
         x = x + self.dropout(fft_out)
-        x = self.norm1(x)
+        # x = self.norm1(x)
 
         # MLP part
+        x = self.norm2(x)
         linear_out = self.linear_net(x)
         x = x + self.dropout(linear_out)
-        x = self.norm2(x)
+        # x = self.norm2(x)
 
         return x, imag
 
 
 class ShortFNETBLock(nn.Module):
 
-    def __init__(self, input_dim, hidden_dim, dropout=0.0):
+    def __init__(self, input_dim, hidden_dim, inverse_fft=False, dropout=0.0):
         """
         Inputs:
             input_dim - Dimensionality of the input (seq_len)
@@ -306,6 +322,10 @@ class ShortFNETBLock(nn.Module):
             dropout - Dropout probability to use in the dropout layers
         """
         super().__init__()
+
+        # self.linear_real = nn.Linear(16001, 16001)
+        # self.linear_imag = nn.Linear(16001, 16001)
+        self.consider_inverse_fft = inverse_fft
 
         # Two-layer MLP
         self.linear_net = nn.Sequential(
@@ -330,10 +350,12 @@ class ShortFNETBLock(nn.Module):
         double fft-torch.Size([1024, 32, 50])   torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2).real
         """
         # print(f"x shape {x.shape}")  x shape torch.Size([1024, 32, 50])
-        batch = x.shape[0]
-        xdim2 = x.shape[1]
-        xdim3 = x.shape[2]
-        xf = x.reshape((batch, xdim2 * xdim3))
+        xf = self.norm1(x)
+
+        batch = xf.shape[0]
+        xdim2 = xf.shape[1]
+        xdim3 = xf.shape[2]
+        xf = xf.reshape((batch, xdim2 * xdim3))
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         # windowvalues = torch.hann_window(xdim3, device=device)
         # windowvalues = torch.blackman_window(xdim3, device=device)
@@ -341,24 +363,28 @@ class ShortFNETBLock(nn.Module):
         windowvalues = torch.kaiser_window(window_length=wavelet_window, periodic=True, beta=5.0, device=device)
         # windowvalues = torch.bartlett_window(xdim3, device=device)
         # windowvalues = torch.normal(0, 0.1, size=(1, xdim3), device=device).ravel()
-        fft_out = torch.stft(xf, n_fft=wavelet_window, normalized=False, window=windowvalues)
+        fft_out = torch.stft(xf, n_fft=wavelet_window, normalized=False, window=windowvalues, return_complex=True)
+
+        if self.consider_inverse_fft:
+            # TODO: Shapes don't match and mlps are very large.
+            fft_out_real = self.linear_real(fft_out.real).unsqueeze(-1)
+            fft_out_imag = self.linear_imag(fft_out.imag).unsqueeze(-1)
+            x_complex = torch.cat((fft_out_real, fft_out_imag), dim=-1)
+            x_complex = torch.view_as_complex(x_complex)
+            fft_out = torch.istft(x_complex, n_fft=wavelet_window, normalized=False, window=windowvalues,
+                                  length=xdim2 * xdim3)
+
         fft_out = fft_out.reshape((batch, -1))[:, -xdim2 * xdim3:].reshape((batch, xdim2, xdim3))
-        # print(f"shape {fft_out.shape}")
         fft_out = torch.fft.fft(fft_out, dim=-2)
         img = fft_out.imag
         fft_out = fft_out.real
-        # x = self.dropout(fft_out)
-
-        # fft_out = torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2).real
-        # fft_out = torch.fft.fft(x, dim=-1)
-        # fft_out = torch.abs(fft_out)
+        fft_out = torch.fft.ifft(fft_out, dim=-2).real
         x = x + self.dropout(fft_out)
-        x = self.norm1(x)
 
         # MLP part
-        linear_out = self.linear_net(x)
+        nx = self.norm2(x)
+        linear_out = self.linear_net(nx)
         x = x + self.dropout(linear_out)
-        x = self.norm2(x)
 
         return x, img
 

@@ -1,7 +1,8 @@
 import pandas as pd
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 
+from callbacks.callbacks_factories import TrainerCallbacksFactory
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityDataset
 from modules.MyDataSet import MyChunkList
@@ -13,8 +14,8 @@ with torch.no_grad():
 clean = False
 ROOT = 'output'
 data_dir = '../Datasets'
-train_file_dir = 'dates/train/'
-test_file_dir = 'dates/test/'
+train_file_dir = 'benchmark/train/'
+test_file_dir = 'benchmark/test/'
 
 dev_list = ['fridge',
             #             'kettle',
@@ -33,7 +34,7 @@ mod_list = [
     #             'SimpleGru',
     #             'FFED',
     #             'SAED',
-    'FNET',
+    # 'FNET',
     'ShortFNET',
     # 'WGRU',
     # 'ConvFourier',
@@ -52,42 +53,44 @@ create_tree_dir(tree_levels=tree_levels, clean=clean)
 
 exp_type = 'Single'  # 'Multi'
 
-EPOCHS = 1
+EPOCHS = 100
 ITERATIONS = 1
 
 SAMPLE_PERIOD = 6
-WINDOW = 50
+WINDOW = 50 * 10
 device = 'fridge'
-BATCH = 512
+BATCH = 256
 windows = [50, 50 * 2, 50 * 4, 50 * 10]
 
 model_hparams = {
-    'FNET'     : [{'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
-                   'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0.25},
-                  {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
-                   'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
-                  {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 64,
-                   'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
-                  {'depth'    : 8, 'kernel_size': 5, 'cnn_dim': 128,
-                   'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
-                  {'depth'    : 8, 'kernel_size': 5, 'cnn_dim': 64,
-                   'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
-                  {'depth'    : 16, 'kernel_size': 5, 'cnn_dim': 64,
-                   'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
-                  ],
-    'ShortFNET': [{'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
-                   'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0.25},
-                  {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
-                   'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
-                  {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 64,
-                   'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
-                  {'depth'    : 8, 'kernel_size': 5, 'cnn_dim': 128,
-                   'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
-                  {'depth'    : 8, 'kernel_size': 5, 'cnn_dim': 64,
-                   'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
-                  {'depth'    : 16, 'kernel_size': 5, 'cnn_dim': 64,
-                   'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
-                  ]
+    'FNET'     : [
+        {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+         'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0.25},
+        # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+        #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
+        # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 64,
+        #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
+        # {'depth'    : 8, 'kernel_size': 5, 'cnn_dim': 128,
+        #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
+        # {'depth'    : 8, 'kernel_size': 5, 'cnn_dim': 64,
+        #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
+        # {'depth'    : 16, 'kernel_size': 5, 'cnn_dim': 64,
+        #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
+    ],
+    'ShortFNET': [
+        {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+         'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
+        # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+        #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
+        # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 64,
+        #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
+        # {'depth'    : 8, 'kernel_size': 5, 'cnn_dim': 128,
+        #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
+        # {'depth'    : 8, 'kernel_size': 5, 'cnn_dim': 64,
+        #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
+        {'depth'    : 16, 'kernel_size': 5, 'cnn_dim': 64,
+         'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0},
+    ]
 }
 
 test_houses = []
@@ -116,21 +119,30 @@ train_file.close()
 path = data_dir + '/{}/{}.h5'.format(train_set, train_set)
 print(path)
 datasource = DatasourceFactory.create_datasource(train_set)
-train_dataset = ElectricityDataset(datasource=datasource, building=int(train_house), window_size=WINDOW,
-                                   device=device, dates=train_dates, sample_period=SAMPLE_PERIOD)
+train_dataset_all = ElectricityDataset(datasource=datasource, building=int(train_house), window_size=WINDOW,
+                                       device=device, dates=train_dates, sample_period=SAMPLE_PERIOD)
+
+train_size = int(0.8 * len(train_dataset_all))
+val_size = len(train_dataset_all) - train_size
+train_dataset, val_dataset = random_split(train_dataset_all, [train_size, val_size],
+                                          generator=torch.Generator().manual_seed(42))
+
 train_loader = DataLoader(train_dataset, batch_size=BATCH,
-                          shuffle=True, num_workers=4)
-mmax = train_dataset.mmax
-means = train_dataset.means
-stds = train_dataset.stds
+                          shuffle=True, num_workers=8)
+val_loader = DataLoader(val_dataset, batch_size=BATCH,
+                        shuffle=True, num_workers=8)
+
+mmax = train_dataset_all.mmax
+means = train_dataset_all.means
+stds = train_dataset_all.stds
 
 experiments = []
 experiment_name = '_'.join([device, exp_type, 'Train', train_set, '', ])
 print(experiment_name)
 eval_params = {'device'     : device,
                'mmax'       : mmax,
-               'means'      : train_dataset.meter_means,
-               'stds'       : train_dataset.meter_stds,
+               'means'      : train_dataset_all.meter_means,
+               'stds'       : train_dataset_all.meter_stds,
                'groundtruth': ''}
 for model_name in mod_list:
     for hparams in model_hparams[model_name]:
@@ -155,11 +167,13 @@ for model_name in mod_list:
                        mmax,
                        means,
                        stds,
-                       train_dataset.meter_means,
-                       train_dataset.meter_stds,
+                       train_dataset_all.meter_means,
+                       train_dataset_all.meter_stds,
                        WINDOW,
                        ROOT,
                        data_dir,
                        epochs=EPOCHS,
                        eval_params=eval_params,
-                       model_hparams=hparams)
+                       model_hparams=hparams,
+                       val_loader=val_loader,
+                       callbacks=[TrainerCallbacksFactory.create_earlystopping()])

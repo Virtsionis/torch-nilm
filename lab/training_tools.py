@@ -1,9 +1,12 @@
 import math
+from typing import Dict, Tuple
 
 import torch
 import numpy as np
 import pytorch_lightning as pl
 import torch.nn.functional as F
+from torch import Tensor
+
 from modules.NILM_metrics import NILM_metrics
 from neural_networks.base_models import BaseModel
 from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, FFED, FNET, ConvFourier, ShortNeuralFourier, \
@@ -26,6 +29,9 @@ ON_THRESHOLDS = {'dish washer'    : 10,
                  'kettle'         : 2000,
                  'microwave'      : 200,
                  'washing machine': 20}
+
+VAL_ACC = "val_acc"
+VAL_LOSS = 'val_loss'
 
 
 def create_model(model_name, model_hparams):
@@ -106,6 +112,24 @@ class ClassicTrainingTools(pl.LightningModule):
 
         tensorboard_logs = {'train_loss': loss}
         return {'loss': loss, 'log': tensorboard_logs}
+
+    def validation_step(self, val_batch: Tensor, batch_idx: int) -> Dict:
+        loss, mae = self._forward_step(val_batch)
+        # self.log("loss", loss, prog_bar=True)
+        self.log(VAL_LOSS, mae, prog_bar=True)
+        return {"vloss": loss, "val_loss": mae}
+
+    @staticmethod
+    def calculate_loss(logits, labels):
+        return F.mse_loss(logits, labels)
+
+    def _forward_step(self, batch: Tensor) -> Tuple[Tensor, Tensor]:
+        inputs, labels = batch
+        outputs = self.forward(inputs).squeeze(1)
+        loss = self.calculate_loss(outputs, labels)
+        mae = F.l1_loss(outputs, labels)
+
+        return loss, mae
 
     def train_epoch_end(self, outputs):
         # outputs is a list of whatever you returned in `training_step`

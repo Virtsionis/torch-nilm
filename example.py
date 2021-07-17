@@ -1,10 +1,11 @@
 import torch
 import pandas as pd
 
+from callbacks.callbacks_factories import TrainerCallbacksFactory
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityDataset
 from modules.helpers import create_tree_dir, save_report, train_model, display_res, train_eval
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, random_split
 
 from modules.MyDataSet import MyChunk, MyChunkList
 
@@ -14,8 +15,8 @@ with torch.no_grad():
 clean = False
 ROOT = 'output'
 data_dir = '../Datasets'
-train_file_dir = 'dates/train/'
-test_file_dir = 'dates/test/'
+train_file_dir = 'benchmark/small/train/'
+test_file_dir = 'benchmark/small/test/'
 
 dev_list = ['fridge',
             #             'kettle',
@@ -34,7 +35,8 @@ mod_list = [
     #             'SimpleGru',
     #             'FFED',
     #             'SAED',
-    'FNET',
+    # 'FNET',
+    'ShortFNET',
     # 'WGRU',
     # 'ConvFourier',
     # 'VIB_SAED',
@@ -52,13 +54,13 @@ create_tree_dir(tree_levels=tree_levels, clean=clean)
 
 exp_type = 'Single'  # 'Multi'
 
-EPOCHS = 5
+EPOCHS = 100
 ITERATIONS = 1
 
 SAMPLE_PERIOD = 6
-WINDOW = 50 * 10
-device = 'fridge'
-BATCH = 512
+WINDOW = 500
+device = 'washing machine'
+BATCH = 256
 
 model_hparams = {
     'SimpleGru'            : {},
@@ -69,9 +71,9 @@ model_hparams = {
     'ConvFourier'          : {'window_size': WINDOW, 'dropout': 0.25},
     'SF2P'                 : {'window_size': WINDOW, 'dropout': 0.25},
     'FNET'                 : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
-                              'input_dim': WINDOW, 'hidden_dim': 50 * 4, 'dropout': 0},
+                              'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
     'ShortFNET'            : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
-                              'input_dim': WINDOW, 'hidden_dim': 50 * 4, 'dropout': 0},
+                              'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
     'VIBSeq2Point'         : {'window_size': WINDOW, 'dropout': 0},
     'VIB_SAED'             : {'window_size': WINDOW},
     'VIBFNET'              : {'depth'    : 16, 'kernel_size': 2, 'cnn_dim': 128,
@@ -118,8 +120,8 @@ if exp_type == 'Single':
     #                                    sample_period=SAMPLE_PERIOD,
     #                                    chunksize=1000*BATCH,
     #                                    batch_size=BATCH)
-    train_dataset = ElectricityDataset(datasource=datasource, building=int(train_house), window_size=WINDOW,
-                                       device=device, dates=train_dates, sample_period=SAMPLE_PERIOD)
+    train_dataset_all = ElectricityDataset(datasource=datasource, building=int(train_house), window_size=WINDOW,
+                                           device=device, dates=train_dates, sample_period=SAMPLE_PERIOD)
 
 else:
     for line in train_file:
@@ -127,22 +129,28 @@ else:
         train_set = toks[0]
         break
     train_file.close()
-    train_dataset = MyChunkList(device, filename=train_file,
-                                window_size=WINDOW, sample_period=SAMPLE_PERIOD)
+    train_dataset_all = MyChunkList(device, filename=train_file,
+                                    window_size=WINDOW, sample_period=SAMPLE_PERIOD)
+train_size = int(0.8 * len(train_dataset_all))
+val_size = len(train_dataset_all) - train_size
+train_dataset, val_dataset = random_split(train_dataset_all, [train_size, val_size],
+                                          generator=torch.Generator().manual_seed(42))
 
 train_loader = DataLoader(train_dataset, batch_size=BATCH,
-                          shuffle=True, num_workers=1)
-mmax = train_dataset.mmax
-means = train_dataset.means
-stds = train_dataset.stds
+                          shuffle=True, num_workers=8)
+val_loader = DataLoader(val_dataset, batch_size=BATCH,
+                        shuffle=True, num_workers=8)
+mmax = train_dataset_all.mmax
+means = train_dataset_all.means
+stds = train_dataset_all.stds
 
 experiments = []
 experiment_name = '_'.join([device, exp_type, 'Train', train_set, '', ])
 print(experiment_name)
 eval_params = {'device'     : device,
                'mmax'       : mmax,
-               'means'      : train_dataset.meter_means,
-               'stds'       : train_dataset.meter_stds,
+               'means'      : train_dataset_all.meter_means,
+               'stds'       : train_dataset_all.meter_stds,
                'groundtruth': ''}
 for model_name in mod_list:
     print('#' * 40)
@@ -166,11 +174,13 @@ for model_name in mod_list:
                    mmax,
                    means,
                    stds,
-                   train_dataset.meter_means,
-                   train_dataset.meter_stds,
+                   train_dataset_all.meter_means,
+                   train_dataset_all.meter_stds,
                    WINDOW,
                    ROOT,
                    data_dir,
                    epochs=EPOCHS,
                    eval_params=eval_params,
-                   model_hparams=model_hparams[model_name])
+                   model_hparams=model_hparams[model_name],
+                   val_loader=val_loader,
+                   callbacks=[TrainerCallbacksFactory.create_earlystopping()])

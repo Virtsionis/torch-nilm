@@ -13,8 +13,8 @@ with torch.no_grad():
 clean = True
 ROOT = 'output'
 data_dir = '/mnt/B40864F10864B450/WorkSpace/PHD/PHD_exps/data'
-train_file_dir = 'dates/train/'
-test_file_dir = 'dates/test/'
+train_file_dir = 'benchmark/train/'
+test_file_dir = 'benchmark/test/'
 
 dev_list = [
     #             'dish washer',
