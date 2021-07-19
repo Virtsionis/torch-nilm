@@ -59,7 +59,7 @@ ITERATIONS = 1
 SAMPLE_PERIOD = 6
 WINDOW = 50 * 10
 device = 'fridge'
-BATCH = 256
+BATCH = 512
 windows = [50, 50 * 2, 50 * 4, 50 * 10]
 
 model_hparams = {

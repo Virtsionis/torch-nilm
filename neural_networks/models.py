@@ -378,7 +378,8 @@ class ShortFNETBLock(nn.Module):
         fft_out = torch.fft.fft(fft_out, dim=-2)
         img = fft_out.imag
         fft_out = fft_out.real
-        fft_out = torch.fft.ifft(fft_out, dim=-2).real
+        if self.consider_inverse_fft:
+            fft_out = torch.fft.ifft(fft_out, dim=-2).real
         x = x + self.dropout(fft_out)
 
         # MLP part

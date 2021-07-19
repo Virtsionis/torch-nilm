@@ -15,8 +15,8 @@ with torch.no_grad():
 clean = False
 ROOT = 'output'
 data_dir = '../Datasets'
-train_file_dir = 'benchmark/small/train/'
-test_file_dir = 'benchmark/small/test/'
+train_file_dir = 'benchmark/large/train/'
+test_file_dir = 'benchmark/large/test/'
 
 dev_list = ['fridge',
             #             'kettle',
@@ -31,11 +31,11 @@ dev_list = ['fridge',
             ]
 mod_list = [
     #             'SF2P',
-    # 'S2P',
+    'S2P',
     #             'SimpleGru',
     #             'FFED',
-    #             'SAED',
-    # 'FNET',
+                'SAED',
+    'FNET',
     'ShortFNET',
     # 'WGRU',
     # 'ConvFourier',
@@ -59,8 +59,8 @@ ITERATIONS = 1
 
 SAMPLE_PERIOD = 6
 WINDOW = 500
-device = 'washing machine'
-BATCH = 256
+device = 'tumble dryer'
+BATCH = 512
 
 model_hparams = {
     'SimpleGru'            : {},

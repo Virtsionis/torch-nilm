@@ -169,7 +169,7 @@ class ClassicTrainingTools(pl.LightningModule):
                            mmax=mmax,
                            means=means,
                            stds=stds,
-                           threshold=ON_THRESHOLDS[device])
+                           threshold=ON_THRESHOLDS.get(device, 50))
 
         results = {'model'  : self.model_name,
                    'metrics': res,

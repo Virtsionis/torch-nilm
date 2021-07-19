@@ -30,7 +30,7 @@ class BaseElectricityDataset(ABC):
         self.sample_period = sample_period
         self.datasource = datasource
         self.window_size = window_size
-        self.threshold = ON_THRESHOLDS[device]
+        self.threshold = ON_THRESHOLDS.get(device, 50)
 
         self._init_generators(datasource, building, device, start_date, end_date, sample_period, chunksize)
 
