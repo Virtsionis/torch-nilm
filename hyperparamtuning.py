@@ -14,8 +14,8 @@ with torch.no_grad():
 clean = False
 ROOT = 'output'
 data_dir = '../Datasets'
-train_file_dir = 'benchmark/train/'
-test_file_dir = 'benchmark/test/'
+train_file_dir = 'benchmark/large/train/'
+test_file_dir = 'benchmark/large/test/'
 
 dev_list = ['fridge',
             #             'kettle',
@@ -34,7 +34,7 @@ mod_list = [
     #             'SimpleGru',
     #             'FFED',
     #             'SAED',
-    # 'FNET',
+    'FNET',
     'ShortFNET',
     # 'WGRU',
     # 'ConvFourier',
@@ -58,14 +58,14 @@ ITERATIONS = 1
 
 SAMPLE_PERIOD = 6
 WINDOW = 50 * 10
-device = 'fridge'
+device = 'dish washer'
 BATCH = 512
 windows = [50, 50 * 2, 50 * 4, 50 * 10]
 
 model_hparams = {
     'FNET'     : [
-        {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
-         'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0.25},
+        # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+        #  'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0.25},
         # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
         #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
         # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 64,
@@ -74,12 +74,12 @@ model_hparams = {
         #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
         # {'depth'    : 8, 'kernel_size': 5, 'cnn_dim': 64,
         #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
-        # {'depth'    : 16, 'kernel_size': 5, 'cnn_dim': 64,
-        #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
+        {'depth'    : 16, 'kernel_size': 5, 'cnn_dim': 64,
+         'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0},
     ],
     'ShortFNET': [
-        {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
-         'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
+        # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+        #  'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
         # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
         #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
         # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 64,
