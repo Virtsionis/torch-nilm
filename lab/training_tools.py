@@ -10,7 +10,7 @@ from torch import Tensor
 from modules.NILM_metrics import NILM_metrics
 from neural_networks.base_models import BaseModel
 from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, FFED, FNET, ConvFourier, ShortNeuralFourier, \
-    ShortFNET
+    ShortFNET, ShortPosFNET
 
 # Setting the seed
 from neural_networks.variational import VIBSeq2Point, ToyNet, VIBFnet, VIB_SAED, VIBShortNeuralFourier
@@ -42,6 +42,7 @@ def create_model(model_name, model_hparams):
                   # 'FFED'        : FFED,
                   'FNET'                 : FNET,
                   'ShortFNET'            : ShortFNET,
+                  'ShortPosFNET'            : ShortPosFNET,
                   # 'ConvFourier' : ConvFourier,
                   'VIB_SAED'             : VIB_SAED,
                   'VIBFNET'              : VIBFnet,

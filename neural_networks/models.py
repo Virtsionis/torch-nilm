@@ -1,9 +1,47 @@
+import math
 import torch
 import torch.nn as nn
 from torchnlp.nn.attention import Attention
 
 from neural_networks.base_models import BaseModel
 from neural_networks.custom_modules import ConvDropRelu, LinearDropRelu
+
+class GELU(nn.Module):
+    def forward(self, x):
+        return 0.5 * x * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
+
+
+class PositionalEmbedding(nn.Module):
+    def __init__(self, max_len, d_model):
+        super().__init__()
+        self.pe = nn.Embedding(max_len, d_model)
+
+    def forward(self, x):
+        batch_size = x.size(0)
+        return self.pe.weight.unsqueeze(0).repeat(batch_size, 1, 1)
+
+
+class PositionwiseFeedForward(nn.Module):
+    def __init__(self, d_model, d_ff):
+        super(PositionwiseFeedForward, self).__init__()
+        self.w_1 = nn.Linear(d_model, d_ff)
+        self.w_2 = nn.Linear(d_ff, d_model)
+        self.activation = GELU()
+
+    def forward(self, x):
+        return self.w_2(self.activation(self.w_1(x)))
+
+class LayerNorm(nn.Module):
+    def __init__(self, features, eps=1e-6):
+        super(LayerNorm, self).__init__()
+        self.weight = nn.Parameter(torch.ones(features))
+        self.bias = nn.Parameter(torch.zeros(features))
+        self.eps = eps
+
+    def forward(self, x):
+        mean = x.mean(-1, keepdim=True)
+        std = x.std(-1, keepdim=True)
+        return self.weight * (x - mean) / (std + self.eps) + self.bias
 
 
 class Seq2Point(BaseModel):
@@ -432,6 +470,39 @@ class ShortFNET(FNET):
     def __init__(self, depth, kernel_size, cnn_dim, **block_args):
         super(ShortFNET, self).__init__(depth, kernel_size, cnn_dim, **block_args)
         self.fnet_layers = nn.ModuleList([ShortFNETBLock(**block_args) for _ in range(depth)])
+
+
+class ShortPosFNET(FNET):
+    '''
+    the position encoding is based on Bert4NILM
+    '''
+    def __init__(self, depth, kernel_size, cnn_dim, **block_args):
+        super(ShortPosFNET, self).__init__(depth, kernel_size, cnn_dim, **block_args)
+        self.fnet_layers = nn.ModuleList([ShortFNETBLock(**block_args) for _ in range(depth)])
+
+        self.position = PositionalEmbedding(
+            max_len=self.input_dim, d_model=cnn_dim//2)
+
+        self.layer_norm = LayerNorm(cnn_dim//2)
+        self.dropout = nn.Dropout(p=self.drop)
+
+    def forward(self, x):
+        x = x
+        x = x.unsqueeze(1)
+        x = self.conv(x)
+        x = x.transpose(1, 2).contiguous()
+        x_token = self.pool(x)
+        embedding = x_token + self.position(x_token)
+        embedding = self.layer_norm(embedding)
+        x = self.dropout(embedding)
+        x = x.transpose(1, 2).contiguous()
+        for layer in self.fnet_layers:
+            x, imag = layer(x)
+        x = self.flat(x)
+        x = self.dense1(x)
+        x = self.dense2(x)
+        out = self.output(x)
+        return out
 
 
 class FReal(nn.Module):
