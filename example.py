@@ -31,13 +31,13 @@ dev_list = ['fridge',
             ]
 mod_list = [
     #             'SF2P',
-    'S2P',
+    # 'S2P',
     #             'SimpleGru',
     #             'FFED',
-                'SAED',
-    'FNET',
-    'ShortFNET',
-    # 'WGRU',
+    #             'SAED',
+    # 'FNET',
+    # 'ShortFNET',
+    'WGRU',
     # 'ConvFourier',
     # 'VIB_SAED',
     # 'VIBFNET',
@@ -59,8 +59,8 @@ ITERATIONS = 1
 
 SAMPLE_PERIOD = 6
 WINDOW = 500
-device = 'tumble dryer'
-BATCH = 512
+device = 'television'
+BATCH = 256
 
 model_hparams = {
     'SimpleGru'            : {},
