@@ -37,12 +37,12 @@ mod_list = [
                 # 'SAED',
     # 'FNET',
     # 'ShortFNET',
-    'ShortPosFNET',
+    # 'ShortPosFNET',
     # 'WGRU',
     # 'ConvFourier',
-    # 'VIB_SAED',
-    # 'VIBFNET',
-    # 'VIBSeq2Point',
+    'VIB_SAED',
+    'VIBFNET',
+    'VIBSeq2Point',
     # 'ShortNeuralFourier',
     # 'VIBShortNeuralFourier'
 ]
@@ -60,7 +60,7 @@ ITERATIONS = 1
 
 SAMPLE_PERIOD = 6
 WINDOW = 500
-device = 'television'
+device = 'dish washer'
 BATCH = 256
 
 model_hparams = {
@@ -79,8 +79,8 @@ model_hparams = {
                               'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
     'VIBSeq2Point'         : {'window_size': WINDOW, 'dropout': 0},
     'VIB_SAED'             : {'window_size': WINDOW},
-    'VIBFNET'              : {'depth'    : 16, 'kernel_size': 2, 'cnn_dim': 128,
-                              'input_dim': WINDOW, 'hidden_dim': WINDOW * 2, 'dropout': 0},
+    'VIBFNET'              : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+                              'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
     'ShortNeuralFourier'   : {'window_size': WINDOW},
     'VIBShortNeuralFourier': {'window_size': WINDOW}
 }

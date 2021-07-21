@@ -229,3 +229,11 @@ class VIBTrainingTools(ClassicTrainingTools):
         self.final_preds = np.append(self.final_preds, preds_batch)
         return {'test_loss': loss}
         # return {'test_loss': loss, 'metrics': self._metrics(test=True)}
+
+    def _forward_step(self, batch: Tensor) -> Tuple[Tensor, Tensor]:
+        inputs, labels = batch
+        (mu, std), outputs = self.forward(inputs)
+        loss = self.calculate_loss(outputs.squeeze(), labels)
+        mae = F.l1_loss(outputs, labels)
+
+        return loss, mae

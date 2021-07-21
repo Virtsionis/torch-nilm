@@ -34,7 +34,7 @@ mod_list = [
     #             'SimpleGru',
     #             'FFED',
     #             'SAED',
-    'FNET',
+    # 'FNET',
     'ShortFNET',
     # 'WGRU',
     # 'ConvFourier',
@@ -78,8 +78,14 @@ model_hparams = {
          'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0},
     ],
     'ShortFNET': [
-        # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
-        #  'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
+        {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+         'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0, 'wavelet': 'hann'},
+        {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+         'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0, 'wavelet': 'blackman'},
+        {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+         'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0, 'wavelet': 'barlett'},
+        {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+         'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0, 'wavelet': 'normal'},
         # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
         #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
         # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 64,
@@ -88,8 +94,8 @@ model_hparams = {
         #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
         # {'depth'    : 8, 'kernel_size': 5, 'cnn_dim': 64,
         #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
-        {'depth'    : 16, 'kernel_size': 5, 'cnn_dim': 64,
-         'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0},
+        # {'depth'    : 16, 'kernel_size': 5, 'cnn_dim': 64,
+        #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0},
     ]
 }
 

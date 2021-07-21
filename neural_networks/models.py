@@ -352,7 +352,7 @@ class FNETBLock(nn.Module):
 
 class ShortFNETBLock(nn.Module):
 
-    def __init__(self, input_dim, hidden_dim, inverse_fft=False, dropout=0.0):
+    def __init__(self, input_dim, hidden_dim, inverse_fft=False, dropout=0.0, wavelet='kaiser'):
         """
         Inputs:
             input_dim - Dimensionality of the input (seq_len)
@@ -364,6 +364,7 @@ class ShortFNETBLock(nn.Module):
         # self.linear_real = nn.Linear(16001, 16001)
         # self.linear_imag = nn.Linear(16001, 16001)
         self.consider_inverse_fft = inverse_fft
+        self.wavelet = wavelet
 
         # Two-layer MLP
         self.linear_net = nn.Sequential(
@@ -395,12 +396,20 @@ class ShortFNETBLock(nn.Module):
         xdim3 = xf.shape[2]
         xf = xf.reshape((batch, xdim2 * xdim3))
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        # windowvalues = torch.hann_window(xdim3, device=device)
-        # windowvalues = torch.blackman_window(xdim3, device=device)
         wavelet_window = 10  # xdim3
-        windowvalues = torch.kaiser_window(window_length=wavelet_window, periodic=True, beta=5.0, device=device)
-        # windowvalues = torch.bartlett_window(xdim3, device=device)
-        # windowvalues = torch.normal(0, 0.1, size=(1, xdim3), device=device).ravel()
+        if self.wavelet == 'kaiser':
+            windowvalues = torch.kaiser_window(window_length=wavelet_window, periodic=True, beta=5.0, device=device)
+        elif self.wavelet == 'hann':
+            windowvalues = torch.hann_window(window_length=wavelet_window, device=device)
+        elif self.wavelet == 'blackman':
+            windowvalues = torch.blackman_window(window_length=wavelet_window, device=device)
+        elif self.wavelet == 'barlett':
+            windowvalues = torch.bartlett_window(window_length=wavelet_window, device=device)
+        elif self.wavelet == 'normal':
+            windowvalues = torch.normal(0, 0.1, size=(1, wavelet_window), device=device).ravel()
+        else:
+            raise Exception('Wavelet not specified')
+
         fft_out = torch.stft(xf, n_fft=wavelet_window, normalized=False, window=windowvalues, return_complex=True)
 
         if self.consider_inverse_fft:
@@ -440,13 +449,16 @@ class FNET(BaseModel):
         self.conv = ConvDropRelu(1, cnn_dim, kernel_size=kernel_size, dropout=self.drop)
         self.pool = nn.LPPool1d(norm_type=2, kernel_size=2, stride=2)
 
-        self.fnet_layers = nn.ModuleList([FNETBLock(**block_args) for _ in range(depth)])
+        self.fnet_layers = self.build_fblocks(block_args, depth)
 
         self.flat = nn.Flatten()
         self.dense1 = LinearDropRelu(self.dense_in, cnn_dim, self.drop)
         self.dense2 = LinearDropRelu(cnn_dim, cnn_dim // 2, self.drop)
 
         self.output = nn.Linear(cnn_dim // 2, 1)
+
+    def build_fblocks(self, block_args, depth):
+        return nn.ModuleList([FNETBLock(**block_args) for _ in range(depth)])
 
     def forward(self, x):
         # x must be in shape [batch_size, 1, window_size]
@@ -469,7 +481,10 @@ class FNET(BaseModel):
 class ShortFNET(FNET):
     def __init__(self, depth, kernel_size, cnn_dim, **block_args):
         super(ShortFNET, self).__init__(depth, kernel_size, cnn_dim, **block_args)
-        self.fnet_layers = nn.ModuleList([ShortFNETBLock(**block_args) for _ in range(depth)])
+        self.fnet_layers = self.build_fblocks(block_args, depth)
+
+    def build_fblocks(self, block_args, depth):
+        return nn.ModuleList([ShortFNETBLock(**block_args) for _ in range(depth)])
 
 
 class ShortPosFNET(FNET):
@@ -478,13 +493,16 @@ class ShortPosFNET(FNET):
     '''
     def __init__(self, depth, kernel_size, cnn_dim, **block_args):
         super(ShortPosFNET, self).__init__(depth, kernel_size, cnn_dim, **block_args)
-        self.fnet_layers = nn.ModuleList([ShortFNETBLock(**block_args) for _ in range(depth)])
+        self.fnet_layers = self.build_fblocks(block_args, depth)
 
         self.position = PositionalEmbedding(
             max_len=self.input_dim, d_model=cnn_dim//2)
 
         self.layer_norm = LayerNorm(cnn_dim//2)
         self.dropout = nn.Dropout(p=self.drop)
+
+    def build_fblocks(self, block_args, depth):
+        return nn.ModuleList([ShortFNETBLock(**block_args) for _ in range(depth)])
 
     def forward(self, x):
         x = x
