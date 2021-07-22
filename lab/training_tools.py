@@ -13,7 +13,7 @@ from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, FFED, FNET,
     ShortFNET, ShortPosFNET
 
 # Setting the seed
-from neural_networks.variational import VIBSeq2Point, ToyNet, VIBFnet, VIB_SAED, VIBShortNeuralFourier
+from neural_networks.variational import VIBSeq2Point, ToyNet, VIBFnet, VIB_SAED, VIBShortNeuralFourier, VIBShortFnet
 
 pl.seed_everything(42)
 
@@ -42,10 +42,11 @@ def create_model(model_name, model_hparams):
                   # 'FFED'        : FFED,
                   'FNET'                 : FNET,
                   'ShortFNET'            : ShortFNET,
-                  'ShortPosFNET'            : ShortPosFNET,
+                  'ShortPosFNET'         : ShortPosFNET,
                   # 'ConvFourier' : ConvFourier,
                   'VIB_SAED'             : VIB_SAED,
                   'VIBFNET'              : VIBFnet,
+                  'VIBShortFNET'         : VIBShortFnet,
                   'VIBSeq2Point'         : VIBSeq2Point,
                   'ShortNeuralFourier'   : ShortNeuralFourier,
                   'VIBShortNeuralFourier': VIBShortNeuralFourier,

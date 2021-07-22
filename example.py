@@ -34,7 +34,7 @@ mod_list = [
     # 'S2P',
     #             'SimpleGru',
     #             'FFED',
-                # 'SAED',
+    # 'SAED',
     # 'FNET',
     # 'ShortFNET',
     # 'ShortPosFNET',
@@ -42,6 +42,7 @@ mod_list = [
     # 'ConvFourier',
     'VIB_SAED',
     'VIBFNET',
+    # 'VIBShortFNET',
     'VIBSeq2Point',
     # 'ShortNeuralFourier',
     # 'VIBShortNeuralFourier'
@@ -60,8 +61,8 @@ ITERATIONS = 1
 
 SAMPLE_PERIOD = 6
 WINDOW = 500
-device = 'dish washer'
-BATCH = 256
+device = 'kettle'
+BATCH = 512
 
 model_hparams = {
     'SimpleGru'            : {},
@@ -75,11 +76,13 @@ model_hparams = {
                               'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
     'ShortFNET'            : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
                               'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
-    'ShortPosFNET'            : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+    'ShortPosFNET'         : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
                               'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
     'VIBSeq2Point'         : {'window_size': WINDOW, 'dropout': 0},
     'VIB_SAED'             : {'window_size': WINDOW},
     'VIBFNET'              : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+                              'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
+    'VIBShortFNET'         : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
                               'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
     'ShortNeuralFourier'   : {'window_size': WINDOW},
     'VIBShortNeuralFourier': {'window_size': WINDOW}

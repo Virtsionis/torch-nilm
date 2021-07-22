@@ -7,7 +7,7 @@ from torch import nn
 from torch.autograd import Variable
 
 from neural_networks.base_models import BaseModel
-from neural_networks.models import Seq2Point, LinearDropRelu, ConvDropRelu, FNET, SAED, ShortNeuralFourier
+from neural_networks.models import Seq2Point, LinearDropRelu, ConvDropRelu, FNET, SAED, ShortNeuralFourier, ShortFNET
 
 
 def cuda(tensor, is_cuda):
@@ -151,6 +151,50 @@ class VIBSeq2Point(Seq2Point, VIBNet):
 class VIBFnet(FNET, VIBNet):
     def __init__(self, depth, kernel_size, cnn_dim, K=256, **block_args):
         super(VIBFnet, self).__init__(depth, kernel_size, cnn_dim, **block_args)
+        # self.K = K
+        self.K = cnn_dim // 2
+        self.dense2 = LinearDropRelu(cnn_dim, 2 * self.K, self.drop)
+        self.output = nn.Linear(self.K, 1)
+
+        self.dense3 = LinearDropRelu(self.dense_in, cnn_dim, self.drop)
+        self.dense4 = LinearDropRelu(cnn_dim, cnn_dim // 2, self.drop)
+
+    def forward(self, x, num_sample=1):
+        x = x.unsqueeze(1)
+        x = self.conv(x)
+
+        x = x.transpose(1, 2).contiguous()
+        x = self.pool(x)
+        x = x.transpose(1, 2).contiguous()
+        for layer in self.fnet_layers:
+            x, imag = layer(x)
+        x = self.flat(x)
+        x = self.dense1(x)
+        statistics = self.dense2(x)
+        mu = statistics[:, :self.K]
+        std = F.softplus(statistics[:, self.K:], beta=1)
+        # imag = self.flat(imag)
+        # imag = self.dense3(imag)
+        # imag = self.dense4(imag)
+        # std = F.softplus(imag, beta=1)
+        encoding = self.reparametrize_n(mu, std, num_sample)
+        logit = self.output(encoding)
+
+        if num_sample == 1:
+            pass
+        elif num_sample > 1:
+            logit = F.softmax(logit, dim=2).mean(0)
+
+        # print(f"mu {mu}")
+        # print(f"std {std}")
+        # print(f"logit {logit}")
+
+        return (mu, std), logit
+
+
+class VIBShortFnet(ShortFNET, VIBNet):
+    def __init__(self, depth, kernel_size, cnn_dim, K=256, **block_args):
+        super(VIBShortFnet, self).__init__(depth, kernel_size, cnn_dim, **block_args)
         # self.K = K
         self.K = cnn_dim // 2
         self.dense2 = LinearDropRelu(cnn_dim, 2 * self.K, self.drop)
