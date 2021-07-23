@@ -40,10 +40,11 @@ mod_list = [
     # 'ShortPosFNET',
     # 'WGRU',
     # 'ConvFourier',
-    'VIB_SAED',
-    'VIBFNET',
+    # 'VIB_SAED',
+    'VIBWGRU',
+    # 'VIBFNET',
     # 'VIBShortFNET',
-    'VIBSeq2Point',
+    # 'VIBSeq2Point',
     # 'ShortNeuralFourier',
     # 'VIBShortNeuralFourier'
 ]
@@ -61,8 +62,8 @@ ITERATIONS = 1
 
 SAMPLE_PERIOD = 6
 WINDOW = 500
-device = 'kettle'
-BATCH = 512
+device = 'fridge'
+BATCH = 256
 
 model_hparams = {
     'SimpleGru'            : {},
@@ -80,6 +81,7 @@ model_hparams = {
                               'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
     'VIBSeq2Point'         : {'window_size': WINDOW, 'dropout': 0},
     'VIB_SAED'             : {'window_size': WINDOW},
+    'VIBWGRU'              : {'dropout': 0.25},
     'VIBFNET'              : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
                               'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
     'VIBShortFNET'         : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,

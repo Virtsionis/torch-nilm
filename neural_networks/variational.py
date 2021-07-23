@@ -7,7 +7,8 @@ from torch import nn
 from torch.autograd import Variable
 
 from neural_networks.base_models import BaseModel
-from neural_networks.models import Seq2Point, LinearDropRelu, ConvDropRelu, FNET, SAED, ShortNeuralFourier, ShortFNET
+from neural_networks.models import Seq2Point, LinearDropRelu, ConvDropRelu, FNET, SAED, ShortNeuralFourier, ShortFNET, \
+    WGRU
 
 
 def cuda(tensor, is_cuda):
@@ -108,6 +109,35 @@ class VIB_SAED(SAED, VIBNet):
         x = x[:, -1, :]
 
         statistics = self.dense(x)
+        mu = statistics[:, :self.K]
+        std = F.softplus(statistics[:, self.K:], beta=1)
+        encoding = self.reparametrize_n(mu, std, num_sample)
+        logit = self.output(encoding)
+
+        if num_sample == 1:
+            pass
+        elif num_sample > 1:
+            logit = F.softmax(logit, dim=2).mean(0)
+
+        return (mu, std), logit
+
+
+class VIBWGRU(WGRU, VIBNet):
+    def __init__(self, dropout=0, lr=None, K=32):
+        super(VIBWGRU, self).__init__(dropout, lr)
+        self.K = K
+        self.dense2 = LinearDropRelu(128, 2 * K, self.drop)
+        self.output = nn.Linear(K, 1)
+
+    def forward(self, x, num_sample=1):
+        x = x.unsqueeze(1)
+        x = self.conv1(x)
+        x = x.permute(0, 2, 1)
+        x = self.b1(x)[0]
+        x = self.b2(x)[0]
+        x = x[:, -1, :]
+        x = self.dense1(x)
+        statistics = self.dense2(x)
         mu = statistics[:, :self.K]
         std = F.softplus(statistics[:, self.K:], beta=1)
         encoding = self.reparametrize_n(mu, std, num_sample)

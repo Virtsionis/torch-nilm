@@ -13,7 +13,8 @@ from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, FFED, FNET,
     ShortFNET, ShortPosFNET
 
 # Setting the seed
-from neural_networks.variational import VIBSeq2Point, ToyNet, VIBFnet, VIB_SAED, VIBShortNeuralFourier, VIBShortFnet
+from neural_networks.variational import VIBSeq2Point, ToyNet, VIBFnet, VIB_SAED, VIBShortNeuralFourier, VIBShortFnet, \
+    VIBWGRU
 
 pl.seed_everything(42)
 
@@ -45,6 +46,7 @@ def create_model(model_name, model_hparams):
                   'ShortPosFNET'         : ShortPosFNET,
                   # 'ConvFourier' : ConvFourier,
                   'VIB_SAED'             : VIB_SAED,
+                  'VIBWGRU'              : VIBWGRU,
                   'VIBFNET'              : VIBFnet,
                   'VIBShortFNET'         : VIBShortFnet,
                   'VIBSeq2Point'         : VIBSeq2Point,
@@ -110,7 +112,8 @@ class ClassicTrainingTools(pl.LightningModule):
         x, y = batch
         # Forward pass
         outputs = self(x)
-        loss = F.mse_loss(outputs.squeeze(1), y)
+        # loss = F.mse_loss(outputs.squeeze(1), y)
+        loss = self.calculate_loss(outputs.squeeze(1), y)
 
         tensorboard_logs = {'train_loss': loss}
         return {'loss': loss, 'log': tensorboard_logs}
@@ -124,6 +127,7 @@ class ClassicTrainingTools(pl.LightningModule):
     @staticmethod
     def calculate_loss(logits, labels):
         return F.mse_loss(logits, labels)
+        # return F.huber_loss(logits, labels, delta=0.2)
 
     def _forward_step(self, batch: Tensor) -> Tuple[Tensor, Tensor]:
         inputs, labels = batch

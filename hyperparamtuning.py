@@ -39,6 +39,7 @@ mod_list = [
     # 'WGRU',
     # 'ConvFourier',
     # 'VIB_SAED',
+    # 'VIBWGRU',
     # 'VIBFNET',
     # 'VIBSeq2Point',
     # 'ShortNeuralFourier',
