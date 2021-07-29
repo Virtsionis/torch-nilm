@@ -61,9 +61,9 @@ EPOCHS = 100
 ITERATIONS = 1
 
 SAMPLE_PERIOD = 6
-WINDOW = 500
+WINDOW = 50
 device = 'fridge'
-BATCH = 512
+BATCH = 256
 
 model_hparams = {
     'SimpleGru'            : {},
