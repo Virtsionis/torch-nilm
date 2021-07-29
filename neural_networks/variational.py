@@ -185,6 +185,10 @@ class VIBFnet(FNET, VIBNet):
         self.K = cnn_dim // 2
         self.dense2 = LinearDropRelu(cnn_dim, 2 * self.K, self.drop)
         self.output = nn.Linear(self.K, 1)
+        self.decoder = nn.Sequential(
+            nn.Conv1d(1, 1, kernel_size=kernel_size),
+            nn.ReLU(inplace=True)
+        )
 
         self.dense3 = LinearDropRelu(self.dense_in, cnn_dim, self.drop)
         self.dense4 = LinearDropRelu(cnn_dim, cnn_dim // 2, self.drop)
@@ -208,7 +212,8 @@ class VIBFnet(FNET, VIBNet):
         # imag = self.dense4(imag)
         # std = F.softplus(imag, beta=1)
         encoding = self.reparametrize_n(mu, std, num_sample)
-        logit = self.output(encoding)
+        decoding = self.decoder(encoding)
+        logit = self.output(decoding)
 
         if num_sample == 1:
             pass

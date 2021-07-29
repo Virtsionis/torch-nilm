@@ -41,8 +41,8 @@ mod_list = [
     # 'WGRU',
     # 'ConvFourier',
     # 'VIB_SAED',
-    'VIBWGRU',
-    # 'VIBFNET',
+    # 'VIBWGRU',
+    'VIBFNET',
     # 'VIBShortFNET',
     # 'VIBSeq2Point',
     # 'ShortNeuralFourier',
@@ -63,7 +63,7 @@ ITERATIONS = 1
 SAMPLE_PERIOD = 6
 WINDOW = 500
 device = 'fridge'
-BATCH = 256
+BATCH = 512
 
 model_hparams = {
     'SimpleGru'            : {},
