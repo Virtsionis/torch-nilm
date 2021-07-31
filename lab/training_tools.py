@@ -10,11 +10,13 @@ from torch import Tensor
 from modules.NILM_metrics import NILM_metrics
 from neural_networks.base_models import BaseModel
 from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, FFED, FNET, ConvFourier, ShortNeuralFourier, \
-    ShortFNET, ShortPosFNET
+    ShortFNET, ShortPosFNET, PosFNET
 
-# Setting the seed
 from neural_networks.variational import VIBSeq2Point, ToyNet, VIBFnet, VIB_SAED, VIBShortNeuralFourier
 
+from neural_networks.bayesian import BayesSimpleGru, BayesSeq2Point, BayesWGRU, BayesFNET
+
+# Setting the seed
 pl.seed_everything(42)
 
 # Ensure that all operations are deterministic on GPU (if used) for reproducibility
@@ -43,12 +45,17 @@ def create_model(model_name, model_hparams):
                   'FNET'                 : FNET,
                   'ShortFNET'            : ShortFNET,
                   'ShortPosFNET'            : ShortPosFNET,
+                  'PosFNET'                 : PosFNET,
                   # 'ConvFourier' : ConvFourier,
                   'VIB_SAED'             : VIB_SAED,
                   'VIBFNET'              : VIBFnet,
                   'VIBSeq2Point'         : VIBSeq2Point,
                   'ShortNeuralFourier'   : ShortNeuralFourier,
                   'VIBShortNeuralFourier': VIBShortNeuralFourier,
+                  'BayesSimpleGru': BayesSimpleGru,
+                  'BayesWGRU': BayesWGRU,
+                  'BayesSeq2Point': BayesSeq2Point,
+                  'BayesFNET': BayesFNET,
                   }
 
     if model_name in model_dict:
@@ -68,6 +75,8 @@ class TrainingToolsFactory:
     def equip_model(model, model_hparams, eval_params):
         if model.supports_vib():
             return VIBTrainingTools(model, model_hparams, eval_params)
+        elif model.supports_bayes():
+            return BayesTrainingTools(model, model_hparams, eval_params)
         else:
             return ClassicTrainingTools(model, model_hparams, eval_params)
 
@@ -229,3 +238,59 @@ class VIBTrainingTools(ClassicTrainingTools):
         self.final_preds = np.append(self.final_preds, preds_batch)
         return {'test_loss': loss}
         # return {'test_loss': loss, 'metrics': self._metrics(test=True)}
+
+    def _forward_step(self, batch: Tensor) -> Tuple[Tensor, Tensor]:
+        inputs, labels = batch
+        (mu, std), outputs = self.forward(inputs)
+        loss = self.calculate_loss(outputs.squeeze(), labels)
+        mae = F.l1_loss(outputs, labels)
+
+        return loss, mae
+
+class BayesTrainingTools(ClassicTrainingTools):
+    def __init__(self, model, model_hparams, eval_params, sample_nbr=3):
+        """
+        Inputs:
+            model_name - Name of the model to run. Used for creating the model (see function below)
+            model_hparams - Hyperparameters for the model, as dictionary.
+        """
+        super().__init__(model, model_hparams, eval_params)
+        print('BAYES TRAINING')
+        self.criterion = torch.nn.MSELoss()#F.mse_loss()
+        self.sample_nbr = sample_nbr
+
+    def training_step(self, batch, batch_idx):
+        # x must be in shape [batch_size, 1, window_size]
+        x, y = batch
+        # Forward pass
+        outputs = self(x)
+        # fit_loss = F.mse_loss(outputs.squeeze(1), y)
+        # complexity_loss = self.model.nn_kl_divergence()
+        # loss = fit_loss + complexity_loss
+
+        loss = self.model.sample_elbo(inputs=x,
+                                      labels=y,
+                                      criterion=self.criterion,
+                                      sample_nbr=self.sample_nbr,
+                                      complexity_cost_weight=1./x.shape[0])
+
+        tensorboard_logs = {'train_loss': loss}
+        return {'loss': loss, 'log': tensorboard_logs}
+
+    # def test_step(self, batch, batch_idx):
+    #     x, y = batch
+    #     # Forward pass
+    #     outputs = self(x)
+    #     # fit_loss = F.mse_loss(outputs.squeeze(), y.squeeze())
+    #     # complexity_loss = self.model.nn_kl_divergence()
+    #     # loss = fit_loss + complexity_loss
+
+    #     loss = self.model.sample_elbo(inputs=x,
+    #                                   labels=y,
+    #                                   criterion=self.criterion,
+    #                                   sample_nbr=self.sample_nbr,
+    #                                   complexity_cost_weight=1./x.shape[0])
+
+    #     preds_batch = outputs.squeeze().cpu().numpy()
+    #     self.final_preds = np.append(self.final_preds, preds_batch)
+    #     return {'test_loss': loss}

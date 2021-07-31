@@ -466,35 +466,30 @@ class FNET(BaseModel):
         return out
 
 
-class ShortFNET(FNET):
+class PosFNET(FNET):
     def __init__(self, depth, kernel_size, cnn_dim, **block_args):
-        super(ShortFNET, self).__init__(depth, kernel_size, cnn_dim, **block_args)
-        self.fnet_layers = nn.ModuleList([ShortFNETBLock(**block_args) for _ in range(depth)])
-
-
-class ShortPosFNET(FNET):
-    '''
-    the position encoding is based on Bert4NILM
-    '''
-    def __init__(self, depth, kernel_size, cnn_dim, **block_args):
-        super(ShortPosFNET, self).__init__(depth, kernel_size, cnn_dim, **block_args)
-        self.fnet_layers = nn.ModuleList([ShortFNETBLock(**block_args) for _ in range(depth)])
+        super(PosFNET, self).__init__(depth, kernel_size, cnn_dim, **block_args)
+        self.linear_net = nn.Sequential(
+            nn.Linear(1, cnn_dim//2),
+        )
+        self.fnet_layers = nn.ModuleList([FNETBLock(**block_args) for _ in range(depth)])
 
         self.position = PositionalEmbedding(
             max_len=self.input_dim, d_model=cnn_dim//2)
 
-        self.layer_norm = LayerNorm(cnn_dim//2)
+        self.layer_norm = LayerNorm(cnn_dim)
         self.dropout = nn.Dropout(p=self.drop)
 
     def forward(self, x):
+        # x must be in shape [batch_size, 1, window_size]
+        # eg: [1024,50, 1]
         x = x
-        x = x.unsqueeze(1)
-        x = self.conv(x)
-        x = x.transpose(1, 2).contiguous()
-        x_token = self.pool(x)
-        embedding = x_token + self.position(x_token)
-        embedding = self.layer_norm(embedding)
-        x = self.dropout(embedding)
+        x = x.unsqueeze(2)
+        x = self.linear_net(x)
+        # embedding = self.position(x) + x
+        # embedding = self.layer_norm(embedding)
+        x = self.position(x)
+        # x = self.dropout(embedding)
         x = x.transpose(1, 2).contiguous()
         for layer in self.fnet_layers:
             x, imag = layer(x)
@@ -504,6 +499,83 @@ class ShortPosFNET(FNET):
         out = self.output(x)
         return out
 
+
+
+class ShortFNET(FNET):
+    def __init__(self, depth, kernel_size, cnn_dim, **block_args):
+        super(ShortFNET, self).__init__(depth, kernel_size, cnn_dim, **block_args)
+        self.fnet_layers = nn.ModuleList([ShortFNETBLock(**block_args) for _ in range(depth)])
+
+
+
+class ShortPosFNET(FNET):
+    '''
+    the position encoding is based on Bert4NILM
+    '''
+    def __init__(self, depth, kernel_size, cnn_dim, **block_args):
+        super(ShortPosFNET, self).__init__(depth, kernel_size, cnn_dim, **block_args)
+        self.linear_net = nn.Sequential(
+            nn.Linear(1, cnn_dim//2),
+        )
+        self.fnet_layers = nn.ModuleList([ShortFNETBLock(**block_args) for _ in range(depth)])
+
+        self.position = PositionalEmbedding(
+            max_len=self.input_dim, d_model=cnn_dim//2)
+
+        self.layer_norm = LayerNorm(cnn_dim)
+        self.dropout = nn.Dropout(p=self.drop)
+
+    def forward(self, x):
+        # x must be in shape [batch_size, 1, window_size]
+        # eg: [1024,50, 1]
+        x = x
+        x = x.unsqueeze(2)
+        x = self.linear_net(x)
+        # embedding = self.position(x) + x
+        # embedding = self.layer_norm(embedding)
+        x = self.position(x)
+        # x = self.dropout(embedding)
+        x = x.transpose(1, 2).contiguous()
+        for layer in self.fnet_layers:
+            x, imag = layer(x)
+        x = self.flat(x)
+        x = self.dense1(x)
+        x = self.dense2(x)
+        out = self.output(x)
+        return out
+
+
+# class ShortPosFNET(FNET):
+#     '''
+#     the position encoding is based on Bert4NILM
+#     '''
+#     def __init__(self, depth, kernel_size, cnn_dim, **block_args):
+#         super(ShortPosFNET, self).__init__(depth, kernel_size, cnn_dim, **block_args)
+#         self.fnet_layers = nn.ModuleList([ShortFNETBLock(**block_args) for _ in range(depth)])
+
+#         self.position = PositionalEmbedding(
+#             max_len=self.input_dim, d_model=cnn_dim//2)
+
+#         self.layer_norm = LayerNorm(cnn_dim//2)
+#         self.dropout = nn.Dropout(p=self.drop)
+
+#     def forward(self, x):
+#         x = x
+#         x = x.unsqueeze(1)
+#         x = self.conv(x)
+#         x = x.transpose(1, 2).contiguous()
+#         x_token = self.pool(x)
+#         embedding = x_token + self.position(x_token)
+#         embedding = self.layer_norm(embedding)
+#         x = self.dropout(embedding)
+#         x = x.transpose(1, 2).contiguous()
+#         for layer in self.fnet_layers:
+#             x, imag = layer(x)
+#         x = self.flat(x)
+#         x = self.dense1(x)
+#         x = self.dense2(x)
+#         out = self.output(x)
+#         return out
 
 class FReal(nn.Module):
     def __init__(self):

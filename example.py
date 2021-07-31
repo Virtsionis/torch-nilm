@@ -13,8 +13,8 @@ with torch.no_grad():
     torch.cuda.empty_cache()
 
 clean = False
-ROOT = 'output'
-data_dir = '../Datasets'
+ROOT = 'output_150ri'
+data_dir = '/mnt/B40864F10864B450/WorkSpace/PHD/PHD_exps/data'
 train_file_dir = 'benchmark/large/train/'
 test_file_dir = 'benchmark/large/test/'
 
@@ -32,19 +32,24 @@ dev_list = ['fridge',
 mod_list = [
     #             'SF2P',
     # 'S2P',
-    #             'SimpleGru',
+                # 'SimpleGru',
     #             'FFED',
                 # 'SAED',
     # 'FNET',
     # 'ShortFNET',
-    'ShortPosFNET',
+    # 'PosFNET',
+    # 'ShortPosFNET',
     # 'WGRU',
     # 'ConvFourier',
     # 'VIB_SAED',
     # 'VIBFNET',
     # 'VIBSeq2Point',
     # 'ShortNeuralFourier',
-    # 'VIBShortNeuralFourier'
+    # 'VIBShortNeuralFourier',
+    # 'BayesSimpleGru',
+    'BayesFNET',
+    # 'BayesWGRU',
+    # 'BayesSeq2Point',
 ]
 # REFIT,5,2014-09-01,2014-10-01
 # REFIT,6,2014-09-01,2014-10-01
@@ -55,13 +60,14 @@ create_tree_dir(tree_levels=tree_levels, clean=clean)
 
 exp_type = 'Single'  # 'Multi'
 
-EPOCHS = 100
+EPOCHS = 10
 ITERATIONS = 1
 
 SAMPLE_PERIOD = 6
-WINDOW = 500
-device = 'tumble dryer'
-BATCH = 512
+WINDOW = 200
+device = 'fridge'
+# BATCH = 256
+BATCH = 1000
 
 model_hparams = {
     'SimpleGru'            : {},
@@ -71,18 +77,28 @@ model_hparams = {
     'S2P'                  : {'window_size': WINDOW, 'dropout': 0.25},
     'ConvFourier'          : {'window_size': WINDOW, 'dropout': 0.25},
     'SF2P'                 : {'window_size': WINDOW, 'dropout': 0.25},
-    'FNET'                 : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+    'FNET'                 : {'depth'    : 4, 'kernel_size': 5, 'cnn_dim': 128,
                               'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
+    'PosFNET'                 : {'depth'    : 8, 'kernel_size': 5, 'cnn_dim': 128,
+                              'input_dim': WINDOW, 'hidden_dim': WINDOW * 10, 'dropout': 0},
     'ShortFNET'            : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
                               'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
-    'ShortPosFNET'            : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+    'ShortPosFNET'            : {'depth'    : 2, 'kernel_size': 5, 'cnn_dim': 64,
                               'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
     'VIBSeq2Point'         : {'window_size': WINDOW, 'dropout': 0},
     'VIB_SAED'             : {'window_size': WINDOW},
     'VIBFNET'              : {'depth'    : 16, 'kernel_size': 2, 'cnn_dim': 128,
                               'input_dim': WINDOW, 'hidden_dim': WINDOW * 2, 'dropout': 0},
     'ShortNeuralFourier'   : {'window_size': WINDOW},
-    'VIBShortNeuralFourier': {'window_size': WINDOW}
+    'VIBShortNeuralFourier': {'window_size': WINDOW},
+    'BayesSimpleGru': {},
+    'BayesWGRU'                 : {'dropout': 0.0},
+    'BayesSeq2Point': {'window_size': WINDOW},
+    # 'BayesFNET'                 : {'depth'    : 6, 'kernel_size': 5, 'cnn_dim': 128,
+    #                           'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},#kettle
+    'BayesFNET'                 : {'depth'    : 6, 'kernel_size': 5, 'cnn_dim': 128,
+                              'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},#fridge
+
 }
 
 test_houses = []
@@ -186,4 +202,5 @@ for model_name in mod_list:
                    eval_params=eval_params,
                    model_hparams=model_hparams[model_name],
                    val_loader=val_loader,
-                   callbacks=[TrainerCallbacksFactory.create_earlystopping()])
+                   callbacks=[TrainerCallbacksFactory.create_earlystopping()]
+                   )
