@@ -66,7 +66,7 @@ def save_report(root_dir=None, model_name=None, device=None, exp_type=None,
         cols = ['recall', 'f1', 'precision',
                 'accuracy', 'MAE', 'RETE', 'epochs', 'hparams']
         report = pd.DataFrame(columns=cols)
-    hparams = {'hparams': model_hparams, 'epochs': epochs}
+    hparams = {'hparams': model_hparams, 'epochs': int(epochs) + 1}
     report = report.append({**results, **hparams}, ignore_index=True)
     report.fillna(np.nan, inplace=True)
     report.to_csv(path + report_filename, index=False)
@@ -111,10 +111,11 @@ def display_res(root_dir=None, model_name=None, device=None,
 
         report = pd.read_csv(path + report_filename)
 
-        if int(iteration) > 0:
-            print(report.iloc[int(iteration) - 1:int(iteration)])
-        else:
-            print(report.iloc[int(iteration)])
+        # uncomment if wanna see the report
+        # if int(iteration) > 0:
+        #     print(report.iloc[int(iteration) - 1:int(iteration)])
+        # else:
+        #     print(report.iloc[int(iteration)])
 
         data = pd.read_csv(path + data_filename)
         data['ground'][low_lim:upper_lim].plot.line(legend=False,
@@ -137,10 +138,67 @@ def display_res(root_dir=None, model_name=None, device=None,
         plt.clf()
         del ax
 
-def final_device_report(root_dir=None, model_name=None, device=None, exp_type=None,
-                        experiment_name=None, iteration=None, ):
-    pass
+def get_tree_paths(tree_levels={}):
+    tree_gen = (level for level in tree_levels)
+    level = next(tree_gen)
+    end = False
+    if level == 'root':
+        root_path = os.getcwd() + '/' + tree_levels[level]
+    base_paths = [root_path]
+    while not end:
+        try:
+            level = next(tree_gen)
+            folders = tree_levels[level]
+            if isinstance(folders, list):
+                paths = []
+                for folder in folders:
+                    for base_path in base_paths:
+                        path = base_path + '/' + folder
+                        paths.append(path)
+            base_paths = paths
+        except:
+            end = True
+    return base_paths
 
+def get_exp_paths(cat_paths):
+    exp_paths = []
+    for cat_path in cat_paths:
+        for exp in os.listdir(cat_path):
+            exp_path = '/'.join([cat_path, exp])
+            if os.path.exists(exp_path):
+                exp_paths.append(exp_path)
+    return exp_paths
+
+def get_final_report(tree_levels, save=True, root_dir=None, save_name=None):
+
+    path = '/'.join([root_dir, 'results', ''])
+    columns = ['model', 'appliance','category','experiment',
+           'recall','f1','precision','accuracy','MAE',
+           'RETE','epochs','hparams']
+    data = pd.DataFrame(columns=columns)
+
+    cat_paths = get_tree_paths(tree_levels=tree_levels)
+    exp_paths = get_exp_paths(cat_paths)
+
+    for exp_path in exp_paths:
+        for item in os.listdir(exp_path):
+            if 'REPORT' in item:
+                report = pd.read_csv(exp_path+'/'+item)
+                appliance = exp_path.split('/')[9]
+                model = exp_path.split('/')[-3]
+                category = exp_path.split('/')[11]
+                experiment = exp_path.split('/')[12]
+                report['appliance'] = appliance
+                report['model'] = model
+                report['category'] = category
+                report['experiment'] = experiment
+                data = data.append(report, ignore_index=True)
+
+    data = data[columns]
+    data = data.sort_values(by=['appliance', 'experiment'])
+    if save:
+        data.to_csv(path+ save_name +'.csv',index=False)
+    return data
 
 def train_model(model_name, train_loader, test_loader,
                 epochs=5, **kwargs):
@@ -157,7 +215,6 @@ def train_model(model_name, train_loader, test_loader,
     preds = test_result[0]['preds']
 
     return model, metrics, preds
-
 
 def train_eval(model_name, train_loader, exp_type, tests_params,
                sample_period, batch_size, experiment_name, exp_volume,

@@ -4,7 +4,8 @@ import pandas as pd
 from callbacks.callbacks_factories import TrainerCallbacksFactory
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityDataset
-from modules.helpers import create_tree_dir, save_report, train_model, display_res, train_eval
+from modules.helpers import create_tree_dir, save_report, train_model,\
+        display_res, train_eval, get_final_report
 from torch.utils.data import Dataset, DataLoader, random_split
 
 from modules.MyDataSet import MyChunk, MyChunkList
@@ -14,7 +15,7 @@ with torch.no_grad():
 
 clean = True
 PLOTS = True
-ROOT = 'visuals'
+ROOT = 'visuals2'
 exp_volume = 'large'
 data_dir = '/mnt/B40864F10864B450/WorkSpace/PHD/PHD_exps/data'
 train_file_dir = 'benchmark/{}/train/'.format(exp_volume)
@@ -201,3 +202,4 @@ for device in dev_list:
                        val_loader=val_loader,
                        callbacks=[TrainerCallbacksFactory.create_earlystopping()]
                        )
+get_final_report(tree_levels, save=True, root_dir=ROOT, save_name='FINAL_REPORT')
