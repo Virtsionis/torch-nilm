@@ -1,20 +1,19 @@
 import os, shutil
-import pandas as pd
 import numpy as np
+import pandas as pd
 import pytorch_lightning as pl
+import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
-
+from lab.training_tools import TrainingToolsFactory
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityIterableDataset, ElectricityDataset
-from lab.training_tools import TrainingToolsFactory
 
-
-def create_tree_dir(tree_levels={}, clean=False):
+def create_tree_dir(tree_levels={}, clean=False, plots=True):
     tree_gen = (level for level in tree_levels)
     level = next(tree_gen)
     end = False
     if level == 'root':
-        print(level)
+        # print(level)
         root_path = os.getcwd() + '/' + tree_levels[level]
         if clean and os.path.exists(root_path):
             shutil.rmtree(root_path)
@@ -22,8 +21,13 @@ def create_tree_dir(tree_levels={}, clean=False):
         if not os.path.exists(root_path):
             os.mkdir(root_path)
 
-    print(root_path)
+    # print(root_path)
     base_paths = [root_path]
+    if plots:
+        plot_path = root_path + '/plots'
+        if not os.path.exists(plot_path):
+            os.mkdir(plot_path)
+
     while not end:
         try:
             level = next(tree_gen)
@@ -41,10 +45,10 @@ def create_tree_dir(tree_levels={}, clean=False):
             end = True
     print(1)
 
-
 def save_report(root_dir=None, model_name=None, device=None, exp_type=None,
-                experiment_name=None, iteration=None, results={},
-                preds=None, ground=None, model_hparams=None, epochs=None):
+                experiment_name=None, exp_volume='large', iteration=None, results={},
+                preds=None, ground=None, model_hparams=None, epochs=None, plots=True):
+
     root_dir = os.getcwd() + '/' + root_dir
     path = '/'.join([root_dir, 'results', device, model_name,
                      exp_type, experiment_name, ''])
@@ -72,20 +76,37 @@ def save_report(root_dir=None, model_name=None, device=None, exp_type=None,
                             columns=cols)
     res_data.to_csv(path + data_filename, index=False)
 
+    if plots:
+        exp_list = experiment_name.split('_')
+        device = exp_list[0]
+        bounds = os.getcwd()+'/modules/plot_bounds/{}/{}_bounds_{}.csv'.format(exp_volume,exp_list[0],exp_list[1])
+        bounds = pd.read_csv(str(bounds))
+        bounds = bounds[(bounds['test_set'] == exp_list[6])&(bounds['test_house'] == int(exp_list[5]))]
+
+        if not bounds.empty:
+            low_lim = bounds['low_lim'].values[0]
+            upper_lim = bounds['upper_lim'].values[0]
+
+            display_res(root_dir, model_name, device, exp_type, experiment_name,
+                        iteration, low_lim=low_lim, upper_lim=upper_lim,
+                        plt_show=True, save_fig=True, save_dir='plots'
+                       )
+        else:
+            print('Can"t plot, no experiment with name: {}'.format(experiment_name))
 
 def display_res(root_dir=None, model_name=None, device=None,
                 exp_type=None, experiment_name=None, iteration=None,
-                low_lim=None, upper_lim=None):
+                low_lim=None, upper_lim=None, save_fig=True, plt_show=True, save_dir='plots'):
     if low_lim > upper_lim:
         low_lim, upper_lim = upper_lim, low_lim
 
-    root_dir = os.getcwd() + '/' + root_dir
-
+    root_dir = root_dir
     path = '/'.join([root_dir, 'results', device, model_name,
-                     exp_type, experiment_name, ''])
+                     exp_type, experiment_name,''])
 
     if os.path.exists(path):
         report_filename = 'REPORT_' + experiment_name + '.csv'
+        snapshot_name = model_name + '_' + experiment_name + '_iter_' + str(iteration) + '.png'
         data_filename = experiment_name + '_iter_' + str(iteration) + '.csv'
 
         report = pd.read_csv(path + report_filename)
@@ -94,10 +115,27 @@ def display_res(root_dir=None, model_name=None, device=None,
             print(report.iloc[int(iteration) - 1:int(iteration)])
         else:
             print(report.iloc[int(iteration)])
-        data = pd.read_csv(path + data_filename)
-        data['ground'][low_lim:upper_lim].plot.line()
-        data['preds'][low_lim:upper_lim].plot.line()
 
+        data = pd.read_csv(path + data_filename)
+        data['ground'][low_lim:upper_lim].plot.line(legend=False,
+                                                    # linestyle='dashed',
+                                                   )
+        data['preds'][low_lim:upper_lim].plot.line(legend=False)
+        ax = plt.gca()
+        ax.axes.xaxis.set_ticklabels([])
+        ax.axes.yaxis.set_ticklabels([])
+        plt.rcParams["figure.figsize"] = (8, 10)
+        plt.legend(['ground truth', model_name])
+
+        if save_fig:
+            if save_dir:
+                plt.savefig(root_dir+'/'+save_dir+'/'+snapshot_name,
+                            #dpi=1000
+                            )
+            else:
+                plt.savefig(path+snapshot_name)
+        plt.clf()
+        del ax
 
 def final_device_report(root_dir=None, model_name=None, device=None, exp_type=None,
                         experiment_name=None, iteration=None, ):
@@ -122,8 +160,8 @@ def train_model(model_name, train_loader, test_loader,
 
 
 def train_eval(model_name, train_loader, exp_type, tests_params,
-               sample_period, batch_size, experiment_name, iteration,
-               device, mmax, means, stds, meter_means, meter_stds,
+               sample_period, batch_size, experiment_name, exp_volume,
+               iteration, device, mmax, means, stds, meter_means, meter_stds,
                window_size, root_dir, data_dir, model_hparams,
                epochs=5, callbacks=None, val_loader=None, **kwargs):
     """
@@ -162,6 +200,6 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
         results = test_result['metrics']
         preds = test_result['preds']
         final_experiment_name = experiment_name + 'test_' + building + '_' + dataset
-        save_report(root_dir, model_name, device, exp_type, final_experiment_name,
-                    iteration, results, preds, ground, model_hparams, epochs)
+        save_report(root_dir, model_name, device, exp_type, final_experiment_name, exp_volume,
+                    iteration, results, preds, ground, model_hparams, epochs, plots=True)
         del test_dataset, test_loader, ground, final_experiment_name

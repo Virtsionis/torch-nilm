@@ -12,27 +12,29 @@ from modules.MyDataSet import MyChunk, MyChunkList
 with torch.no_grad():
     torch.cuda.empty_cache()
 
-clean = False
-ROOT = 'output_100ri'
+clean = True
+PLOTS = True
+ROOT = 'visuals'
+exp_volume = 'large'
 data_dir = '/mnt/B40864F10864B450/WorkSpace/PHD/PHD_exps/data'
-train_file_dir = 'benchmark/large/train/'
-test_file_dir = 'benchmark/large/test/'
+train_file_dir = 'benchmark/{}/train/'.format(exp_volume)
+test_file_dir = 'benchmark/{}/test/'.format(exp_volume)
 
 dev_list = [
-                        # 'fridge',
-                        # 'kettle',
                         # 'washing machine',
+                        # 'kettle',
                         # 'tumble dryer',
-                        'dish washer',
-                        'microwave',
-                        'television',
-                        'computer',
+                        # 'dish washer',
+                        'fridge',
+                        # 'microwave',
+                        # 'television',
+                        # 'computer',
             #             'electric space heater'
             ]
 mod_list = [
     #             'SF2P',
     # 'S2P',
-                # 'SimpleGru',
+                'SimpleGru',
     #             'FFED',
                 # 'SAED',
     # 'FNET',
@@ -47,7 +49,8 @@ mod_list = [
     # 'ShortNeuralFourier',
     # 'VIBShortNeuralFourier',
     # 'BayesSimpleGru',
-    'BayesFNET',
+    # 'BayesFNET',
+    # 'BERT4NILM',
     # 'BayesWGRU',
     # 'BayesSeq2Point',
 ]
@@ -56,19 +59,22 @@ mod_list = [
 # REFIT,20,2015-01-01,2015-02-01
 cat_list = [x for x in ['Single', 'Multi']]
 tree_levels = {'root': ROOT, 'l1': ['results'], 'l2': dev_list, 'l3': mod_list, 'experiments': cat_list}
-create_tree_dir(tree_levels=tree_levels, clean=clean)
+create_tree_dir(tree_levels=tree_levels, clean=clean, plots=PLOTS)
 
 exp_type = 'Single'  # 'Multi'
 
-EPOCHS = 50
+EPOCHS = 1
 ITERATIONS = 1
 
 SAMPLE_PERIOD = 6
-WINDOW = 100
+WINDOW = 50
 # device = 'fridge'
 # BATCH = 256
 BATCH = 1000
 for device in dev_list:
+    print('#' * 160)
+    print('DEVICE: ', device)
+    print('#' * 160)
     model_hparams = {
         'SimpleGru'            : {},
         'SAED'                 : {'window_size': WINDOW},
@@ -91,13 +97,15 @@ for device in dev_list:
                                   'input_dim': WINDOW, 'hidden_dim': WINDOW * 2, 'dropout': 0},
         'ShortNeuralFourier'   : {'window_size': WINDOW},
         'VIBShortNeuralFourier': {'window_size': WINDOW},
+        'BERT4NILM': {'window_size':WINDOW,'drop_out':0.5,'output_size':1,
+                      'hidden':256,'heads':2,'n_layers':2},
         'BayesSimpleGru': {},
         'BayesWGRU'                 : {'dropout': 0.0},
         'BayesSeq2Point': {'window_size': WINDOW},
         # 'BayesFNET'                 : {'depth'    : 6, 'kernel_size': 5, 'cnn_dim': 128,
         #                           'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},#kettle
         'BayesFNET'                 : {'depth'    : 6, 'kernel_size': 5, 'cnn_dim': 128,
-                                  'input_dim': WINDOW, 'hidden_dim': WINDOW * 6, 'dropout': 0},#fridge
+                                  'input_dim': WINDOW, 'hidden_dim': 500, 'dropout': 0},#fridge
 
     }
 
@@ -169,7 +177,6 @@ for device in dev_list:
             print('Iteration: ', iteration)
             print('#' * 20)
             experiment_name = '_'.join([device, exp_type, 'Train', train_set, '', ])
-            experiments.append(experiment_name)
             train_eval(model_name,
                        train_loader,
                        exp_type,
@@ -177,6 +184,7 @@ for device in dev_list:
                        SAMPLE_PERIOD,
                        BATCH,
                        experiment_name,
+                       exp_volume,
                        iteration,
                        device,
                        mmax,
