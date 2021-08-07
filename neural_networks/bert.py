@@ -2,7 +2,7 @@ import math
 import torch
 from torch import nn
 import torch.nn.functional as F
-
+from neural_networks.base_models import BaseModel
 
 class GELU(nn.Module):
     def forward(self, x):
@@ -113,9 +113,14 @@ class TransformerBlock(nn.Module):
         return self.dropout(x)
 
 
-class BERT4NILM(nn.Module):
+class BERTNet(BaseModel):
+    def supports_bert(self) -> bool:
+        return True
+
+class BERT4NILM(BERTNet):
     # def __init__(self, args):
-    def __init__(self, window_size,drop_out,output_size):
+    def __init__(self, window_size,hidden=256,heads=2,
+                 n_layers = 2,drop_out=0.0,output_size=1):
         super().__init__()
         # self.args = args
         # self.dropout_rate = args.drop_out
@@ -125,9 +130,9 @@ class BERT4NILM(nn.Module):
         self.latent_len = int(self.original_len / 2)
         self.dropout_rate = drop_out
 
-        self.hidden = 256
-        self.heads = 2
-        self.n_layers = 2
+        self.hidden = hidden
+        self.heads = heads
+        self.n_layers = n_layers
         self.output_size = output_size
 
         self.conv = nn.Conv1d(in_channels=1, out_channels=self.hidden,
@@ -145,7 +150,9 @@ class BERT4NILM(nn.Module):
         self.deconv = nn.ConvTranspose1d(
             in_channels=self.hidden, out_channels=self.hidden, kernel_size=4, stride=2, padding=1)
         self.linear1 = nn.Linear(self.hidden, 128)
-        self.linear2 = nn.Linear(128, self.output_size)
+        self.flat = nn.Flatten()
+        self.linear2 = nn.Linear(128*window_size, 128)
+        self.out = nn.Linear(128, self.output_size)
 
         self.truncated_normal_init()
 
@@ -164,7 +171,6 @@ class BERT4NILM(nn.Module):
                     p.add_(mean)
 
     def forward(self, sequence):
-        print(sequence.shape)
         x_token = self.pool(self.conv(sequence.unsqueeze(1))).permute(0, 2, 1)
         embedding = x_token + self.position(sequence)
         x = self.dropout(self.layer_norm(embedding))
@@ -175,5 +181,7 @@ class BERT4NILM(nn.Module):
 
         x = self.deconv(x.permute(0, 2, 1)).permute(0, 2, 1)
         x = torch.tanh(self.linear1(x))
+        x = self.flat(x)
         x = self.linear2(x)
-        return x
+        out = self.out(x)
+        return out
