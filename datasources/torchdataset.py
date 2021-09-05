@@ -218,3 +218,137 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
         x = self.mainchunk
         y = self.meterchunk
         return x[i].float(), y[i].float()
+
+class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
+    """ElectricityMultiBuildingsDataset dataset."""
+
+    # def __init__(self, train_info=None,
+    #              window_size=50, test=False, chunksize=10 ** 6,
+    #              mmax=None, means=None, stds=None, meter_means=None, meter_stds=None,
+    #              sample_period=None, **load_kwargs):
+    #     """
+    #     Args:
+    #         train_info(list): python list, contains to target datasets, dates,
+    #             devices.
+    #         ex: train_info = [{'device' : device,
+    #                              'datasource' : datasource,
+    #                              'building' : train_house,
+    #                              'train_dates' : train_dates,},
+    #                           {'device' : device,
+    #                              'datasource' : datasource,
+    #                              'building' : train_house,
+    #                              'train_dates' : train_dates,},
+    #                          ]
+    #         building(int): the desired building
+    #         device(string): the desired device
+    #         dates(list): list with the start and end(optional) dates for training window [start, end]
+    #                     eg:['2016-04-01','2017-04-01']
+    #     """
+    #     super().__init__(window_size, mmax,
+    #                      means, stds, meter_means, meter_stds,
+    #                      sample_period, chunksize)
+    #     train_info = train_info
+
+    #     # if train_info and len(train_info):
+
+    #     num_buildings = len(train_info)
+    #     self.mains_generators = [None] * num_buildings
+    #     self.appliance_generators = [None] * num_buildings
+    #     self.datasources = [None] * num_buildings
+
+    #     self._init_generators(train_info, sample_period, chunksize)
+    def __init__(self, train_info=None,device=None,
+                 window_size=50, test=False, chunksize=10 ** 6,
+                 mmax=None, means=None, stds=None, meter_means=None, meter_stds=None,
+                 sample_period=None, **load_kwargs):
+        """
+        Args:
+            train_info(list): python list, contains to target datasets, dates,
+                devices.
+            ex: train_info = [{'device' : device,
+                                 'datasource' : datasource,
+                                 'building' : train_house,
+                                 'train_dates' : train_dates,},
+                              {'device' : device,
+                                 'datasource' : datasource,
+                                 'building' : train_house,
+                                 'train_dates' : train_dates,},
+                             ]
+            building(int): the desired building
+            device(string): the desired device
+            dates(list): list with the start and end(optional) dates for training window [start, end]
+                        eg:['2016-04-01','2017-04-01']
+        """
+        self.mmax = mmax
+        self.means = means
+        self.stds = stds
+        self.meter_means = meter_means
+        self.meter_stds = meter_stds
+        self.chunksize = chunksize
+        self.sample_period = sample_period
+        self.window_size = window_size
+        self.threshold = ON_THRESHOLDS.get(device, 50)
+
+        if train_info and len(train_info):
+            num_buildings = len(train_info)
+            self.mains_generators = [None] * num_buildings
+            self.appliance_generators = [None] * num_buildings
+            self.datasources = [None] * num_buildings
+            self._init_generators(train_info, sample_period, chunksize)
+
+    def _init_generators(self, train_info, sample_period, chunksize):
+        for (index, element) in enumerate(train_info):
+            datasource = element['datasource']
+            building = element['building']
+            device = element['device']
+            start_date = element['dates'][0]
+            end_date = element['dates'][1]
+            self._init_single_building_generators(datasource, building, device, start_date,
+                                                  end_date, sample_period, chunksize, index)
+
+    def _init_single_building_generators(self, datasource: Datasource, building, device, start_date,
+                                         end_date, sample_period, chunksize, index):
+        self.datasources[index] = datasource
+        self.mains_generators[index] = self.datasources[index].get_mains_generator(start=start_date,
+                                                                           end=end_date,
+                                                                           sample_period=sample_period,
+                                                                           building=building,
+                                                                           chunksize=chunksize)
+
+        self.appliance_generators[index] = self.datasources[index].get_appliance_generator(appliance=device,
+                                                                                   start=start_date,
+                                                                                   end=end_date,
+                                                                                   sample_period=sample_period,
+                                                                                   building=building,
+                                                                                   chunksize=chunksize)
+        self._reload(index)
+
+    def _reload(self, index):
+        self.mainchunk = torch.tensor([])
+        self.meterchunk = torch.tensor([])
+        try:
+            mainchunk = next(self.mains_generators[index])
+            meterchunk = next(self.appliance_generators[index])
+
+            mainchunk, meterchunk = self._align_chunks(mainchunk, meterchunk)
+            mainchunk, meterchunk = self._replace_nans(mainchunk, meterchunk)
+            # mainchunk, meterchunk = self._replace_with_zero_small_values(mainchunk, meterchunk, self.threshold)
+            # mainchunk, meterchunk = self._normalize_chunks(mainchunk, meterchunk)
+            # mainchunk, meterchunk = self._denoise(mainchunk, meterchunk)
+            mainchunk, meterchunk = self._standardize_chunks(mainchunk, meterchunk)
+            mainchunk, meterchunk = self._apply_rolling_window(mainchunk, meterchunk)
+            self.mainchunk, self.meterchunk = torch.from_numpy(np.array(mainchunk)), torch.from_numpy(
+                np.array(meterchunk))
+        except StopIteration:
+            return
+
+    def __len__(self):
+        return len(self.mainchunk)
+
+    def __mmax__(self):
+        return self.mmax
+
+    def __getitem__(self, i):
+        x = self.mainchunk
+        y = self.meterchunk
+        return x[i].float(), y[i].float()

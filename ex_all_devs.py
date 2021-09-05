@@ -3,7 +3,7 @@ import pandas as pd
 
 from callbacks.callbacks_factories import TrainerCallbacksFactory
 from datasources.datasource import DatasourceFactory
-from datasources.torchdataset import ElectricityDataset
+from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset
 from modules.helpers import create_tree_dir, save_report, train_model,\
         display_res, train_eval, get_final_report
 from torch.utils.data import Dataset, DataLoader, random_split
@@ -13,24 +13,24 @@ from modules.MyDataSet import MyChunk, MyChunkList
 with torch.no_grad():
     torch.cuda.empty_cache()
 
-clean = True
+clean = False
 PLOTS = True
-ROOT = 'visuals2'
+ROOT = 'test_multi'#'visuals2'
 exp_volume = 'large'
 data_dir = '/mnt/B40864F10864B450/WorkSpace/PHD/PHD_exps/data'
 train_file_dir = 'benchmark/{}/train/'.format(exp_volume)
 test_file_dir = 'benchmark/{}/test/'.format(exp_volume)
 
 dev_list = [
-                        # 'washing machine',
-                        # 'kettle',
-                        # 'tumble dryer',
-                        # 'dish washer',
+                        # 'electric space heater',
+                        'television',
+                        'computer',
+                        'washing machine',
+                        'kettle',
+                        'dish washer',
                         'fridge',
-                        # 'microwave',
-                        # 'television',
-                        # 'computer',
-            #             'electric space heater'
+                        'microwave',
+                        # 'tumble dryer',
             ]
 mod_list = [
     #             'SF2P',
@@ -62,7 +62,7 @@ cat_list = [x for x in ['Single', 'Multi']]
 tree_levels = {'root': ROOT, 'l1': ['results'], 'l2': dev_list, 'l3': mod_list, 'experiments': cat_list}
 create_tree_dir(tree_levels=tree_levels, clean=clean, plots=PLOTS)
 
-exp_type = 'Single'  # 'Multi'
+exp_type = 'Multi'  # 'Single'
 
 EPOCHS = 1
 ITERATIONS = 1
@@ -141,13 +141,27 @@ for device in dev_list:
                                                device=device, dates=train_dates, sample_period=SAMPLE_PERIOD)
 
     else:
+        train_info = []
+        index = 0
         for line in train_file:
             toks = line.split(',')
             train_set = toks[0]
-            break
+            train_house = toks[1]
+            train_dates = [str(toks[2]), str(toks[3].rstrip("\n"))]
+            path = data_dir + '/{}/{}.h5'.format(train_set, train_set)
+            datasource = DatasourceFactory.create_datasource(train_set)
+            train_info.append({
+                                 'device' : device,
+                                 'datasource' : datasource,
+                                 'building' : int(train_house),
+                                 'dates' : train_dates,
+                              }
+                            )
         train_file.close()
-        train_dataset_all = MyChunkList(device, filename=train_file,
-                                        window_size=WINDOW, sample_period=SAMPLE_PERIOD)
+        train_dataset_all = ElectricityMultiBuildingsDataset(train_info,
+                                                             device=device,
+                                                             window_size=WINDOW,
+                                                             sample_period=SAMPLE_PERIOD)
     train_size = int(0.8 * len(train_dataset_all))
     val_size = len(train_dataset_all) - train_size
     train_dataset, val_dataset = random_split(train_dataset_all, [train_size, val_size],
@@ -200,6 +214,7 @@ for device in dev_list:
                        eval_params=eval_params,
                        model_hparams=model_hparams[model_name],
                        val_loader=val_loader,
+                       plots=PLOTS,
                        callbacks=[TrainerCallbacksFactory.create_earlystopping()]
                        )
 get_final_report(tree_levels, save=True, root_dir=ROOT, save_name='FINAL_REPORT')
