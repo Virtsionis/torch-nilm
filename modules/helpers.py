@@ -219,7 +219,7 @@ def train_model(model_name, train_loader, test_loader,
 def train_eval(model_name, train_loader, exp_type, tests_params,
                sample_period, batch_size, experiment_name, exp_volume,
                iteration, device, mmax, means, stds, meter_means, meter_stds,
-               window_size, root_dir, data_dir, model_hparams,
+               window_size, root_dir, data_dir, model_hparams,plots=True,
                epochs=5, callbacks=None, val_loader=None, **kwargs):
     """
     Inputs:
@@ -258,5 +258,5 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
         preds = test_result['preds']
         final_experiment_name = experiment_name + 'test_' + building + '_' + dataset
         save_report(root_dir, model_name, device, exp_type, final_experiment_name, exp_volume,
-                    iteration, results, preds, ground, model_hparams, epochs, plots=True)
+                    iteration, results, preds, ground, model_hparams, epochs, plots=plots)
         del test_dataset, test_loader, ground, final_experiment_name
