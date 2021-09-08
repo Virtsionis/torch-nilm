@@ -89,6 +89,9 @@ class BaseElectricityDataset(ABC):
         return mainchunk, meterchunk
 
     def _standardize_chunks(self, mainchunk, meterchunk):
+        ######
+        # TODO: If chunk is a bad chunk (all zeros) then means/stds will be problematic
+        ######
         if self.means is None and self.stds is None:
             self.means = mainchunk.mean()
             self.stds = mainchunk.std()
@@ -221,42 +224,6 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
 
 class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
     """ElectricityMultiBuildingsDataset dataset."""
-
-    # def __init__(self, train_info=None,
-    #              window_size=50, test=False, chunksize=10 ** 6,
-    #              mmax=None, means=None, stds=None, meter_means=None, meter_stds=None,
-    #              sample_period=None, **load_kwargs):
-    #     """
-    #     Args:
-    #         train_info(list): python list, contains to target datasets, dates,
-    #             devices.
-    #         ex: train_info = [{'device' : device,
-    #                              'datasource' : datasource,
-    #                              'building' : train_house,
-    #                              'train_dates' : train_dates,},
-    #                           {'device' : device,
-    #                              'datasource' : datasource,
-    #                              'building' : train_house,
-    #                              'train_dates' : train_dates,},
-    #                          ]
-    #         building(int): the desired building
-    #         device(string): the desired device
-    #         dates(list): list with the start and end(optional) dates for training window [start, end]
-    #                     eg:['2016-04-01','2017-04-01']
-    #     """
-    #     super().__init__(window_size, mmax,
-    #                      means, stds, meter_means, meter_stds,
-    #                      sample_period, chunksize)
-    #     train_info = train_info
-
-    #     # if train_info and len(train_info):
-
-    #     num_buildings = len(train_info)
-    #     self.mains_generators = [None] * num_buildings
-    #     self.appliance_generators = [None] * num_buildings
-    #     self.datasources = [None] * num_buildings
-
-    #     self._init_generators(train_info, sample_period, chunksize)
     def __init__(self, train_info=None,device=None,
                  window_size=50, test=False, chunksize=10 ** 6,
                  mmax=None, means=None, stds=None, meter_means=None, meter_stds=None,
