@@ -53,7 +53,7 @@ def create_model(model_name, model_hparams):
                   'BERT4NILM':BERT4NILM,
                   'VIB_SAED'             : VIB_SAED,
                   'VIBFNET'              : VIBFnet,
-'VIBShortFNET':VIBShortFNET,
+'VIBShortFNET':VIBShortFnet,
 'VIBWGRU':VIBWGRU,
 'VIBSeq2Point'         : VIBSeq2Point,
                   'ShortNeuralFourier'   : ShortNeuralFourier,
