@@ -7,7 +7,9 @@ from torch import nn
 from torch.autograd import Variable
 
 from neural_networks.base_models import BaseModel
-from neural_networks.models import Seq2Point, LinearDropRelu, ConvDropRelu, FNET, SAED, ShortNeuralFourier
+from neural_networks.custom_modules import VIBDecoder
+from neural_networks.models import Seq2Point, LinearDropRelu, ConvDropRelu, FNET, SAED, ShortNeuralFourier, ShortFNET, \
+    WGRU
 
 
 def cuda(tensor, is_cuda):
@@ -43,7 +45,7 @@ class VIBNet(BaseModel):
             mu = expand(mu)
             std = expand(std)
 
-        noise_distribution = torch.distributions.LogNormal(0, 0.01)
+        noise_distribution = torch.distributions.Normal(0, 0.01)
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
         eps = noise_distribution.sample(std.size()).to(device)
@@ -97,7 +99,7 @@ class VIB_SAED(SAED, VIBNet):
         super(VIB_SAED, self).__init__(window_size, mode, hidden_dim, num_heads, dropout, lr)
         self.K = K
         self.dense = LinearDropRelu(128, 2 * K, self.drop)
-        self.output = nn.Linear(K, 1)
+        self.decoder = VIBDecoder(self.K)
 
     def forward(self, x, num_sample=1):
         x = x.unsqueeze(1)
@@ -111,12 +113,31 @@ class VIB_SAED(SAED, VIBNet):
         mu = statistics[:, :self.K]
         std = F.softplus(statistics[:, self.K:], beta=1)
         encoding = self.reparametrize_n(mu, std, num_sample)
-        logit = self.output(encoding)
+        logit = self.decoder(encoding)
 
-        if num_sample == 1:
-            pass
-        elif num_sample > 1:
-            logit = F.softmax(logit, dim=2).mean(0)
+        return (mu, std), logit
+
+
+class VIBWGRU(WGRU, VIBNet):
+    def __init__(self, dropout=0, lr=None, K=32):
+        super(VIBWGRU, self).__init__(dropout, lr)
+        self.K = K
+        self.dense2 = LinearDropRelu(128, 2 * K, self.drop)
+        self.decoder = VIBDecoder(self.K)
+
+    def forward(self, x, num_sample=1):
+        x = x.unsqueeze(1)
+        x = self.conv1(x)
+        x = x.permute(0, 2, 1)
+        x = self.b1(x)[0]
+        x = self.b2(x)[0]
+        x = x[:, -1, :]
+        x = self.dense1(x)
+        statistics = self.dense2(x)
+        mu = statistics[:, :self.K]
+        std = F.softplus(statistics[:, self.K:], beta=1)
+        encoding = self.reparametrize_n(mu, std, num_sample)
+        logit = self.decoder(encoding)
 
         return (mu, std), logit
 
@@ -126,7 +147,7 @@ class VIBSeq2Point(Seq2Point, VIBNet):
         super(VIBSeq2Point, self).__init__(window_size, dropout, lr)
         self.K = K
         self.dense = LinearDropRelu(self.dense_input, 2 * K, self.drop)
-        self.output = nn.Linear(K, 1)
+        self.decoder = VIBDecoder(self.K)
 
     def forward(self, x, num_sample=1):
         x = x.unsqueeze(1)
@@ -138,12 +159,7 @@ class VIBSeq2Point(Seq2Point, VIBNet):
         std = F.softplus(statistics[:, self.K:], beta=1)
         encoding = self.reparametrize_n(mu, std, num_sample)
 
-        logit = self.output(encoding)
-
-        if num_sample == 1:
-            pass
-        elif num_sample > 1:
-            logit = F.softmax(logit, dim=2).mean(0)
+        logit = self.decoder(encoding)
 
         return (mu, std), logit
 
@@ -151,10 +167,37 @@ class VIBSeq2Point(Seq2Point, VIBNet):
 class VIBFnet(FNET, VIBNet):
     def __init__(self, depth, kernel_size, cnn_dim, K=256, **block_args):
         super(VIBFnet, self).__init__(depth, kernel_size, cnn_dim, **block_args)
+        self.K = cnn_dim // 2
+        self.dense2 = LinearDropRelu(cnn_dim, 2 * self.K, self.drop)
+        self.decoder = VIBDecoder(self.K)
+
+    def forward(self, x, num_sample=1):
+        x = x.unsqueeze(1)
+        x = self.conv(x)
+
+        x = x.transpose(1, 2).contiguous()
+        x = self.pool(x)
+        x = x.transpose(1, 2).contiguous()
+        for layer in self.fnet_layers:
+            x, imag = layer(x)
+        x = self.flat(x)
+        x = self.dense1(x)
+        statistics = self.dense2(x)
+        mu = statistics[:, :self.K]
+        std = F.softplus(statistics[:, self.K:], beta=1)
+        encoding = self.reparametrize_n(mu, std, num_sample)
+        logit = self.decoder(encoding)
+
+        return (mu, std), logit
+
+
+class VIBShortFnet(ShortFNET, VIBNet):
+    def __init__(self, depth, kernel_size, cnn_dim, K=256, **block_args):
+        super(VIBShortFnet, self).__init__(depth, kernel_size, cnn_dim, **block_args)
         # self.K = K
         self.K = cnn_dim // 2
         self.dense2 = LinearDropRelu(cnn_dim, 2 * self.K, self.drop)
-        self.output = nn.Linear(self.K, 1)
+        self.decoder = VIBDecoder(self.K)
 
         self.dense3 = LinearDropRelu(self.dense_in, cnn_dim, self.drop)
         self.dense4 = LinearDropRelu(cnn_dim, cnn_dim // 2, self.drop)
@@ -173,21 +216,8 @@ class VIBFnet(FNET, VIBNet):
         statistics = self.dense2(x)
         mu = statistics[:, :self.K]
         std = F.softplus(statistics[:, self.K:], beta=1)
-        # imag = self.flat(imag)
-        # imag = self.dense3(imag)
-        # imag = self.dense4(imag)
-        # std = F.softplus(imag, beta=1)
         encoding = self.reparametrize_n(mu, std, num_sample)
-        logit = self.output(encoding)
-
-        if num_sample == 1:
-            pass
-        elif num_sample > 1:
-            logit = F.softmax(logit, dim=2).mean(0)
-
-        # print(f"mu {mu}")
-        # print(f"std {std}")
-        # print(f"logit {logit}")
+        logit = self.decoder(encoding)
 
         return (mu, std), logit
 
