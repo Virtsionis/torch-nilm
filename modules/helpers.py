@@ -184,10 +184,10 @@ def get_final_report(tree_levels, save=True, root_dir=None, save_name=None):
         for item in os.listdir(exp_path):
             if 'REPORT' in item:
                 report = pd.read_csv(exp_path+'/'+item)
-                appliance = exp_path.split('/')[9]
                 model = exp_path.split('/')[-3]
-                category = exp_path.split('/')[11]
-                experiment = exp_path.split('/')[12]
+                appliance = exp_path.split('/')[-1].split('_')[0]
+                category = exp_path.split('/')[-2]
+                experiment = exp_path.split('/')[-1]
                 report['appliance'] = appliance
                 report['model'] = model
                 report['category'] = category
