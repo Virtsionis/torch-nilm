@@ -228,7 +228,8 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
     """
     trainer = pl.Trainer(gpus=1, max_epochs=epochs, auto_lr_find=True, callbacks=callbacks)
     model = TrainingToolsFactory.build_and_equip_model(model_name=model_name, model_hparams=model_hparams, **kwargs)
-    trainer.fit(model, train_loader, val_loader)
+    # trainer.fit(model, train_loader, val_loader)
+    trainer.fit(model, train_loader)
     epochs = trainer.early_stopping_callback.stopped_epoch
 
     for i in range(len(tests_params)):
@@ -260,3 +261,22 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
         save_report(root_dir, model_name, device, exp_type, final_experiment_name, exp_volume,
                     iteration, results, preds, ground, model_hparams, epochs, plots=plots)
         del test_dataset, test_loader, ground, final_experiment_name
+
+def create_timeframes(start, end, freq):
+    '''
+    freq(str): 'M' for month, 'D' for day
+    start/end(str): the dates we want
+        formats:
+            '%Y-%m-%d' for 'D'
+                or
+            '%Y-%m' for 'M'
+    when freq 'D', the dates are inclusive
+    when freq 'M', the end date is exclusive
+    '''
+    # check if start <end else error
+    datelist = pd.date_range(start, end, freq=freq).tolist()
+    if freq=='D':
+        date_format='%Y-%m-%d'
+    else:
+        date_format='%Y-%m'
+    return [d.strftime(date_format) for d in datelist]
