@@ -280,3 +280,51 @@ def create_timeframes(start, end, freq):
     else:
         date_format='%Y-%m'
     return [d.strftime(date_format) for d in datelist]
+
+def create_time_folds(start_date, end_date, folds, freq='D', drop_last=False):
+    '''
+    receives a start and stop date and returns a dictionary
+    with the necessary folds for train & test
+    drop_last(bool): drops last dates to have folds with same lengths
+    '''
+
+    date_list = create_timeframes(start=start_date, end=end_date, freq='D')
+
+    fold_len = len(date_list) // folds
+    rest = len(date_list)-fold_len*folds
+    print('#'*40)
+    print('Folding for dates from {} to {}'.format(start_date, end_date))
+    print('Total Number of days: ', len(date_list))
+    print('Number of folds: ', folds)
+    print('Length of each fold: ', fold_len)
+    if drop_last:
+        print('The last {} dates are dropped'.format(rest))
+    else:
+        print('Last fold has {} dates more'.format(rest))
+    print('#'*40)
+
+    date_folds = []
+    for j in range(0, folds):
+        if drop_last:
+            date_folds.append(date_list[fold_len*(j):fold_len*(j+1)])
+        else:
+            if j<folds-1:
+                date_folds.append(date_list[fold_len*(j):fold_len*(j+1)])
+            else:
+                date_folds.append(date_list[fold_len*(j):])
+
+    date_bounds = [[day[0], day[-1]] for day in date_folds]
+
+    final_folds = {}
+    for fold in range(0, folds):
+        test_dates = date_bounds[fold]
+        train_1 = date_bounds[:fold]
+        train_2 = date_bounds[fold+1:]
+        if len(train_1):
+            train_1 = [train_1[0][0],train_1[len(train_1)-1][-1]]
+        if len(train_2):
+            train_2 = [train_2[0][0],train_2[len(train_2)-1][-1]]
+
+        final_folds[fold] = {'test_dates': test_dates, 'train_dates': [train_1, train_2]}
+
+    return final_folds

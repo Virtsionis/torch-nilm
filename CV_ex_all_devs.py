@@ -1,36 +1,34 @@
 import torch
 import pandas as pd
-
 from callbacks.callbacks_factories import TrainerCallbacksFactory
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset
-from modules.helpers import create_tree_dir, save_report, train_model,\
-        display_res, train_eval, get_final_report, create_timeframes
-from torch.utils.data import Dataset, DataLoader, random_split
-
-from modules.MyDataSet import MyChunk, MyChunkList
+from modules.helpers import create_tree_dir, train_eval, get_final_report, create_time_folds
+from torch.utils.data import DataLoader, random_split
 
 with torch.no_grad():
     torch.cuda.empty_cache()
 
 clean = True
 PLOTS = True
-ROOT = 'Single_CV'
+ROOT = 'Single_Building_CV'
 exp_volume = 'large'
-data_dir = '/mnt/B40864F10864B450/WorkSpace/PHD/PHD_exps/data'
+# data_dir = '/mnt/B40864F10864B450/WorkSpace/PHD/PHD_exps/data'
+data_dir = '../Datasets'
+
 train_file_dir = 'benchmark/{}/train/'.format(exp_volume)
 test_file_dir = 'benchmark/{}/test/'.format(exp_volume)
 
 dev_list = [
-                        # 'electric space heater',
-                        'television',
-                        'computer',
                         'washing machine',
-                        'kettle',
                         'dish washer',
+                        'kettle',
                         'fridge',
                         'microwave',
+                        'computer',
+                        'television',
                         'tumble dryer',
+                        'electric space heater',
             ]
 mod_list = [
     'VIBWGRU',
@@ -50,11 +48,11 @@ create_tree_dir(tree_levels=tree_levels, clean=clean, plots=PLOTS)
 
 exp_type = 'Single'  # 'Multi'
 
-EPOCHS = 1
+EPOCHS = 100
 CV_FOLDS = 5
 
 SAMPLE_PERIOD = 6
-WINDOW = 50
+WINDOW = 500
 BATCH = 1000
 
 for device in dev_list:
@@ -93,129 +91,63 @@ for device in dev_list:
         'BayesFNET'                 : {'depth'    : 6, 'kernel_size': 5, 'cnn_dim': 128,
                                   'input_dim': WINDOW, 'hidden_dim': 500, 'dropout': 0},#fridge
 
+    'VIBSeq2Point'         : {'window_size': WINDOW, 'dropout': 0},
+    'VIB_SAED'             : {'window_size': WINDOW},
+    'VIBWGRU'              : {'dropout': 0.25},
+    'VIBFNET'              : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+                              'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
+    'VIBShortFNET'         : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+                              'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
     }
 
     for model_name in mod_list:
         print('#' * 40)
         print('MODEL: ', model_name)
         print('#' * 40)
-        for fold in range(1, CV_FOLDS + 1):
-            print('#' * 20)
-            print('fold: ', fold)
-            print('#' * 20)
+        file = open('{}base{}TrainSetsInfo_{}'.format(train_file_dir, exp_type, device), 'r')
+        for line in file:
+            toks = line.split(',')
+            train_set = toks[0]
+            train_house = toks[1]
+            dates = [str(toks[2]), str(toks[3].rstrip("\n"))]
+            break
+        file.close()
 
-            test_houses = []
-            test_sets = []
-            test_dates = []
-            if fold==0:
-                test_file = open('{}base{}TestSetsInfo_{}'.format(test_file_dir, exp_type, device), 'r')
-                for line in test_file:
-                    toks = line.split(',')
-                    test_sets.append(toks[0])
-                    test_houses.append(toks[1])
-                    test_dates.append([str(toks[2]), str(toks[3].rstrip("\n"))])
-                test_file.close()
+        datasource = DatasourceFactory.create_datasource(train_set)
+        time_folds = create_time_folds(start_date=dates[0], end_date=dates[1],\
+                                       folds=CV_FOLDS, drop_last=False)
 
-                data = {'test_house': test_houses, 'test_set': test_sets, 'test_date': test_dates}
-                tests_params = pd.DataFrame(data)
+        for fold in range(CV_FOLDS):
+            print('#'*80)
+            print('TRAIN FOR FOLD {}'.format(fold))
+            print('#'*80)
+            data = {'test_house': [train_house], 'test_set': [train_set],\
+                    'test_date': [time_folds[fold]['test_dates']]}
+            print(data)
 
-                train_file = open('{}base{}TrainSetsInfo_{}'.format(train_file_dir, exp_type, device), 'r')
-                if exp_type == 'Single':
-                    for line in train_file:
-                        toks = line.split(',')
-                        train_set = toks[0]
-                        train_house = toks[1]
-                        train_dates = [str(toks[2]), str(toks[3].rstrip("\n"))]
-                        break
-                    train_file.close()
-
-                    path = data_dir + '/{}/{}.h5'.format(train_set, train_set)
-                    print(path)
-                    datasource = DatasourceFactory.create_datasource(train_set)
-                    train_dataset_all = ElectricityDataset(datasource=datasource, building=int(train_house), window_size=WINDOW,
-                                                        device=device, dates=train_dates, sample_period=SAMPLE_PERIOD)
-
-                else:
-                    train_info = []
-                    index = 0
-                    for line in train_file:
-                        toks = line.split(',')
-                        train_set = toks[0]
-                        train_house = toks[1]
-                        train_dates = [str(toks[2]), str(toks[3].rstrip("\n"))]
-                        path = data_dir + '/{}/{}.h5'.format(train_set, train_set)
-                        datasource = DatasourceFactory.create_datasource(train_set)
-                        train_info.append({
-                                            'device' : device,
-                                            'datasource' : datasource,
-                                            'building' : int(train_house),
-                                            'dates' : train_dates,
-                                        }
-                                        )
-                    train_file.close()
-                    train_dataset_all = ElectricityMultiBuildingsDataset(train_info,
-                                                                        device=device,
-                                                                        window_size=WINDOW,
-                                                                        sample_period=SAMPLE_PERIOD)
-                train_size = int(0.8 * len(train_dataset_all))
-                val_size = len(train_dataset_all) - train_size
-                train_dataset, val_dataset = random_split(train_dataset_all, [train_size, val_size],
-                                                        generator=torch.Generator().manual_seed(42))
-
-                train_loader = DataLoader(train_dataset, batch_size=BATCH,
-                                        shuffle=True, num_workers=8)
-                val_loader = DataLoader(val_dataset, batch_size=BATCH,
-                                        shuffle=True, num_workers=8)
-                mmax = train_dataset_all.mmax
-                means = train_dataset_all.means
-                stds = train_dataset_all.stds
-###############################################################################
-            else:
-                file = open('{}base{}TrainSetsInfo_{}'.format(train_file_dir, exp_type, device), 'r')
-                for line in file:
-                    toks = line.split(',')
-                    train_set = toks[0]
-                    train_house = toks[1]
-                    dates = [str(toks[2]), str(toks[3].rstrip("\n"))]
-                    break
-                file.close()
-
-                path = data_dir + '/{}/{}.h5'.format(train_set, train_set)
-                print(path)
-                datasource = DatasourceFactory.create_datasource(train_set)
-
-                date_list = create_timeframes(start=dates[0], end=dates[1], freq='D')
-                fold_len = int(len(date_list) / CV_FOLDS)
-
-                date_folds = []
-                for j in range(0, CV_FOLDS):
-                    date_folds.append(date_list[fold_len*(j):fold_len*(j+1)])
-
-                print('TEST DATES: ', [date_folds[fold-1][0], date_folds[fold-1][-1]])
-
-                data = {'test_house': [train_house], 'test_set': [train_set],\
-                        'test_date': [[date_folds[fold-1][0], date_folds[fold-1][-1]]]}
-                tests_params = pd.DataFrame(data)
-                print(tests_params)
-                date_folds.pop(fold-1)
-                train_info = []
-                for j in range(len(date_folds)):
+            tests_params = pd.DataFrame(data)
+            print(tests_params)
+            train_dates = time_folds[fold]['train_dates']
+            train_info = []
+            for train_date in train_dates:
+                if len(train_date):
                     train_info.append({
-                                       'device' : device,
-                                       'datasource' : datasource,
-                                       'building' : int(train_house),
-                                       'dates' : [date_folds[j][0], date_folds[j][-1]],
-                                     })
-                train_dataset_all = ElectricityMultiBuildingsDataset(train_info,
-                                                                 device=device,
-                                                                 window_size=WINDOW,
-                                                                 sample_period=SAMPLE_PERIOD)
+                                    'device' : device,
+                                    'datasource' : datasource,
+                                    'building' : int(train_house),
+                                    'dates' : train_date,
+                                    })
+            print(train_info)
+            train_dataset_all = ElectricityMultiBuildingsDataset(train_info,
+                                                                device=device,
+                                                                window_size=WINDOW,
+                                                                sample_period=SAMPLE_PERIOD)
 
-                train_loader = DataLoader(train_dataset_all, batch_size=BATCH,
-                                          shuffle=True, num_workers=8)
-                mmax = train_dataset_all.mmax
-                means = train_dataset_all.means
-                stds = train_dataset_all.stds
+            train_loader = DataLoader(train_dataset_all, batch_size=BATCH,
+                                        shuffle=True, num_workers=8)
+            mmax = train_dataset_all.mmax
+            means = train_dataset_all.means
+            stds = train_dataset_all.stds
 
             experiment_name = '_'.join([device, exp_type, 'Train', train_set, '', ])
             print(experiment_name)
@@ -250,5 +182,5 @@ for device in dev_list:
                        plots=PLOTS,
                        callbacks=[TrainerCallbacksFactory.create_earlystopping()]
                        )
-get_final_report(tree_levels, save=True, root_dir=ROOT, save_name='FINAL_REPORT_BAYES_multi')
+get_final_report(tree_levels, save=True, root_dir=ROOT, save_name='FINAL_REPORT_{}'.format(ROOT))
 
