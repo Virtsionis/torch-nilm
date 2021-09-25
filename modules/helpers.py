@@ -228,8 +228,8 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
     """
     trainer = pl.Trainer(gpus=1, max_epochs=epochs, auto_lr_find=True, callbacks=callbacks)
     model = TrainingToolsFactory.build_and_equip_model(model_name=model_name, model_hparams=model_hparams, **kwargs)
-    # trainer.fit(model, train_loader, val_loader)
-    trainer.fit(model, train_loader)
+    trainer.fit(model, train_loader, val_loader)
+    # trainer.fit(model, train_loader)
     epochs = trainer.early_stopping_callback.stopped_epoch
 
     for i in range(len(tests_params)):

@@ -2,8 +2,8 @@ import torch
 import pandas as pd
 from callbacks.callbacks_factories import TrainerCallbacksFactory
 from datasources.datasource import DatasourceFactory
-from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset
-from modules.helpers import create_tree_dir, train_eval, get_final_report, create_time_folds
+from datasources.torchdataset import ElectricityMultiBuildingsDataset
+from modules.helpers import create_tree_dir, train_eval, create_time_folds
 from torch.utils.data import DataLoader, random_split
 
 with torch.no_grad():
@@ -13,8 +13,8 @@ clean = True
 PLOTS = True
 ROOT = 'Single_Building_CV'
 exp_volume = 'large'
-# data_dir = '/mnt/B40864F10864B450/WorkSpace/PHD/PHD_exps/data'
-data_dir = '../Datasets'
+data_dir = '/mnt/B40864F10864B450/WorkSpace/PHD/PHD_exps/data'
+# data_dir = '../Datasets'
 
 train_file_dir = 'benchmark/{}/train/'.format(exp_volume)
 test_file_dir = 'benchmark/{}/test/'.format(exp_volume)
@@ -52,8 +52,8 @@ EPOCHS = 100
 CV_FOLDS = 5
 
 SAMPLE_PERIOD = 6
-WINDOW = 500
-BATCH = 1000
+WINDOW = 50
+BATCH = 10
 
 for device in dev_list:
     print('#' * 160)
@@ -143,8 +143,15 @@ for device in dev_list:
                                                                 window_size=WINDOW,
                                                                 sample_period=SAMPLE_PERIOD)
 
-            train_loader = DataLoader(train_dataset_all, batch_size=BATCH,
+            train_size = int(0.8 * len(train_dataset_all))
+            val_size = len(train_dataset_all) - train_size
+            train_dataset, val_dataset = random_split(train_dataset_all, [train_size, val_size],
+                                                generator=torch.Generator().manual_seed(42))
+
+            train_loader = DataLoader(train_dataset, batch_size=BATCH,
                                         shuffle=True, num_workers=8)
+            val_loader = DataLoader(val_dataset, batch_size=BATCH,
+                                shuffle=True, num_workers=8)
             mmax = train_dataset_all.mmax
             means = train_dataset_all.means
             stds = train_dataset_all.stds
@@ -178,9 +185,10 @@ for device in dev_list:
                        data_dir,
                        epochs=EPOCHS,
                        eval_params=eval_params,
+                       val_loader=val_loader,
                        model_hparams=model_hparams[model_name],
                        plots=PLOTS,
                        callbacks=[TrainerCallbacksFactory.create_earlystopping()]
                        )
-get_final_report(tree_levels, save=True, root_dir=ROOT, save_name='FINAL_REPORT_{}'.format(ROOT))
+# get_final_report(tree_levels, save=True, root_dir=ROOT, save_name='FINAL_REPORT_{}'.format(ROOT))
 
