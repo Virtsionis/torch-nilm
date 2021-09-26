@@ -10,14 +10,13 @@ with torch.no_grad():
     torch.cuda.empty_cache()
 
 clean = True
-PLOTS = True
-ROOT = 'Single_Building_CV'
-exp_volume = 'large'
-data_dir = '/mnt/B40864F10864B450/WorkSpace/PHD/PHD_exps/data'
-# data_dir = '../Datasets'
+PLOTS = False
+ROOT = 'Single_Building_3fold_CV'
+exp_volume = 'cv'
+# data_dir = '/mnt/B40864F10864B450/WorkSpace/PHD/PHD_exps/data'
+data_dir = '../Datasets'
 
 train_file_dir = 'benchmark/{}/train/'.format(exp_volume)
-test_file_dir = 'benchmark/{}/test/'.format(exp_volume)
 
 dev_list = [
                         'washing machine',
@@ -49,11 +48,11 @@ create_tree_dir(tree_levels=tree_levels, clean=clean, plots=PLOTS)
 exp_type = 'Single'  # 'Multi'
 
 EPOCHS = 100
-CV_FOLDS = 5
+CV_FOLDS = 3
 
 SAMPLE_PERIOD = 6
-WINDOW = 50
-BATCH = 10
+WINDOW = 500
+BATCH = 512
 
 for device in dev_list:
     print('#' * 160)
@@ -145,8 +144,9 @@ for device in dev_list:
 
             train_size = int(0.8 * len(train_dataset_all))
             val_size = len(train_dataset_all) - train_size
-            train_dataset, val_dataset = random_split(train_dataset_all, [train_size, val_size],
-                                                generator=torch.Generator().manual_seed(42))
+            train_dataset, val_dataset = random_split(train_dataset_all,
+                                                      [train_size, val_size],
+                                                      generator=torch.Generator().manual_seed(42))
 
             train_loader = DataLoader(train_dataset, batch_size=BATCH,
                                         shuffle=True, num_workers=8)
