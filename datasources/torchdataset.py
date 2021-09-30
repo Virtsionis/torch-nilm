@@ -13,7 +13,7 @@ from lab.training_tools import ON_THRESHOLDS
 class BaseElectricityDataset(ABC):
 
     def __init__(self, datasource: Datasource, building, device, start_date,
-                 end_date, window_size=50, mmax=None,
+                 end_date, rolling_window=True, window_size=50, mmax=None,
                  means=None, stds=None, meter_means=None, meter_stds=None,
                  sample_period=None,
                  chunksize: int = 10000):
@@ -29,6 +29,7 @@ class BaseElectricityDataset(ABC):
         self.end_date = end_date
         self.sample_period = sample_period
         self.datasource = datasource
+        self.rolling_window = rolling_window
         self.window_size = window_size
         self.threshold = ON_THRESHOLDS.get(device, 50)
 
@@ -64,7 +65,10 @@ class BaseElectricityDataset(ABC):
             # mainchunk, meterchunk = self._normalize_chunks(mainchunk, meterchunk)
             # mainchunk, meterchunk = self._denoise(mainchunk, meterchunk)
             mainchunk, meterchunk = self._standardize_chunks(mainchunk, meterchunk)
-            mainchunk, meterchunk = self._apply_rolling_window(mainchunk, meterchunk)
+            if self.rolling_window:
+                mainchunk, meterchunk = self._apply_rolling_window(mainchunk, meterchunk)
+            else:
+                mainchunk, meterchunk = self._create_batches(mainchunk, meterchunk)
             self.mainchunk, self.meterchunk = torch.from_numpy(np.array(mainchunk)), torch.from_numpy(
                 np.array(meterchunk))
         except StopIteration:
@@ -74,6 +78,24 @@ class BaseElectricityDataset(ABC):
         indexer = np.arange(self.window_size)[None, :] + np.arange(len(mainchunk) - self.window_size + 1)[:, None]
         mainchunk = mainchunk[indexer]
         meterchunk = meterchunk[self.window_size - 1:]
+        return mainchunk, meterchunk
+
+    def _create_batches(self, mainchunk, meterchunk):
+        seq_len =  self.window_size
+        ix = mainchunk.index
+        # Create array of batches
+        additional = seq_len - (len(ix) % seq_len)
+        mainchunk = np.append(mainchunk, np.zeros(additional))
+        meterchunk = np.append(meterchunk, np.zeros(additional))
+
+        mainchunk = np.reshape(mainchunk, (int(len(mainchunk) / seq_len), seq_len, 1))
+        meterchunk = np.reshape(meterchunk, (int(len(meterchunk) / seq_len), seq_len, 1))
+        print("Training has started. The input data are:")
+        print(mainchunk.shape)
+
+        mainchunk = np.transpose(mainchunk, (0, 2, 1))
+        meterchunk = np.transpose(meterchunk, (0, 2, 1))
+
         return mainchunk, meterchunk
 
     def _replace_nans(self, mainchunk, meterchunk):
@@ -127,8 +149,8 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
     """ElectricityIterableDataset dataset."""
 
     def __init__(self, datasource: Datasource, building, device,
-                 start_date: str, end_date: str, window_size=50, mmax=None, means=None, stds=None,
-                 meter_means=None, meter_stds=None,
+                 start_date: str, end_date: str, window_size=50,
+                 mmax=None, means=None, stds=None, meter_means=None, meter_stds=None,
                  sample_period=None, chunksize: int = 10000, batch_size=32):
         """
         Args:
@@ -194,7 +216,7 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
 class ElectricityDataset(BaseElectricityDataset, Dataset):
     """ElectricityDataset dataset."""
 
-    def __init__(self, datasource, building, device, dates=None,
+    def __init__(self, datasource, building, device, dates=None,rolling_window=True,
                  window_size=50, test=False, chunksize=10 ** 6,
                  mmax=None, means=None, stds=None, meter_means=None, meter_stds=None,
                  sample_period=None, **load_kwargs):
@@ -207,8 +229,8 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
                         eg:['2016-04-01','2017-04-01']
         """
         super().__init__(datasource, building, device,
-                         dates[0], dates[1], window_size, mmax,
-                         means, stds, meter_means, meter_stds,
+                         dates[0], dates[1],rolling_window, window_size,
+                         mmax, means, stds, meter_means, meter_stds,
                          sample_period, chunksize)
 
     def __len__(self):
@@ -224,7 +246,7 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
 
 class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
     """ElectricityMultiBuildingsDataset dataset."""
-    def __init__(self, train_info=None,device=None,
+    def __init__(self, train_info=None,device=None, rolling_window=True,
                  window_size=50, test=False, chunksize=10 ** 6,
                  mmax=None, means=None, stds=None, meter_means=None, meter_stds=None,
                  sample_period=None, **load_kwargs):
@@ -253,6 +275,7 @@ class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
         self.meter_stds = meter_stds
         self.chunksize = chunksize
         self.sample_period = sample_period
+        self.rolling_window = rolling_window
         self.window_size = window_size
         self.threshold = ON_THRESHOLDS.get(device, 50)
 
@@ -303,7 +326,10 @@ class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
             # mainchunk, meterchunk = self._normalize_chunks(mainchunk, meterchunk)
             # mainchunk, meterchunk = self._denoise(mainchunk, meterchunk)
             mainchunk, meterchunk = self._standardize_chunks(mainchunk, meterchunk)
-            mainchunk, meterchunk = self._apply_rolling_window(mainchunk, meterchunk)
+            if self.rolling_window:
+                mainchunk, meterchunk = self._apply_rolling_window(mainchunk, meterchunk)
+            else:
+                mainchunk, meterchunk = self._create_batches(mainchunk, meterchunk)
             self.mainchunk, self.meterchunk = torch.from_numpy(np.array(mainchunk)), torch.from_numpy(
                 np.array(meterchunk))
         except StopIteration:
