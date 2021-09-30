@@ -11,11 +11,11 @@ from torch import Tensor
 from modules.NILM_metrics import NILM_metrics
 from neural_networks.base_models import BaseModel
 from neural_networks.bert import BERT4NILM
-from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, FFED, FNET, ConvFourier, ShortNeuralFourier, \
-    ShortFNET, ShortPosFNET, PosFNET
+from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, FNET, ShortNeuralFourier, \
+ShortFNET, ShortPosFNET, PosFNET, DAE
 
-from neural_networks.variational import VIBSeq2Point, ToyNet, VIBFnet, VIB_SAED, VIBShortNeuralFourier,\
-VIBWGRU,VIBShortFnet,VIBSeq2Point
+from neural_networks.variational import VIBSeq2Point, VIBFnet, VIB_SAED, VIBShortNeuralFourier,\
+VIBWGRU,VIBShortFnet,VIBSeq2Point,VAE
 
 from neural_networks.bayesian import BayesSimpleGru, BayesSeq2Point, BayesWGRU, BayesFNET
 
@@ -62,6 +62,9 @@ def create_model(model_name, model_hparams):
                   'BayesWGRU': BayesWGRU,
                   'BayesSeq2Point': BayesSeq2Point,
                   'BayesFNET': BayesFNET,
+
+                  'VAE':VAE,
+                  'DAE':DAE,
                   }
 
     if model_name in model_dict:
@@ -168,6 +171,8 @@ class ClassicTrainingTools(pl.LightningModule):
         # outputs is a list of whatever you returned in `test_step`
         avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
         tensorboard_logs = {'test_avg_loss': avg_loss}
+        if self.model_name=='DAE':
+            self.final_preds = np.reshape(self.final_preds,(-1))
         res = self._metrics()
         print('#### model name: {} ####'.format(res['model']))
         print('metrics: {}'.format(res['metrics']))
@@ -222,6 +227,10 @@ class VIBTrainingTools(ClassicTrainingTools):
         super().__init__(model, model_hparams, eval_params)
         self.beta = beta
 
+    def forward(self, x):
+        # Forward function that is run when visualizing the graph
+        return self.model(x, self.current_epoch)
+
     def training_step(self, batch, batch_idx):
         # x must be in shape [batch_size, 1, window_size]
         x, y = batch
@@ -241,6 +250,11 @@ class VIBTrainingTools(ClassicTrainingTools):
         x, y = batch
         # Forward pass
         (mu, std), outputs = self(x)
+
+        print('x'*30)
+        print('pred shape: ', outputs.shape)
+        print('y shape: ', outputs.shape)
+        print('x'*30)
         loss = F.mse_loss(outputs.squeeze(), y.squeeze())
         preds_batch = outputs.squeeze().cpu().numpy()
         self.final_preds = np.append(self.final_preds, preds_batch)
@@ -254,6 +268,19 @@ class VIBTrainingTools(ClassicTrainingTools):
         mae = F.l1_loss(outputs, labels)
 
         return loss, mae
+
+    def test_epoch_end(self, outputs):
+        # outputs is a list of whatever you returned in `test_step`
+        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
+        tensorboard_logs = {'test_avg_loss': avg_loss}
+        if self.model_name=='VAE':
+            self.final_preds = np.reshape(self.final_preds,(-1))
+        res = self._metrics()
+        print('#### model name: {} ####'.format(res['model']))
+        print('metrics: {}'.format(res['metrics']))
+
+        self.log("test_test_avg_loss", avg_loss, 'log', tensorboard_logs)
+        return res
 
 class BayesTrainingTools(ClassicTrainingTools):
     def __init__(self, model, model_hparams, eval_params, sample_nbr=3):
