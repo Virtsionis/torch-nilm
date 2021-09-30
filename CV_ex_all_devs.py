@@ -19,40 +19,42 @@ data_dir = '../Datasets'
 train_file_dir = 'benchmark/{}/train/'.format(exp_volume)
 
 dev_list = [
-                        'washing machine',
                         'dish washer',
-                        'kettle',
-                        'fridge',
-                        'microwave',
-                        'computer',
-                        'television',
-                        'tumble dryer',
-                        'electric space heater',
+                        # 'washing machine',
+                        # 'kettle',
+                        # 'fridge',
+                        # 'microwave',
+                        # 'computer',
+                        # 'television',
+                        # 'tumble dryer',
+                        # 'electric space heater',
             ]
 mod_list = [
-    'VIBWGRU',
-    'VIBFNET',
-    'VIBShortFNET',
-    'VIBSeq2Point',
-    'FNET',
-    'S2P',
-    'SimpleGru',
-    'SAED',
-    'WGRU',
+    # 'VIB_SAED',
+    # 'VIBWGRU',
+    # 'VIBFNET',
+    # 'VIBShortFNET',
+    # 'VIBSeq2Point',
+    # 'FNET',
+    # 'S2P',
+    # 'SimpleGru',
+    # 'SAED',
+    # 'WGRU',
+    # 'VAE',
+    'DAE',
 ]
 
 cat_list = [x for x in ['Single', 'Multi']]
 tree_levels = {'root': ROOT, 'l1': ['results'], 'l2': dev_list, 'l3': mod_list, 'experiments': cat_list}
 create_tree_dir(tree_levels=tree_levels, clean=clean, plots=PLOTS)
 
-exp_type = 'Single'  # 'Multi'
+exp_type = 'Single'
 
-EPOCHS = 100
+EPOCHS = 1
 CV_FOLDS = 3
-
 SAMPLE_PERIOD = 6
-WINDOW = 500
-BATCH = 512
+WINDOW = 256
+BATCH = 256
 
 for device in dev_list:
     print('#' * 160)
@@ -97,12 +99,25 @@ for device in dev_list:
                               'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
     'VIBShortFNET'         : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
                               'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
+
+    'VAE'             : {'sequence_len': WINDOW, 'dropout':0.2},
+    'DAE'             : {'sequence_len': WINDOW, 'dropout':0.2},
     }
 
     for model_name in mod_list:
         print('#' * 40)
         print('MODEL: ', model_name)
         print('#' * 40)
+
+        if model_name in ['VAE', 'DAE']:
+            rolling_window = False
+            WINDOW -= WINDOW % 8
+            print('NEW WINDOW =', WINDOW)
+            if WINDOW>BATCH:
+                BATCH=WINDOW
+        else:
+            rolling_window = True
+
         file = open('{}base{}TrainSetsInfo_{}'.format(train_file_dir, exp_type, device), 'r')
         for line in file:
             toks = line.split(',')
@@ -140,6 +155,7 @@ for device in dev_list:
             train_dataset_all = ElectricityMultiBuildingsDataset(train_info,
                                                                 device=device,
                                                                 window_size=WINDOW,
+                                                                rolling_window=rolling_window,
                                                                 sample_period=SAMPLE_PERIOD)
 
             train_size = int(0.8 * len(train_dataset_all))
@@ -183,6 +199,7 @@ for device in dev_list:
                        WINDOW,
                        ROOT,
                        data_dir,
+                       rolling_window=rolling_window,
                        epochs=EPOCHS,
                        eval_params=eval_params,
                        val_loader=val_loader,

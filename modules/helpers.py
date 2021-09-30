@@ -220,7 +220,7 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
                sample_period, batch_size, experiment_name, exp_volume,
                iteration, device, mmax, means, stds, meter_means, meter_stds,
                window_size, root_dir, data_dir, model_hparams,plots=True,
-               epochs=5, callbacks=None, val_loader=None, **kwargs):
+               epochs=5, callbacks=None, val_loader=None,rolling_window=True,**kwargs):
     """
     Inputs:
         model_name - Name of the model you want to run.
@@ -245,12 +245,16 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
                                           window_size=window_size, device=device,
                                           dates=dates, mmax=mmax, means=means, stds=stds,
                                           meter_means=meter_means, meter_stds=meter_stds,
-                                          sample_period=sample_period)
+                                          sample_period=sample_period, rolling_window=rolling_window)
 
         test_loader = DataLoader(test_dataset, batch_size=batch_size,
                                  shuffle=False, num_workers=8)
 
-        ground = test_dataset.meterchunk.numpy()
+        if rolling_window:
+            ground = test_dataset.meterchunk.numpy()
+        else:
+            ground = test_dataset.meterchunk.numpy()
+            ground = np.reshape(ground,-1)
         model.set_ground(ground)
 
         trainer.test(model, test_dataloaders=test_loader)
