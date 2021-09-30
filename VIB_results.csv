@@ -1,0 +1,101 @@
+model,appliance,category,experiment,recall,f1,precision,accuracy,MAE,RETE,epochs,hparams
+VIBFNET,dish washer,Single,Train_UKDALE_test_1_UKDALE,0.243,0.311,0.43,0.975,17.253,-1.694,6,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBShortFNET,dish washer,Single,Train_UKDALE_test_1_UKDALE,0.297,0.36,0.456,0.975,15.228,-1.0290000000000001,9,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBSeq2Point,dish washer,Single,Train_UKDALE_test_1_UKDALE,0.247,0.218,0.195,0.958,18.845,-1.0590000000000002,8,"{'window_size': 500, 'dropout': 0}"
+VIBWGRU,dish washer,Single,Train_UKDALE_test_1_UKDALE,0.22399999999999998,0.341,0.716,0.98,12.142999999999999,-3.681,11,{'dropout': 0.25}
+VIB_SAED,dish washer,Single,Train_UKDALE_test_1_UKDALE,0.389,0.217,0.15,0.934,22.269000000000002,-4.417,7,{'window_size': 500}
+VIBFNET,dish washer,Single,Train_UKDALE_test_2_UKDALE,0.401,0.534,0.7979999999999999,0.9790000000000001,30.549,1.068,6,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBShortFNET,dish washer,Single,Train_UKDALE_test_2_UKDALE,0.395,0.45399999999999996,0.535,0.972,33.347,0.89,9,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBSeq2Point,dish washer,Single,Train_UKDALE_test_2_UKDALE,0.29,0.34299999999999997,0.42100000000000004,0.9670000000000001,36.373000000000005,1.228,8,"{'window_size': 500, 'dropout': 0}"
+VIBWGRU,dish washer,Single,Train_UKDALE_test_2_UKDALE,0.325,0.478,0.905,0.9790000000000001,29.754,1.188,11,{'dropout': 0.25}
+VIB_SAED,dish washer,Single,Train_UKDALE_test_2_UKDALE,0.504,0.36200000000000004,0.28300000000000003,0.9470000000000001,37.945,1.486,7,{'window_size': 500}
+VIBFNET,fridge,Single,Train_UKDALE_test_1_UKDALE,0.6809999999999999,0.735,0.799,0.792,21.718000000000004,0.982,6,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBShortFNET,fridge,Single,Train_UKDALE_test_1_UKDALE,0.713,0.759,0.8109999999999999,0.8079999999999999,21.263,0.782,6,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBSeq2Point,fridge,Single,Train_UKDALE_test_1_UKDALE,0.557,0.669,0.836,0.7659999999999999,25.471999999999998,2.4130000000000003,6,"{'window_size': 500, 'dropout': 0}"
+VIBWGRU,fridge,Single,Train_UKDALE_test_1_UKDALE,0.696,0.765,0.8490000000000001,0.8190000000000001,20.062,1.3019999999999998,5,{'dropout': 0.25}
+VIB_SAED,fridge,Single,Train_UKDALE_test_1_UKDALE,0.6859999999999999,0.7340000000000001,0.789,0.789,24.248,0.633,6,{'window_size': 500}
+VIBFNET,fridge,Single,Train_UKDALE_test_2_UKDALE,0.738,0.792,0.855,0.823,21.185,0.8170000000000001,6,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBShortFNET,fridge,Single,Train_UKDALE_test_2_UKDALE,0.723,0.785,0.858,0.8190000000000001,21.14,0.851,6,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBSeq2Point,fridge,Single,Train_UKDALE_test_2_UKDALE,0.541,0.6729999999999999,0.8909999999999999,0.76,27.471,1.749,6,"{'window_size': 500, 'dropout': 0}"
+VIBWGRU,fridge,Single,Train_UKDALE_test_2_UKDALE,0.711,0.7929999999999999,0.897,0.831,21.149,1.15,5,{'dropout': 0.25}
+VIB_SAED,fridge,Single,Train_UKDALE_test_2_UKDALE,0.622,0.73,0.884,0.79,23.94,1.23,6,{'window_size': 500}
+VIBFNET,kettle,Single,Train_UKDALE_test_1_UKDALE,0.715,0.7559999999999999,0.8029999999999999,0.997,10.51,2.225,5,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBShortFNET,kettle,Single,Train_UKDALE_test_1_UKDALE,0.501,0.623,0.823,0.997,8.697000000000001,-1.2329999999999999,10,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBSeq2Point,kettle,Single,Train_UKDALE_test_1_UKDALE,0.0,,,0.9940000000000001,29.993000000000002,5.013,5,"{'window_size': 500, 'dropout': 0}"
+VIBWGRU,kettle,Single,Train_UKDALE_test_1_UKDALE,0.0,,,0.9940000000000001,14.96,-2.805,13,{'dropout': 0.25}
+VIB_SAED,kettle,Single,Train_UKDALE_test_1_UKDALE,0.603,0.695,0.8190000000000001,0.997,8.991,-0.095,14,{'window_size': 500}
+VIBFNET,kettle,Single,Train_UKDALE_test_5_UKDALE,0.7170000000000001,0.639,0.5760000000000001,0.997,12.595,4.81,5,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBShortFNET,kettle,Single,Train_UKDALE_test_5_UKDALE,0.623,0.653,0.685,0.998,10.078,-0.585,10,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBSeq2Point,kettle,Single,Train_UKDALE_test_5_UKDALE,0.0,,,0.996,26.275,7.572,5,"{'window_size': 500, 'dropout': 0}"
+VIBWGRU,kettle,Single,Train_UKDALE_test_5_UKDALE,0.006,0.012,1.0,0.996,9.766,-0.546,13,{'dropout': 0.25}
+VIB_SAED,kettle,Single,Train_UKDALE_test_5_UKDALE,0.653,0.6859999999999999,0.723,0.998,8.479,-0.26,14,{'window_size': 500}
+VIBFNET,microwave,Single,Train_UKDALE_test_1_UKDALE,0.0,,,0.997,9.657,3.685,8,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBShortFNET,microwave,Single,Train_UKDALE_test_1_UKDALE,0.131,0.19,0.34600000000000003,0.996,6.914,18.006,7,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBSeq2Point,microwave,Single,Train_UKDALE_test_1_UKDALE,0.0,,,0.997,10.280999999999999,0.534,14,"{'window_size': 500, 'dropout': 0}"
+VIBWGRU,microwave,Single,Train_UKDALE_test_1_UKDALE,0.496,0.469,0.445,0.996,8.812000000000001,0.8059999999999999,5,{'dropout': 0.25}
+VIB_SAED,microwave,Single,Train_UKDALE_test_1_UKDALE,0.312,0.263,0.228,0.9940000000000001,8.75,0.631,8,{'window_size': 500}
+VIBFNET,microwave,Single,Train_UKDALE_test_2_UKDALE,0.0,,,0.997,10.126,-2.802,8,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBShortFNET,microwave,Single,Train_UKDALE_test_2_UKDALE,0.128,0.20800000000000002,0.5489999999999999,0.997,7.0360000000000005,-0.956,7,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBSeq2Point,microwave,Single,Train_UKDALE_test_2_UKDALE,0.0,,,0.997,10.743,5.7620000000000005,14,"{'window_size': 500, 'dropout': 0}"
+VIBWGRU,microwave,Single,Train_UKDALE_test_2_UKDALE,0.196,0.302,0.657,0.997,8.854,-0.633,5,{'dropout': 0.25}
+VIB_SAED,microwave,Single,Train_UKDALE_test_2_UKDALE,0.349,0.39299999999999996,0.449,0.996,7.325,-0.069,8,{'window_size': 500}
+VIBFNET,television,Single,Train_REFIT_test_14_REFIT,0.07200000000000001,0.131,0.742,0.78,25.353,-0.12300000000000001,13,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBShortFNET,television,Single,Train_REFIT_test_14_REFIT,0.077,0.142,0.8859999999999999,0.785,24.654,-0.08800000000000001,10,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBSeq2Point,television,Single,Train_REFIT_test_14_REFIT,0.075,0.13699999999999998,0.809,0.782,24.453000000000003,-0.055999999999999994,5,"{'window_size': 500, 'dropout': 0}"
+VIBWGRU,television,Single,Train_REFIT_test_14_REFIT,0.057,0.107,0.8270000000000001,0.779,24.329,-0.031,9,{'dropout': 0.25}
+VIB_SAED,television,Single,Train_REFIT_test_14_REFIT,0.057,0.107,0.845,0.78,23.456,-0.017,9,{'window_size': 500}
+VIBFNET,television,Single,Train_REFIT_test_17_REFIT,0.214,0.281,0.408,0.7440000000000001,26.462,3336.382,13,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBShortFNET,television,Single,Train_REFIT_test_17_REFIT,0.18899999999999997,0.268,0.46,0.759,25.123,4179.726,10,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBSeq2Point,television,Single,Train_REFIT_test_17_REFIT,0.256,0.33899999999999997,0.501,0.7659999999999999,26.47,3638.97,5,"{'window_size': 500, 'dropout': 0}"
+VIBWGRU,television,Single,Train_REFIT_test_17_REFIT,0.18600000000000003,0.268,0.48100000000000004,0.763,25.614,4610.57,9,{'dropout': 0.25}
+VIB_SAED,television,Single,Train_REFIT_test_17_REFIT,0.242,0.324,0.49,0.764,24.628,3578.6240000000003,9,{'window_size': 500}
+VIBFNET,television,Single,Train_REFIT_test_1_UKDALE,0.281,0.374,0.56,0.912,22.693,-0.519,13,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBShortFNET,television,Single,Train_REFIT_test_1_UKDALE,0.259,0.366,0.625,0.9159999999999999,21.938000000000002,-0.43700000000000006,10,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBSeq2Point,television,Single,Train_REFIT_test_1_UKDALE,0.43700000000000006,0.46299999999999997,0.49200000000000005,0.905,22.076,-0.684,5,"{'window_size': 500, 'dropout': 0}"
+VIBWGRU,television,Single,Train_REFIT_test_1_UKDALE,0.306,0.41100000000000003,0.625,0.9179999999999999,20.809,-0.402,9,{'dropout': 0.25}
+VIB_SAED,television,Single,Train_REFIT_test_1_UKDALE,0.33,0.447,0.6920000000000001,0.924,19.084,-0.319,9,{'window_size': 500}
+VIBFNET,television,Single,Train_REFIT_test_5_UKDALE,0.36,0.174,0.115,0.65,47.842,5.17,13,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBShortFNET,television,Single,Train_REFIT_test_5_UKDALE,0.513,0.261,0.175,0.7020000000000001,42.601000000000006,8.346,10,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBSeq2Point,television,Single,Train_REFIT_test_5_UKDALE,0.51,0.19699999999999998,0.122,0.5720000000000001,57.586000000000006,2.7230000000000003,5,"{'window_size': 500, 'dropout': 0}"
+VIBWGRU,television,Single,Train_REFIT_test_5_UKDALE,0.35,0.171,0.113,0.652,44.869,7.686,9,{'dropout': 0.25}
+VIB_SAED,television,Single,Train_REFIT_test_5_UKDALE,0.55,0.213,0.132,0.5820000000000001,47.18,4.423,9,{'window_size': 500}
+VIBFNET,television,Single,Train_REFIT_test_6_REFIT,0.648,0.64,0.633,0.8320000000000001,20.255,1.4269999999999998,13,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBShortFNET,television,Single,Train_REFIT_test_6_REFIT,0.669,0.639,0.611,0.825,20.928,0.198,10,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBSeq2Point,television,Single,Train_REFIT_test_6_REFIT,0.705,0.674,0.6459999999999999,0.843,18.755,0.618,5,"{'window_size': 500, 'dropout': 0}"
+VIBWGRU,television,Single,Train_REFIT_test_6_REFIT,0.67,0.67,0.6709999999999999,0.848,18.271,5.412000000000001,9,{'dropout': 0.25}
+VIB_SAED,television,Single,Train_REFIT_test_6_REFIT,0.7040000000000001,0.659,0.619,0.8320000000000001,21.09,0.349,9,{'window_size': 500}
+VIBFNET,tumble dryer,Single,Train_REFIT_test_14_REFIT,0.0,,0.0,0.997,25.585,-0.368,10,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBShortFNET,tumble dryer,Single,Train_REFIT_test_14_REFIT,0.0,,0.0,0.991,11.529000000000002,-0.138,5,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBSeq2Point,tumble dryer,Single,Train_REFIT_test_14_REFIT,0.0,,0.0,0.996,9.077,-0.098,5,"{'window_size': 500, 'dropout': 0}"
+VIBWGRU,tumble dryer,Single,Train_REFIT_test_14_REFIT,0.0,,0.0,0.996,14.175,-0.153,6,{'dropout': 0.25}
+VIB_SAED,tumble dryer,Single,Train_REFIT_test_14_REFIT,0.0,,0.0,0.9940000000000001,17.506,-0.225,6,{'window_size': 500}
+VIBFNET,tumble dryer,Single,Train_REFIT_test_16_REFIT,0.504,0.311,0.225,0.9790000000000001,67.137,-2.226,10,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBShortFNET,tumble dryer,Single,Train_REFIT_test_16_REFIT,0.595,0.204,0.12300000000000001,0.956,60.271,-1.709,5,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBSeq2Point,tumble dryer,Single,Train_REFIT_test_16_REFIT,0.807,0.284,0.172,0.9620000000000001,50.278999999999996,-0.9079999999999999,5,"{'window_size': 500, 'dropout': 0}"
+VIBWGRU,tumble dryer,Single,Train_REFIT_test_16_REFIT,0.878,0.436,0.29,0.9790000000000001,49.891000000000005,-1.348,6,{'dropout': 0.25}
+VIB_SAED,tumble dryer,Single,Train_REFIT_test_16_REFIT,0.8490000000000001,0.185,0.10400000000000001,0.93,70.835,-4.593,6,{'window_size': 500}
+VIBFNET,tumble dryer,Single,Train_REFIT_test_19_REFIT,0.151,0.179,0.221,0.965,65.077,-0.259,10,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBShortFNET,tumble dryer,Single,Train_REFIT_test_19_REFIT,0.076,0.06,0.049,0.9390000000000001,68.372,-0.231,5,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBSeq2Point,tumble dryer,Single,Train_REFIT_test_19_REFIT,0.71,0.565,0.469,0.973,32.115,-0.115,5,"{'window_size': 500, 'dropout': 0}"
+VIBWGRU,tumble dryer,Single,Train_REFIT_test_19_REFIT,0.609,0.588,0.568,0.9790000000000001,37.128,-0.34700000000000003,6,{'dropout': 0.25}
+VIB_SAED,tumble dryer,Single,Train_REFIT_test_19_REFIT,0.575,0.386,0.29,0.9540000000000001,66.545,-0.546,6,{'window_size': 500}
+VIBFNET,tumble dryer,Single,Train_REFIT_test_20_REFIT,0.044000000000000004,0.06,0.092,0.963,76.542,-0.172,10,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBShortFNET,tumble dryer,Single,Train_REFIT_test_20_REFIT,0.037000000000000005,0.039,0.040999999999999995,0.951,65.385,-0.069,5,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBSeq2Point,tumble dryer,Single,Train_REFIT_test_20_REFIT,0.111,0.106,0.102,0.95,53.405,-0.28600000000000003,5,"{'window_size': 500, 'dropout': 0}"
+VIBWGRU,tumble dryer,Single,Train_REFIT_test_20_REFIT,0.03,0.038,0.053,0.96,65.428,-0.109,6,{'dropout': 0.25}
+VIB_SAED,tumble dryer,Single,Train_REFIT_test_20_REFIT,0.5479999999999999,0.33299999999999996,0.239,0.941,72.317,-0.324,6,{'window_size': 500}
+VIBFNET,tumble dryer,Single,Train_REFIT_test_7_REFIT,0.628,0.715,0.83,0.975,55.652,0.48200000000000004,10,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBShortFNET,tumble dryer,Single,Train_REFIT_test_7_REFIT,0.5710000000000001,0.57,0.57,0.958,60.591,0.9279999999999999,5,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBSeq2Point,tumble dryer,Single,Train_REFIT_test_7_REFIT,0.862,0.7909999999999999,0.73,0.978,41.453,0.56,5,"{'window_size': 500, 'dropout': 0}"
+VIBWGRU,tumble dryer,Single,Train_REFIT_test_7_REFIT,0.892,0.836,0.7859999999999999,0.983,41.43899999999999,0.09,6,{'dropout': 0.25}
+VIB_SAED,tumble dryer,Single,Train_REFIT_test_7_REFIT,0.8590000000000001,0.6659999999999999,0.544,0.958,73.663,0.348,6,{'window_size': 500}
+VIBFNET,washing machine,Single,Train_UKDALE_test_1_UKDALE,0.645,0.711,0.792,0.975,22.309,2.0069999999999997,6,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBShortFNET,washing machine,Single,Train_UKDALE_test_1_UKDALE,0.701,0.688,0.6759999999999999,0.97,26.500999999999998,1.511,7,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBSeq2Point,washing machine,Single,Train_UKDALE_test_1_UKDALE,0.46799999999999997,0.569,0.727,0.966,23.483,1.551,6,"{'window_size': 500, 'dropout': 0}"
+VIBWGRU,washing machine,Single,Train_UKDALE_test_1_UKDALE,0.55,0.638,0.76,0.97,19.88,1.824,6,{'dropout': 0.25}
+VIB_SAED,washing machine,Single,Train_UKDALE_test_1_UKDALE,0.46299999999999997,0.526,0.609,0.96,25.855,2.293,16,{'window_size': 500}
+VIBFNET,washing machine,Single,Train_UKDALE_test_4_UKDALE,0.363,0.337,0.315,0.9620000000000001,20.75,23.034000000000002,6,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBShortFNET,washing machine,Single,Train_UKDALE_test_4_UKDALE,0.415,0.203,0.134,0.9129999999999999,31.195999999999998,8.519,7,"{'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'input_dim': 500, 'hidden_dim': 2000, 'dropout': 0}"
+VIBSeq2Point,washing machine,Single,Train_UKDALE_test_4_UKDALE,0.502,0.289,0.203,0.934,34.498000000000005,0.946,6,"{'window_size': 500, 'dropout': 0}"
+VIBWGRU,washing machine,Single,Train_UKDALE_test_4_UKDALE,0.649,0.327,0.21899999999999997,0.929,28.783,0.9179999999999999,6,{'dropout': 0.25}
+VIB_SAED,washing machine,Single,Train_UKDALE_test_4_UKDALE,0.562,0.26,0.16899999999999998,0.915,29.675,0.6659999999999999,16,{'window_size': 500}

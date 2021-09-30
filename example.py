@@ -40,11 +40,11 @@ mod_list = [
     # 'ShortPosFNET',
     # 'WGRU',
     # 'ConvFourier',
-    'VIB_SAED',
-    'VIBWGRU',
+    # 'VIB_SAED',
+    # 'VIBWGRU',
     'VIBFNET',
-    'VIBShortFNET',
-    'VIBSeq2Point',
+    # 'VIBShortFNET',
+    # 'VIBSeq2Point',
     # 'ShortNeuralFourier',
     # 'VIBShortNeuralFourier'
 ]
