@@ -14,7 +14,7 @@ clean = False
 PLOTS = False
 ROOT = 'window_study'
 print(ROOT)
-exp_volume = 'large'
+exp_volume = 'windows'
 # data_dir = '/mnt/B40864F10864B450/WorkSpace/PHD/PHD_exps/data'
 data_dir = '../Datasets'
 train_file_dir = 'benchmark/{}/train/'.format(exp_volume)
@@ -49,8 +49,8 @@ ITERATIONS = 1
 
 SAMPLE_PERIOD = 6
 windows = [i*50 for i in range(1,11)]
-print(windows)
-batches = [1000,1000,1000,1000,1000,500,500,500,500,500]
+# batches = [1000,1000,1000,1000,1000,500,500,500,500,500]
+batches = [1000]*len(windows)
 for device in dev_list:
     for WINDOW,BATCH in zip(windows, batches):
         print('#' * 160)
