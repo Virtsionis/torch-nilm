@@ -47,12 +47,13 @@ class VIBNet(BaseModel):
 
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         max_noise = 0.1
+        noise_rate = torch.tanh(torch.tensor(current_epoch))
         if current_epoch>0:
-            noise_distribution = torch.distributions.Normal(0, max_noise)
+            # noise_distribution = torch.distributions.Normal(0, max_noise)
+            noise_distribution = torch.distributions.Normal(0, noise_rate * max_noise)
             eps = noise_distribution.sample(std.size()).to(device)
         else:
             eps = torch.tensor(0).to(device)
-        # eps = Variable(cuda(std.data.new(std.size()).normal_(std=0.01), std.is_cuda))
 
         return mu + eps * std
 
