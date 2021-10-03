@@ -251,10 +251,6 @@ class VIBTrainingTools(ClassicTrainingTools):
         # Forward pass
         (mu, std), outputs = self(x)
 
-        print('x'*30)
-        print('pred shape: ', outputs.shape)
-        print('y shape: ', outputs.shape)
-        print('x'*30)
         loss = F.mse_loss(outputs.squeeze(), y.squeeze())
         preds_batch = outputs.squeeze().cpu().numpy()
         self.final_preds = np.append(self.final_preds, preds_batch)
