@@ -217,7 +217,7 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
     """ElectricityDataset dataset."""
 
     def __init__(self, datasource, building, device, dates=None,rolling_window=True,
-                 window_size=50, test=False, chunksize=10 ** 6,
+                 window_size=50, test=False, chunksize=10 ** 10,
                  mmax=None, means=None, stds=None, meter_means=None, meter_stds=None,
                  sample_period=None, **load_kwargs):
         """
@@ -247,7 +247,7 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
 class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
     """ElectricityMultiBuildingsDataset dataset."""
     def __init__(self, train_info=None,device=None, rolling_window=True,
-                 window_size=50, test=False, chunksize=10 ** 6,
+                 window_size=50, test=False, chunksize=10 ** 10,
                  mmax=None, means=None, stds=None, meter_means=None, meter_stds=None,
                  sample_period=None, **load_kwargs):
         """
