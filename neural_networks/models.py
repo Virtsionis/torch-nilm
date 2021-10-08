@@ -161,7 +161,7 @@ class WGRU(BaseModel):
 class SAED(BaseModel):
 
     def __init__(self, window_size, mode='dot', hidden_dim=16,
-                 num_heads=1, dropout=0, lr=None):
+                 num_heads=1, dropout=0, bidirectional=True, lr=None):
         super(SAED, self).__init__()
 
         '''
@@ -193,10 +193,17 @@ class SAED(BaseModel):
         self.attention = Attention(window_size, attention_type=mode)
         self.bgru = nn.GRU(hidden_dim, 64,
                            batch_first=True,
-                           bidirectional=True,
+                           bidirectional=bidirectional,
                            dropout=self.drop)
         self.dense = LinearDropRelu(128, 64, self.drop)
         self.output = nn.Linear(64, 1)
+        
+        # if bidirectional:
+            # self.dense = LinearDropRelu(128, 64, self.drop)
+            # self.output = nn.Linear(64, 1)
+        # else:
+            # self.dense = LinearDropRelu(64, 32, self.drop)
+            # self.output = nn.Linear(32, 1)
 
     def forward(self, x):
         # x must be in shape [batch_size, 1, window_size]
@@ -220,7 +227,7 @@ class SAED(BaseModel):
 
 class SimpleGru(BaseModel):
 
-    def __init__(self, hidden_dim=16, dropout=0, lr=None):
+    def __init__(self, hidden_dim=16, dropout=0, bidirectional=True, lr=None):
         super(SimpleGru, self).__init__()
 
         '''
@@ -239,10 +246,16 @@ class SimpleGru(BaseModel):
 
         self.bgru = nn.GRU(hidden_dim, 64,
                            batch_first=True,
-                           bidirectional=True,
+                           bidirectional=bidirectional,
                            dropout=self.drop)
         self.dense = LinearDropRelu(128, 64, self.drop)
         self.output = nn.Linear(64, 1)
+        # if bidirectional:
+        #     self.dense = LinearDropRelu(128, 64, self.drop)
+        #     self.output = nn.Linear(64, 1)
+        # else:
+        #     self.dense = LinearDropRelu(64, 32, self.drop)
+        #     self.output = nn.Linear(32, 1)
 
     def forward(self, x):
         # x must be in shape [batch_size, 1, window_size]
