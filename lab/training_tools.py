@@ -15,7 +15,7 @@ from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, FNET, Short
 ShortFNET, ShortPosFNET, PosFNET, DAE
 
 from neural_networks.variational import VIBSeq2Point, VIBFnet, VIB_SAED, VIBShortNeuralFourier,\
-VIBWGRU,VIBShortFnet,VIBSeq2Point,VAE
+VIBWGRU,VIBShortFnet,VIBSeq2Point,VAE, VIB_SimpleGru
 
 from neural_networks.bayesian import BayesSimpleGru, BayesSeq2Point, BayesWGRU, BayesFNET
 
@@ -52,6 +52,7 @@ def create_model(model_name, model_hparams):
                   # 'ConvFourier' : ConvFourier,
                   'BERT4NILM':BERT4NILM,
                   'VIB_SAED'             : VIB_SAED,
+                  'VIB_SimpleGru': VIB_SimpleGru,
                   'VIBFNET'              : VIBFnet,
 'VIBShortFNET':VIBShortFnet,
 'VIBWGRU':VIBWGRU,

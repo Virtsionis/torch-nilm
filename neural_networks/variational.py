@@ -9,7 +9,7 @@ from torch.autograd import Variable
 from neural_networks.base_models import BaseModel
 from neural_networks.custom_modules import VIBDecoder
 from neural_networks.models import Seq2Point, LinearDropRelu, ConvDropRelu, FNET, SAED, ShortNeuralFourier, ShortFNET, \
-    WGRU
+    WGRU, SimpleGru
 
 
 def cuda(tensor, is_cuda):
@@ -84,6 +84,7 @@ class VAE(VIBNet):
             nn.Unflatten(1, (8, sequence_len)),
             nn.ConvTranspose1d(in_channels=8, out_channels=1, kernel_size=4,
                                padding=131, stride=2, output_padding=1, dilation=2)
+            # nn.ConvTranspose1d(in_channels=8, out_channels=1, kernel_size=4, padding=3, stride=1, dilation=2)
         )
 
     def forward(self, x, current_epoch, num_sample=1):
@@ -138,16 +139,47 @@ class VIBShortNeuralFourier(ShortNeuralFourier, VIBNet):
 
 class VIB_SAED(SAED, VIBNet):
     def __init__(self, window_size, mode='dot', hidden_dim=16,
-                 num_heads=1, dropout=0, lr=None, K=32):
-        super(VIB_SAED, self).__init__(window_size, mode, hidden_dim, num_heads, dropout, lr)
+                 num_heads=1, dropout=0, bidirectional=True, lr=None, K=32):
+        super(VIB_SAED, self).__init__(window_size, mode, hidden_dim, num_heads,\
+                                       dropout, bidirectional, lr)
         self.K = K
-        self.dense = LinearDropRelu(128, 2 * K, self.drop)
+        if bidirectional:
+            self.dense = LinearDropRelu(128, 2 * K, self.drop)
+        else:
+            self.dense = LinearDropRelu(64, 2 * K, self.drop)
         self.decoder = VIBDecoder(self.K)
 
     def forward(self, x, current_epoch, num_sample=1):
         x = x.unsqueeze(1)
         x = self.conv(x)
         x, _ = self.attention(x, x)
+        x = x.permute(0, 2, 1)
+        x = self.bgru(x)[0]
+        x = x[:, -1, :]
+
+        statistics = self.dense(x)
+        mu = statistics[:, :self.K]
+        std = F.softplus(statistics[:, self.K:], beta=1)
+        encoding = self.reparametrize_n(mu, std, current_epoch, num_sample)
+        logit = self.decoder(encoding)
+
+        return (mu, std), logit
+
+
+class VIB_SimpleGru(SimpleGru, VIBNet):
+    def __init__(self, hidden_dim=16, dropout=0, bidirectional=True, lr=None, K=32):
+        super(VIB_SimpleGru, self).__init__(hidden_dim, dropout, bidirectional, lr)
+        self.K = K
+        if bidirectional:
+            self.dense = LinearDropRelu(128, 2 * K, self.drop)
+        else:
+            self.dense = LinearDropRelu(64, 2 * K, self.drop)
+        self.decoder = VIBDecoder(self.K)
+        self.decoder = VIBDecoder(self.K)
+
+    def forward(self, x, current_epoch, num_sample=1):
+        x = x.unsqueeze(1)
+        x = self.conv(x)
         x = x.permute(0, 2, 1)
         x = self.bgru(x)[0]
         x = x[:, -1, :]
