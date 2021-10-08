@@ -195,15 +195,15 @@ class SAED(BaseModel):
                            batch_first=True,
                            bidirectional=bidirectional,
                            dropout=self.drop)
-        self.dense = LinearDropRelu(128, 64, self.drop)
-        self.output = nn.Linear(64, 1)
+        # self.dense = LinearDropRelu(128, 64, self.drop)
+        # self.output = nn.Linear(64, 1)
         
-        # if bidirectional:
-            # self.dense = LinearDropRelu(128, 64, self.drop)
-            # self.output = nn.Linear(64, 1)
-        # else:
-            # self.dense = LinearDropRelu(64, 32, self.drop)
-            # self.output = nn.Linear(32, 1)
+        if bidirectional:
+            self.dense = LinearDropRelu(128, 64, self.drop)
+            self.output = nn.Linear(64, 1)
+        else:
+            self.dense = LinearDropRelu(64, 32, self.drop)
+            self.output = nn.Linear(32, 1)
 
     def forward(self, x):
         # x must be in shape [batch_size, 1, window_size]
@@ -248,14 +248,12 @@ class SimpleGru(BaseModel):
                            batch_first=True,
                            bidirectional=bidirectional,
                            dropout=self.drop)
-        self.dense = LinearDropRelu(128, 64, self.drop)
-        self.output = nn.Linear(64, 1)
-        # if bidirectional:
-        #     self.dense = LinearDropRelu(128, 64, self.drop)
-        #     self.output = nn.Linear(64, 1)
-        # else:
-        #     self.dense = LinearDropRelu(64, 32, self.drop)
-        #     self.output = nn.Linear(32, 1)
+        if bidirectional:
+            self.dense = LinearDropRelu(128, 64, self.drop)
+            self.output = nn.Linear(64, 1)
+        else:
+            self.dense = LinearDropRelu(64, 32, self.drop)
+            self.output = nn.Linear(32, 1)
 
     def forward(self, x):
         # x must be in shape [batch_size, 1, window_size]
