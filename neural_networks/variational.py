@@ -152,11 +152,15 @@ class VIB_SAED(SAED, VIBNet):
     def forward(self, x, current_epoch, num_sample=1):
         x = x.unsqueeze(1)
         x = self.conv(x)
-        x, _ = self.attention(x, x)
-        x = x.permute(0, 2, 1)
+        if self.num_heads>1:
+            x = x.permute(0, 2, 1)
+            x, _ = self.attention(query=x, key=x, value=x)
+        else:
+            x, _ = self.attention(x, x)
+            x = x.permute(0, 2, 1)
+
         x = self.bgru(x)[0]
         x = x[:, -1, :]
-
         statistics = self.dense(x)
         mu = statistics[:, :self.K]
         std = F.softplus(statistics[:, self.K:], beta=1)

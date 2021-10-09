@@ -170,6 +170,7 @@ class SAED(BaseModel):
         ***in order for the mhattention to work, embed_dim should be dividable
         to num_heads (embed_dim is the hidden dimension inside mhattention
         '''
+        self.num_heads = num_heads
         if num_heads > hidden_dim:
             num_heads = 1
             print('WARNING num_heads > embed_dim so it is set equal to 1')
@@ -187,17 +188,17 @@ class SAED(BaseModel):
         self.conv = ConvDropRelu(1, hidden_dim,
                                  kernel_size=4,
                                  dropout=self.drop)
-        # self.multihead_attn = nn.MultiheadAttention(embed_dim=hidden_dim,
-        #                                             num_heads=num_heads,
-        #                                             dropout=self.drop)
-        self.attention = Attention(window_size, attention_type=mode)
+        if num_heads>1:
+            self.attention = nn.MultiheadAttention(embed_dim=hidden_dim,
+                                                        num_heads=num_heads,
+                                                        dropout=self.drop)
+        else:
+            self.attention = Attention(window_size, attention_type=mode)
+
         self.bgru = nn.GRU(hidden_dim, 64,
                            batch_first=True,
                            bidirectional=bidirectional,
                            dropout=self.drop)
-        # self.dense = LinearDropRelu(128, 64, self.drop)
-        # self.output = nn.Linear(64, 1)
-        
         if bidirectional:
             self.dense = LinearDropRelu(128, 64, self.drop)
             self.output = nn.Linear(64, 1)
@@ -211,12 +212,18 @@ class SAED(BaseModel):
         x = x.unsqueeze(1)
         x = self.conv(x)
 
-        x, _ = self.attention(x, x)
-        x = x.permute(0, 2, 1)
+        if self.num_heads>1:
+            # x (aka output of conv1) shape is [batch_size, out_channels=16, window_size-kernel+1]
+            # x must be in shape [batch_size, seq_len, input_size=output_size of prev layer]
+            # so we have to change the order of the dimensions
+            x = x.permute(0, 2, 1)
+            x, _ = self.attention(query=x, key=x, value=x)
+        else:
+            x, _ = self.attention(x, x)
+            x = x.permute(0, 2, 1)
 
         x = self.bgru(x)[0]
         # we took only the first part of the tuple: output, h = gru(x)
-
         # Next we have to take only the last hidden state of the last b1gru
         # equivalent of return_sequences=False
         x = x[:, -1, :]
