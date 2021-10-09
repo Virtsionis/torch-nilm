@@ -5,24 +5,24 @@ from torch.utils.data import DataLoader, random_split
 from callbacks.callbacks_factories import TrainerCallbacksFactory
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityDataset
-from modules.MyDataSet import MyChunkList
 from modules.helpers import create_tree_dir, train_eval
 
 with torch.no_grad():
     torch.cuda.empty_cache()
 
 clean = False
-ROOT = 'output'
-data_dir = '../Datasets'
-train_file_dir = 'benchmark/train/'
-test_file_dir = 'benchmark/test/'
+ROOT = 'hyperparamtuning'
+data_dir = '/mnt/B40864F10864B450/WorkSpace/PHD/PHD_exps/data'
+train_file_dir = 'benchmark/large/train/'
+test_file_dir = 'benchmark/large/test/'
 
-dev_list = ['fridge',
+dev_list = [
+            #             'fridge',
             #             'kettle',
             #             'washing machine',
             #             'washer dryer',
             #             'tumble dryer',
-            #             'dish washer',
+                        'dish washer',
             #             'microwave',
             #             'television',
             #             'computer',
@@ -35,14 +35,15 @@ mod_list = [
     #             'FFED',
     #             'SAED',
     # 'FNET',
-    'ShortFNET',
+    # 'ShortFNET',
     # 'WGRU',
     # 'ConvFourier',
     # 'VIB_SAED',
     # 'VIBFNET',
     # 'VIBSeq2Point',
     # 'ShortNeuralFourier',
-    # 'VIBShortNeuralFourier'
+    # 'VIBShortNeuralFourier',
+    'BayesFNET'
 ]
 # REFIT,5,2014-09-01,2014-10-01
 # REFIT,6,2014-09-01,2014-10-01
@@ -57,9 +58,9 @@ EPOCHS = 100
 ITERATIONS = 1
 
 SAMPLE_PERIOD = 6
-WINDOW = 50 * 10
-device = 'fridge'
-BATCH = 512
+WINDOW = 50
+device = 'dish washer'
+BATCH = 1000
 windows = [50, 50 * 2, 50 * 4, 50 * 10]
 
 model_hparams = {
@@ -78,8 +79,8 @@ model_hparams = {
         #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
     ],
     'ShortFNET': [
-        {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
-         'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
+        # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+        #  'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
         # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
         #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
         # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 64,
@@ -88,8 +89,38 @@ model_hparams = {
         #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
         # {'depth'    : 8, 'kernel_size': 5, 'cnn_dim': 64,
         #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
-        {'depth'    : 16, 'kernel_size': 5, 'cnn_dim': 64,
-         'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0},
+        # {'depth'    : 16, 'kernel_size': 5, 'cnn_dim': 64,
+        #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0},
+         ],
+    'BayesFNET': [
+        # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 64,
+        #  'input_dim': WINDOW, 'hidden_dim': 200, 'dropout': 0},
+        # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+        #  'input_dim': WINDOW, 'hidden_dim': 200, 'dropout': 0},
+        # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
+        #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
+        # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 64,
+        #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
+        # {'depth'    : 8, 'kernel_size': 5, 'cnn_dim': 128,
+        #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
+        # {'depth'    : 8, 'kernel_size': 5, 'cnn_dim': 64,
+        #  'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.25},
+
+        # {'depth'    : 4, 'kernel_size': 5, 'cnn_dim': 64,
+        #  'input_dim': WINDOW, 'hidden_dim': 300, 'dropout': 0},
+
+
+
+        # {'depth'    : 4, 'kernel_size': 5, 'cnn_dim': 128,
+        #  'input_dim': WINDOW, 'hidden_dim': 300, 'dropout': 0},
+# 
+# 
+        # {'depth'    : 16, 'kernel_size': 5, 'cnn_dim': 64,
+        # 'input_dim': WINDOW, 'hidden_dim': 300, 'dropout': 0},
+
+        {'depth'    : 6, 'kernel_size': 5, 'cnn_dim': 128,
+         'input_dim': WINDOW, 'hidden_dim': 500, 'dropout': 0},
+
     ]
 }
 
@@ -146,6 +177,9 @@ eval_params = {'device'     : device,
                'groundtruth': ''}
 for model_name in mod_list:
     for hparams in model_hparams[model_name]:
+        print('#' * 40)
+        print('DEV: ',  device)
+        print('#' * 40)
         print('#' * 40)
         print('MODEL: ', model_name)
         print('#' * 40)

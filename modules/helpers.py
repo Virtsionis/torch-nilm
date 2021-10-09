@@ -45,7 +45,7 @@ def create_tree_dir(tree_levels={}, clean=False, plots=True):
             end = True
     print(1)
 
-def save_report(root_dir=None, model_name=None, device=None, exp_type=None,
+def save_report(root_dir=None, model_name=None, device=None, exp_type=None, save_timeseries=True,
                 experiment_name=None, exp_volume='large', iteration=None, results={},
                 preds=None, ground=None, model_hparams=None, epochs=None, plots=True):
 
@@ -71,10 +71,11 @@ def save_report(root_dir=None, model_name=None, device=None, exp_type=None,
     report.fillna(np.nan, inplace=True)
     report.to_csv(path + report_filename, index=False)
 
-    cols = ['ground', 'preds']
-    res_data = pd.DataFrame(list(zip(ground, preds)),
+    if save_timeseries:
+        cols = ['ground', 'preds']
+        res_data = pd.DataFrame(list(zip(ground, preds)),
                             columns=cols)
-    res_data.to_csv(path + data_filename, index=False)
+        res_data.to_csv(path + data_filename, index=False)
 
     if plots:
         exp_list = experiment_name.split('_')
@@ -219,7 +220,7 @@ def train_model(model_name, train_loader, test_loader,
 def train_eval(model_name, train_loader, exp_type, tests_params,
                sample_period, batch_size, experiment_name, exp_volume,
                iteration, device, mmax, means, stds, meter_means, meter_stds,
-               window_size, root_dir, data_dir, model_hparams,plots=True,
+               window_size, root_dir, data_dir, model_hparams,plots=True,save_timeseries=True,
                epochs=5, callbacks=None, val_loader=None,rolling_window=True,**kwargs):
     """
     Inputs:
@@ -265,7 +266,7 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
         preds = test_result['preds']
         final_experiment_name = experiment_name + 'test_' + building + '_' + dataset
         save_report(root_dir, model_name, device, exp_type, final_experiment_name, exp_volume,
-                    iteration, results, preds, ground, model_hparams, epochs, plots=plots)
+                    iteration, results, preds, ground, model_hparams, epochs, plots=plots,save_timeseries=save_timeseries)
         del test_dataset, test_loader, ground, final_experiment_name
 
 def create_timeframes(start, end, freq):
