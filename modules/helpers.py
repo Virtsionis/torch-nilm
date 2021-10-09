@@ -76,6 +76,7 @@ def save_report(root_dir=None, model_name=None, device=None, exp_type=None, save
         res_data = pd.DataFrame(list(zip(ground, preds)),
                             columns=cols)
         res_data.to_csv(path + data_filename, index=False)
+        print('Time series saved at: ', path + data_filename)
 
     if plots:
         exp_list = experiment_name.split('_')
@@ -265,8 +266,8 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
         results = test_result['metrics']
         preds = test_result['preds']
         final_experiment_name = experiment_name + 'test_' + building + '_' + dataset
-        save_report(root_dir, model_name, device, exp_type, final_experiment_name, exp_volume,
-                    iteration, results, preds, ground, model_hparams, epochs, plots=plots,save_timeseries=save_timeseries)
+        save_report(root_dir, model_name, device, exp_type, save_timeseries, final_experiment_name, exp_volume,
+                    iteration, results, preds, ground, model_hparams, epochs, plots=plots)
         del test_dataset, test_loader, ground, final_experiment_name
 
 def create_timeframes(start, end, freq):
