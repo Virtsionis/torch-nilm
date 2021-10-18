@@ -448,14 +448,20 @@ class ShortFNETBLock(nn.Module):
 
 class FNET(BaseModel):
 
-    def __init__(self, depth, kernel_size, cnn_dim, **block_args):
+    def __init__(self, depth, kernel_size, cnn_dim, dual_cnn=False, **block_args):
         super(FNET, self).__init__()
 
         self.drop = block_args['dropout']
         self.input_dim = block_args['input_dim']
         self.dense_in = self.input_dim * cnn_dim // 2
 
-        self.conv = ConvDropRelu(1, cnn_dim, kernel_size=kernel_size, dropout=self.drop)
+        if dual_cnn:
+            self.conv = nn.Sequential(
+                    ConvDropRelu(1, cnn_dim, kernel_size=kernel_size, dropout=self.drop),
+                    ConvDropRelu(cnn_dim, cnn_dim, kernel_size=kernel_size, dropout=self.drop),
+                )
+        else:
+            self.conv = ConvDropRelu(1, cnn_dim, kernel_size=kernel_size, dropout=self.drop)
         self.pool = nn.LPPool1d(norm_type=2, kernel_size=2, stride=2)
 
         self.fnet_layers = nn.ModuleList([FNETBLock(**block_args) for _ in range(depth)])
