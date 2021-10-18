@@ -226,7 +226,10 @@ class VIBTrainingTools(ClassicTrainingTools):
             model_hparams - Hyperparameters for the model, as dictionary.
         """
         super().__init__(model, model_hparams, eval_params)
-        self.beta = beta
+        if 'beta' in model_hparams.keys():
+            self.beta = model_hparams['beta']
+        else:
+            self.beta = beta
 
     def forward(self, x):
         # Forward function that is run when visualizing the graph
