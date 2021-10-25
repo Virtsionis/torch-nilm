@@ -255,7 +255,7 @@ class VIBFnet(FNET, VIBNet):
         self.decoder = VIBDecoder(self.K)
         print('MAX NOISE: ', max_noise)
 
-    def forward(self, x, current_epoch, num_sample=1):
+    def forward(self, x, current_epoch=0, num_sample=1):
         x = x.unsqueeze(1)
         x = self.conv(x)
 
@@ -263,7 +263,7 @@ class VIBFnet(FNET, VIBNet):
         x = self.pool(x)
         x = x.transpose(1, 2).contiguous()
         for layer in self.fnet_layers:
-            x, imag = layer(x)
+            x = layer(x)
         x = self.flat(x)
         x = self.dense1(x)
         statistics = self.dense2(x)

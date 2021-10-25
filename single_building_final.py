@@ -21,10 +21,10 @@ train_file_dir = 'benchmark/{}/train/'.format(exp_volume)
 test_file_dir = 'benchmark/{}/test/'.format(exp_volume)
 
 dev_list = [
-                        # 'microwave',
-                        # 'kettle',
+                        'microwave',
+                        'kettle',
                         # 'fridge',
-                        'washing machine',
+                        # 'washing machine',
                         # 'dish washer',
             ]
 
@@ -89,7 +89,7 @@ create_tree_dir(tree_levels=tree_levels, clean=clean, plots=PLOTS)
 exp_type = 'Single'
 
 EPOCHS = 100
-ITERATIONS = 5
+ITERATIONS = 3
 SAMPLE_PERIOD = 6
 BATCH = 512
 
