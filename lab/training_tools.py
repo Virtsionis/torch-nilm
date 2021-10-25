@@ -279,7 +279,7 @@ class VIBTrainingTools(ClassicTrainingTools):
         print('#### model name: {} ####'.format(res['model']))
         print('metrics: {}'.format(res['metrics']))
 
-        self.log("test_test_avg_loss", avg_loss, 'log', tensorboard_logs)
+        self.log("test_test_avg_loss", avg_loss)
         return res
 
 class BayesTrainingTools(ClassicTrainingTools):
