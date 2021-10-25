@@ -247,7 +247,7 @@ class VIBSeq2Point(Seq2Point, VIBNet):
 
 
 class VIBFnet(FNET, VIBNet):
-    def __init__(self, depth, kernel_size, cnn_dim, K=256, max_noise=0.1, **block_args):
+    def __init__(self, depth, kernel_size, cnn_dim, K=256, max_noise=0.1, beta=1e-3,**block_args):
         super(VIBFnet, self).__init__(depth, kernel_size, cnn_dim, **block_args)
         self.max_noise = max_noise
         self.K = cnn_dim // 2
