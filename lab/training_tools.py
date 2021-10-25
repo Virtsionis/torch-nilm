@@ -12,7 +12,7 @@ from modules.NILM_metrics import NILM_metrics
 from neural_networks.base_models import BaseModel
 from neural_networks.bert import BERT4NILM
 from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, FNET, ShortNeuralFourier, \
-ShortFNET, ShortPosFNET, PosFNET, DAE
+ShortFNET, ShortPosFNET, PosFNET, DAE, PAFnet
 
 from neural_networks.variational import VIBSeq2Point, VIBFnet, VIB_SAED, VIBShortNeuralFourier,\
 VIBWGRU,VIBShortFnet,VIBSeq2Point,VAE, VIB_SimpleGru
@@ -20,7 +20,7 @@ VIBWGRU,VIBShortFnet,VIBSeq2Point,VAE, VIB_SimpleGru
 from neural_networks.bayesian import BayesSimpleGru, BayesSeq2Point, BayesWGRU, BayesFNET
 
 # Setting the seed
-pl.seed_everything(42)
+# pl.seed_everything(42)
 
 # Ensure that all operations are deterministic on GPU (if used) for reproducibility
 torch.backends.cudnn.determinstic = True
@@ -49,6 +49,7 @@ def create_model(model_name, model_hparams):
                   'ShortFNET'            : ShortFNET,
                   'ShortPosFNET'            : ShortPosFNET,
                   'PosFNET'                 : PosFNET,
+                  'PAFNET':PAFnet,
                   # 'ConvFourier' : ConvFourier,
                   'BERT4NILM':BERT4NILM,
                   'VIB_SAED'             : VIB_SAED,
@@ -177,8 +178,7 @@ class ClassicTrainingTools(pl.LightningModule):
         res = self._metrics()
         print('#### model name: {} ####'.format(res['model']))
         print('metrics: {}'.format(res['metrics']))
-
-        self.log("test_test_avg_loss", avg_loss, 'log', tensorboard_logs)
+        self.log("test_test_avg_loss", avg_loss)
         return res
 
     def _metrics(self):
