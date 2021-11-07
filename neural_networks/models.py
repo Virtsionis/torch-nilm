@@ -313,21 +313,29 @@ class FFED(nn.Module):
 ## ENCODER BLOCK
 class FNETBLock(nn.Module):
 
-    def __init__(self, input_dim, hidden_dim, inverse_fft=False, dropout=0.0):
+    def __init__(self, input_dim, hidden_dim, inverse_fft=False, dropout=0.0, mode='fft'):
         """
         Inputs:
             input_dim - Dimensionality of the input (seq_len)
             hidden_dim - Dimensionality of the hidden layer in the MLP
             dropout - Dropout probability to use in the dropout layers
+            mode- 'fft' or 'att' or 'plain'
         """
         super().__init__()
-        self.consider_inverse_fft = inverse_fft
-        self.linear_fftout = nn.Linear(2*input_dim, input_dim)
+        self.mode = mode
+        if self.mode=='att':
+            self.attention = Attention(input_dim, attention_type='dot')
+
+        # self.linear_fftout = nn.Linear(2*input_dim, input_dim)
+
+        self.linear_fftout = nn.Sequential(
+            nn.Linear(2*input_dim, input_dim),
+            # nn.LeakyReLU(inplace=True),
+        )
 
         # Two-layer MLP
         self.linear_net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
-            nn.Dropout(dropout),
             nn.ReLU(inplace=True),
             nn.Linear(hidden_dim, input_dim)
         )
@@ -337,10 +345,19 @@ class FNETBLock(nn.Module):
         self.norm2 = nn.LayerNorm(input_dim)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x, mask=None):
+    def forward(self, x):
+
         fft_out = self.norm1(x)
-        fft_out = torch.fft.fft(fft_out, dim=-1)
-        fft_out = torch.cat((fft_out.real, fft_out.imag), dim=-1)
+
+        if self.mode=='fft':
+            fft_out = torch.fft.fft(fft_out, dim=-1)
+            fft_out = torch.cat((fft_out.real, fft_out.imag), dim=-1)
+        elif self.mode=='att':
+            fft_out, _ = self.attention(fft_out, fft_out)
+            fft_out = torch.cat((fft_out, fft_out), dim=-1)
+        elif self.mode=='plain':
+            fft_out = torch.cat((fft_out, fft_out), dim=-1)
+
         fft_out = self.linear_fftout(fft_out)
         x = x + self.dropout(fft_out)
         x = self.norm2(x)
@@ -548,39 +565,6 @@ class ShortPosFNET(FNET):
         x = self.dense2(x)
         out = self.output(x)
         return out
-
-
-# class ShortPosFNET(FNET):
-#     '''
-#     the position encoding is based on Bert4NILM
-#     '''
-#     def __init__(self, depth, kernel_size, cnn_dim, **block_args):
-#         super(ShortPosFNET, self).__init__(depth, kernel_size, cnn_dim, **block_args)
-#         self.fnet_layers = nn.ModuleList([ShortFNETBLock(**block_args) for _ in range(depth)])
-
-#         self.position = PositionalEmbedding(
-#             max_len=self.input_dim, d_model=cnn_dim//2)
-
-#         self.layer_norm = LayerNorm(cnn_dim//2)
-#         self.dropout = nn.Dropout(p=self.drop)
-
-#     def forward(self, x):
-#         x = x
-#         x = x.unsqueeze(1)
-#         x = self.conv(x)
-#         x = x.transpose(1, 2).contiguous()
-#         x_token = self.pool(x)
-#         embedding = x_token + self.position(x_token)
-#         embedding = self.layer_norm(embedding)
-#         x = self.dropout(embedding)
-#         x = x.transpose(1, 2).contiguous()
-#         for layer in self.fnet_layers:
-#             x, imag = layer(x)
-#         x = self.flat(x)
-#         x = self.dense1(x)
-#         x = self.dense2(x)
-#         out = self.output(x)
-#         return out
 
 class FReal(nn.Module):
     def __init__(self):
