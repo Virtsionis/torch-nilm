@@ -222,13 +222,18 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
                sample_period, batch_size, experiment_name, exp_volume,
                iteration, device, mmax, means, stds, meter_means, meter_stds,
                window_size, root_dir, data_dir, model_hparams,plots=True,save_timeseries=True,
-               epochs=5, callbacks=None, val_loader=None,rolling_window=True,**kwargs):
+               epochs=5, callbacks=None, val_loader=None,rolling_window=True, inference_cpu=True,**kwargs):
     """
     Inputs:
         model_name - Name of the model you want to run.
             It's used to look up the class in "model_dict"
     """
-    trainer = pl.Trainer(gpus=1, max_epochs=epochs, auto_lr_find=True, callbacks=callbacks)
+    progress_bar = True
+    if progress_bar:
+        trainer = pl.Trainer(gpus=1, max_epochs=epochs, auto_lr_find=True, callbacks=callbacks)
+    else:
+        trainer = pl.Trainer(gpus=1, max_epochs=epochs, auto_lr_find=True, callbacks=callbacks, progress_bar_refresh_rate=0)
+
     model = TrainingToolsFactory.build_and_equip_model(model_name=model_name, model_hparams=model_hparams, **kwargs)
     if val_loader:
         trainer.fit(model, train_loader, val_loader)
@@ -259,6 +264,9 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
         else:
             ground = test_dataset.meterchunk.numpy()
             ground = np.reshape(ground,-1)
+        if inference_cpu:
+            print('Model to CPU')
+            model.to('cpu')
         model.set_ground(ground)
 
         trainer.test(model, test_dataloaders=test_loader)
