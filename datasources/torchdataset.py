@@ -301,3 +301,120 @@ class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
                 print('need to increase chunksize')
         except StopIteration:
             return
+
+
+class ElectricityIterableMultiBuildingsDataset(ElectricityMultiBuildingsDataset, IterableDataset):
+    """ElectricityIterableMultiBuildingsDataset dataset."""
+
+    def __init__(self, train_info=None, rolling_window=True, window_size=50, chunksize=10 ** 6, mmax=None, means=None,
+                 stds=None, meter_means=None, meter_stds=None, sample_period=None, batch_size=32, shuffle=False):
+        """
+        Args:
+            train_info(list): python list, contains to target datasets, dates,
+                devices.
+            example=> train_info = [{'device' : device,
+                                     'datasource' : datasource,
+                                     'building' : train_house,
+                                     'train_dates' : train_dates,},
+                                   {'device' : device,
+                                     'datasource' : datasource,
+                                     'building' : train_house,
+                                     'train_dates' : train_dates,},
+                                  ]
+        """
+        self.batch_size = batch_size
+        super().__init__(train_info=train_info, rolling_window=rolling_window,
+                         window_size=window_size, mmax=mmax, means=means, stds=stds,
+                         meter_means=meter_means, meter_stds=meter_stds,
+                         sample_period=sample_period, chunksize=chunksize,
+                         shuffle=shuffle)
+
+    def __getitem__(self, index) -> T_co:
+        pass
+
+    def __len__(self):
+        return self.chunksize
+
+    def __iter__(self) -> Iterator[T_co]:
+        worker_info = torch.utils.data.get_worker_info()
+        self._reload()
+        return self._series_iterator(worker_info)
+
+    def _init_single_building_generators(self, datasource: Datasource, building, device, start_date,
+                                         end_date, sample_period, chunksize, index):
+        chunksize = chunksize // len(self.train_info)
+        self.datasources[index] = datasource
+        self.mains_generators[index] = self.datasources[index].get_mains_generator(start=start_date,
+                                                                                   end=end_date,
+                                                                                   sample_period=sample_period,
+                                                                                   building=building,
+                                                                                   chunksize=chunksize)
+
+        self.appliance_generators[index] = self.datasources[index].get_appliance_generator(appliance=device,
+                                                                                           start=start_date,
+                                                                                           end=end_date,
+                                                                                           sample_period=sample_period,
+                                                                                           building=building,
+                                                                                           chunksize=chunksize)
+
+    def _reload(self):
+        for (index, element) in enumerate(self.train_info):
+            print('Mainchunk shape', self.mainchunk.shape)
+            try:
+                print('>'*80)
+                print(index)
+                print(element)
+                print('<'*80)
+                mainchunk = next(self.mains_generators[index])
+                meterchunk = next(self.appliance_generators[index])
+                mainchunk, meterchunk = align_chunks(mainchunk, meterchunk)
+                if len(mainchunk) or len(meterchunk):
+                    mainchunk, meterchunk = self._chunk_preprocessing(mainchunk, meterchunk)
+                    mainchunk = torch.from_numpy(np.array(mainchunk))
+                    meterchunk = torch.from_numpy(np.array(meterchunk))
+                    self.mainchunk = torch.cat((self.mainchunk, mainchunk), 0)
+                    self.meterchunk = torch.cat((self.meterchunk, meterchunk), 0)
+                else:
+                    # TODO throw exception
+                    print('need to increase chunksize')
+            except StopIteration:
+                print('no more data')
+        return
+
+    def _series_iterator(self, worker_info):
+        batch_size = self.batch_size
+        if self._should_partition(worker_info):
+            self._partition_chunks(worker_info)
+
+        mainqueue = deque(self.mainchunk)
+        meterqueue = deque(self.meterchunk)
+        while True:
+            mainval = mainqueue.popleft()
+            meterval = meterqueue.popleft()
+            if len(mainqueue) < batch_size:  # experiment with times*batch_size
+                print('Need to reload')
+                self._reload()
+                if not self.mainchunk.nelement() or not self.meterchunk.nelement():
+                    return
+                if self._should_partition(worker_info):
+                    self._partition_chunks(worker_info)
+                mainqueue.extend(self.mainchunk)
+                meterqueue.extend(self.meterchunk)
+            yield mainval, meterval
+
+    def _partition_chunks(self, worker_info):
+        iter_start, iter_end = self._partition(worker_info, len(self.mainchunk))
+        self.mainchunk = self.mainchunk[iter_start:iter_end]
+        self.meterchunk = self.meterchunk[iter_start:iter_end]
+
+    @staticmethod
+    def _partition(worker_info, chunksize):
+        partition_size = chunksize // worker_info.num_workers
+        iter_start = worker_info.id * partition_size
+        iter_end = min(iter_start + partition_size, chunksize)
+        print(iter_start, iter_end)
+        return iter_start, iter_end
+
+    @staticmethod
+    def _should_partition(worker_info):
+        return worker_info is not None and worker_info.num_workers > 1
