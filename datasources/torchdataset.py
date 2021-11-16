@@ -11,10 +11,11 @@ from lab.training_tools import ON_THRESHOLDS
 
 class BaseElectricityDataset(ABC):
 
-    def __init__(self, datasource: Datasource, building, device, start_date,
+    def __init__(self, datasource, building, device, start_date,
                  end_date, rolling_window=True, window_size=50, mmax=None,
                  means=None, stds=None, meter_means=None, meter_stds=None,
                  sample_period=None, chunksize: int = 10000, shuffle=False):
+        print('BaseElectricityDataset INIT')
         self.building = building
         self.device = device
         self.mmax = mmax
@@ -119,9 +120,8 @@ class BaseElectricityDataset(ABC):
 class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
     """ElectricityIterableDataset dataset."""
 
-    def __init__(self, datasource: Datasource, building, device,
-                 start_date: str, end_date: str, rolling_window=True, window_size=50,
-                 mmax=None, means=None, stds=None, meter_means=None, meter_stds=None,
+    def __init__(self, datasource: Datasource, building, device, dates=None, rolling_window=True,
+                 window_size=50, mmax=None, means=None, stds=None, meter_means=None, meter_stds=None,
                  sample_period=None, chunksize: int = 10 ** 6, batch_size=32, shuffle=False):
         """
         Args:
@@ -131,11 +131,12 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
             dates(list): list with the start and end(optional) dates for training window [start, end]
                         eg:['2016-04-01','2017-04-01']
         """
+        print('ElectricityIterableDataset INIT')
+        self.batch_size = batch_size
         super().__init__(datasource, building, device,
-                         start_date, end_date, rolling_window,
+                         dates[0], dates[1], rolling_window,
                          window_size, mmax, means, stds,
                          meter_means, meter_stds, sample_period, chunksize, shuffle)
-        self.batch_size = batch_size
 
     def __run__(self):
         self._init_generators(datasource=self.datasource,
@@ -199,10 +200,9 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
 class ElectricityDataset(BaseElectricityDataset, Dataset):
     """ElectricityDataset dataset."""
 
-    def __init__(self, datasource, building, device, dates=None, rolling_window=True,
-                 window_size=50, test=False, chunksize=10 ** 10,
-                 mmax=None, means=None, stds=None, meter_means=None, meter_stds=None,
-                 sample_period=None, **load_kwargs):
+    def __init__(self, datasource: Datasource, building, device, dates=None, rolling_window=True,
+                 window_size=50, chunksize=10 ** 10, mmax=None, means=None, stds=None, meter_means=None,
+                 meter_stds=None, sample_period=None):
         """
         Args:
             datasource(Datasource): datasource object, indicates to target dataset
@@ -211,6 +211,7 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
             dates(list): list with the start and end(optional) dates for training window [start, end]
                         eg:['2016-04-01','2017-04-01']
         """
+        print('ElectricityDataset INIT')
         super().__init__(datasource, building, device,
                          dates[0], dates[1], rolling_window, window_size,
                          mmax, means, stds, meter_means, meter_stds,
@@ -220,10 +221,8 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
 class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
     """ElectricityMultiBuildingsDataset dataset."""
 
-    def __init__(self, train_info=None, device=None, rolling_window=True,
-                 window_size=50, test=False, chunksize=10 ** 10,
-                 mmax=None, means=None, stds=None, meter_means=None, meter_stds=None,
-                 sample_period=None, **load_kwargs):
+    def __init__(self, train_info=None, rolling_window=True, window_size=50, chunksize=10 ** 10, mmax=None, means=None,
+                 stds=None, meter_means=None, meter_stds=None, sample_period=None, **load_kwargs):
         """
         Args:
             train_info(list): python list, contains to target datasets, dates,
@@ -242,23 +241,21 @@ class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
             dates(list): list with the start and end(optional) dates for training window [start, end]
                         eg:['2016-04-01','2017-04-01']
         """
-        self.mmax = mmax
-        self.means = means
-        self.stds = stds
-        self.meter_means = meter_means
-        self.meter_stds = meter_stds
-        self.chunksize = chunksize
-        self.sample_period = sample_period
-        self.rolling_window = rolling_window
-        self.window_size = window_size
-        self.threshold = ON_THRESHOLDS.get(device, 50)
+        print('ElectricityMultiBuildingsDataset INIT')
+        self.train_info = train_info
+        self.mainchunk = torch.tensor([])
+        self.meterchunk = torch.tensor([])
+        super().__init__(datasource=None, building=None, device=None, start_date=None, end_date=None,
+                         rolling_window=rolling_window, window_size=window_size, mmax=mmax, means=means,
+                         stds=stds, meter_means=meter_means, meter_stds=meter_stds, sample_period=sample_period,
+                         chunksize=chunksize, **load_kwargs)
 
-        if train_info and len(train_info):
-            num_buildings = len(train_info)
-            self.mains_generators = [None] * num_buildings
-            self.appliance_generators = [None] * num_buildings
-            self.datasources = [None] * num_buildings
-            self._init_generators(train_info, sample_period, chunksize, )
+    def __run__(self):
+        num_buildings = len(self.train_info)
+        self.mains_generators = [None] * num_buildings
+        self.appliance_generators = [None] * num_buildings
+        self.datasources = [None] * num_buildings
+        self._init_generators(self.train_info, self.sample_period, self.chunksize)
 
     def _init_generators(self, train_info, sample_period, chunksize, **kwargs):
         for (index, element) in enumerate(train_info):
@@ -287,3 +284,20 @@ class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
                                                                                            chunksize=chunksize)
         self.mains_generator, self.appliance_generator = self.mains_generators[index], self.appliance_generators[index]
         self._reload()
+
+    def _reload(self):
+        try:
+            mainchunk = next(self.mains_generator)
+            meterchunk = next(self.appliance_generator)
+            mainchunk, meterchunk = align_chunks(mainchunk, meterchunk)
+            if len(mainchunk) or len(meterchunk):
+                mainchunk, meterchunk = self._chunk_preprocessing(mainchunk, meterchunk)
+                mainchunk = torch.from_numpy(np.array(mainchunk))
+                meterchunk = torch.from_numpy(np.array(meterchunk))
+                self.mainchunk = torch.cat((self.mainchunk, mainchunk), 0)
+                self.meterchunk = torch.cat((self.meterchunk, meterchunk), 0)
+            else:
+                # TODO throw exception
+                print('need to increase chunksize')
+        except StopIteration:
+            return
