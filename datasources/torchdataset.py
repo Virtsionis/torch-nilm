@@ -1,12 +1,11 @@
 import torch
-import numpy as np
 from abc import ABC
 from typing import Iterator
 from collections import deque
 from torch.utils.data.dataset import T_co
 from datasources.datasource import Datasource
 from torch.utils.data import Dataset, IterableDataset
-from skimage.restoration import denoise_wavelet
+from datasources.preprocessing_lib import *
 from lab.training_tools import ON_THRESHOLDS
 
 
@@ -15,8 +14,7 @@ class BaseElectricityDataset(ABC):
     def __init__(self, datasource: Datasource, building, device, start_date,
                  end_date, rolling_window=True, window_size=50, mmax=None,
                  means=None, stds=None, meter_means=None, meter_stds=None,
-                 sample_period=None,
-                 chunksize: int = 10000):
+                 sample_period=None, chunksize: int = 10000, shuffle=False):
         self.building = building
         self.device = device
         self.mmax = mmax
@@ -31,9 +29,31 @@ class BaseElectricityDataset(ABC):
         self.datasource = datasource
         self.rolling_window = rolling_window
         self.window_size = window_size
+        self.shuffle = shuffle
         self.threshold = ON_THRESHOLDS.get(device, 50)
+        self.normalization_method = 'standardization'
+        self.__run__()
 
-        self._init_generators(datasource, building, device, start_date, end_date, sample_period, chunksize)
+    def __run__(self):
+        self._init_generators(datasource=self.datasource,
+                              building=self.building,
+                              device=self.device,
+                              start_date=self.start_date,
+                              end_date=self.end_date,
+                              sample_period=self.sample_period,
+                              chunksize=self.chunksize)
+        self._reload()
+
+    def __len__(self):
+        return len(self.mainchunk)
+
+    def __getitem__(self, i):
+        x = self.mainchunk
+        y = self.meterchunk
+        return x[i].float(), y[i].float()
+
+    def __mmax__(self):
+        return self.mmax
 
     def _init_generators(self, datasource: Datasource, building, device, start_date,
                          end_date, sample_period, chunksize):
@@ -50,7 +70,6 @@ class BaseElectricityDataset(ABC):
                                                                            sample_period=sample_period,
                                                                            building=building,
                                                                            chunksize=chunksize)
-        self._reload()
 
     def _reload(self):
         self.mainchunk = torch.tensor([])
@@ -58,100 +77,52 @@ class BaseElectricityDataset(ABC):
         try:
             mainchunk = next(self.mains_generator)
             meterchunk = next(self.appliance_generator)
-
-            mainchunk, meterchunk = self._align_chunks(mainchunk, meterchunk)
-            mainchunk, meterchunk = self._replace_nans(mainchunk, meterchunk)
-            # mainchunk, meterchunk = self._replace_with_zero_small_values(mainchunk, meterchunk, self.threshold)
-            # mainchunk, meterchunk = self._normalize_chunks(mainchunk, meterchunk)
-            # mainchunk, meterchunk = self._denoise(mainchunk, meterchunk)
-            mainchunk, meterchunk = self._standardize_chunks(mainchunk, meterchunk)
-            if self.rolling_window:
-                mainchunk, meterchunk = self._apply_rolling_window(mainchunk, meterchunk)
+            mainchunk, meterchunk = align_chunks(mainchunk, meterchunk)
+            if len(mainchunk) or len(meterchunk):
+                mainchunk, meterchunk = self._chunk_preprocessing(mainchunk, meterchunk)
+                self.mainchunk, self.meterchunk = torch.from_numpy(np.array(mainchunk)), torch.from_numpy(
+                    np.array(meterchunk))
             else:
-                mainchunk, meterchunk = self._create_batches(mainchunk, meterchunk)
-            self.mainchunk, self.meterchunk = torch.from_numpy(np.array(mainchunk)), torch.from_numpy(
-                np.array(meterchunk))
+                # TODO throw exception
+                print('need to increase chunksize')
         except StopIteration:
             return
 
-    def _apply_rolling_window(self, mainchunk, meterchunk):
-        indexer = np.arange(self.window_size)[None, :] + np.arange(len(mainchunk) - self.window_size + 1)[:, None]
-        mainchunk = mainchunk[indexer]
-        meterchunk = meterchunk[self.window_size - 1:]
-        return mainchunk, meterchunk
-
-    def _create_batches(self, mainchunk, meterchunk):
-        seq_len =  self.window_size
-        ix = mainchunk.index
-        # Create array of batches
-        additional = seq_len - (len(ix) % seq_len)
-        mainchunk = np.append(mainchunk, np.zeros(additional))
-        meterchunk = np.append(meterchunk, np.zeros(additional))
-
-        mainchunk = np.reshape(mainchunk, (int(len(mainchunk) / seq_len), seq_len, 1))
-        meterchunk = np.reshape(meterchunk, (int(len(meterchunk) / seq_len), seq_len, 1))
-        print("Training has started. The input data are:")
-        print(mainchunk.shape)
-
-        mainchunk = np.transpose(mainchunk, (0, 2, 1))
-        meterchunk = np.transpose(meterchunk, (0, 2, 1))
-
-        return mainchunk, meterchunk
-
-    def _replace_nans(self, mainchunk, meterchunk):
-        mainchunk.fillna(0, inplace=True)
-        meterchunk.fillna(0, inplace=True)
-        return mainchunk, meterchunk
-
-    def _normalize_chunks(self, mainchunk, meterchunk):
-        if self.mmax is None:
-            self.mmax = mainchunk.max()
-        mainchunk = mainchunk / self.mmax
-        meterchunk = meterchunk / self.mmax
+    def _chunk_preprocessing(self, mainchunk, meterchunk):
+        mainchunk, meterchunk = replace_nans(mainchunk, meterchunk)
+        if self.normalization_method == 'standardization':
+            mainchunk, meterchunk = self._standardize_chunks(mainchunk, meterchunk)
+        else:
+            mainchunk, meterchunk = normalize_chunks(mainchunk, meterchunk, self.mmax)
+        if self.rolling_window:
+            mainchunk, meterchunk = apply_rolling_window(mainchunk, meterchunk, self.window_size)
+        else:
+            mainchunk, meterchunk = create_batches(mainchunk, meterchunk, self.window_size)
+        if self.shuffle:
+            mainchunk, meterchunk = mainchunk.sample(frac=1), meterchunk.sample(frac=1)
         return mainchunk, meterchunk
 
     def _standardize_chunks(self, mainchunk, meterchunk):
         ######
         # TODO: If chunk is a bad chunk (all zeros) then means/stds will be problematic
         ######
-        if self.means is None and self.stds is None:
-            self.means = mainchunk.mean()
-            self.stds = mainchunk.std()
-
-        if self.meter_means is None and self.meter_stds is None:
-            self.meter_means = meterchunk.mean()
-            self.meter_stds = meterchunk.std()
-
-        mainchunk = (mainchunk - self.means) / self.stds
-        meterchunk = (meterchunk - self.meter_means) / self.meter_stds
-        return mainchunk, meterchunk
-
-    def _align_chunks(self, mainchunk, meterchunk):
-        mainchunk = mainchunk[~mainchunk.index.duplicated()]
-        meterchunk = meterchunk[~meterchunk.index.duplicated()]
-        ix = mainchunk.index.intersection(meterchunk.index)
-        mainchunk = mainchunk[ix]
-        meterchunk = meterchunk[ix]
-        return mainchunk, meterchunk
-
-    def _replace_with_zero_small_values(self, mainchunk, meterchunk, threshold):
-        mainchunk[mainchunk < threshold] = 0
-        meterchunk[meterchunk < threshold] = 0
-        return mainchunk, meterchunk
-
-    def _denoise(self, mainchunk, meterchunk):
-        mainchunk = denoise_wavelet(mainchunk, wavelet='haar', wavelet_levels=3)
-        meterchunk = denoise_wavelet(meterchunk, wavelet='haar', wavelet_levels=3)
-        return mainchunk, meterchunk
+        if is_bad_chunk(mainchunk) or is_bad_chunk(meterchunk):
+            print('chunks are all zeros')
+            '''
+            Throw exception
+            '''
+            return mainchunk, meterchunk
+        else:
+            return standardize_chunks(mainchunk, meterchunk, self.means, self.stds, self.meter_means, self.meter_stds)
 
 
 class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
     """ElectricityIterableDataset dataset."""
 
     def __init__(self, datasource: Datasource, building, device,
-                 start_date: str, end_date: str, window_size=50,
+                 start_date: str, end_date: str, rolling_window=True, window_size=50,
                  mmax=None, means=None, stds=None, meter_means=None, meter_stds=None,
-                 sample_period=None, chunksize: int = 10000, batch_size=32):
+                 sample_period=None, chunksize: int = 10 ** 6, batch_size=32, shuffle=False):
         """
         Args:
             datasource(string): datasource object, indicates to target dataset
@@ -161,22 +132,30 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
                         eg:['2016-04-01','2017-04-01']
         """
         super().__init__(datasource, building, device,
-                         start_date, end_date, window_size, mmax,
-                         means, stds, meter_means, meter_stds,
-                         sample_period, chunksize, batch_size)
+                         start_date, end_date, rolling_window,
+                         window_size, mmax, means, stds,
+                         meter_means, meter_stds, sample_period, chunksize, shuffle)
         self.batch_size = batch_size
 
-    def __iter__(self) -> Iterator[T_co]:
-        worker_info = torch.utils.data.get_worker_info()
-        self._init_generators(self.building, self.chunksize, self.device, self.start_date, self.end_date,
-                              self.sample_period)
-        return self._series_iterator(worker_info)
+    def __run__(self):
+        self._init_generators(datasource=self.datasource,
+                              building=self.building,
+                              device=self.device,
+                              start_date=self.start_date,
+                              end_date=self.end_date,
+                              sample_period=self.sample_period,
+                              chunksize=self.chunksize)
 
     def __getitem__(self, index) -> T_co:
         pass
 
-    def __mmax__(self):
-        return self.mmax
+    def __len__(self):
+        return self.chunksize
+
+    def __iter__(self) -> Iterator[T_co]:
+        worker_info = torch.utils.data.get_worker_info()
+        self._reload()
+        return self._series_iterator(worker_info)
 
     def _series_iterator(self, worker_info):
         batch_size = self.batch_size
@@ -188,7 +167,8 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
         while True:
             mainval = mainqueue.popleft()
             meterval = meterqueue.popleft()
-            if len(mainqueue) < batch_size:
+            if len(mainqueue) < batch_size:  # experiment with times*batch_size
+                print('Need to reload')
                 self._reload()
                 if not self.mainchunk.nelement() or not self.meterchunk.nelement():
                     return
@@ -198,25 +178,28 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
                 meterqueue.extend(self.meterchunk)
             yield mainval, meterval
 
-    def _partition(self, worker_info, chunksize):
-        partition_size = chunksize // worker_info.num_workers
-        iter_start = worker_info.id * partition_size
-        iter_end = min(iter_start + partition_size, chunksize)
-        return iter_start, iter_end
-
     def _partition_chunks(self, worker_info):
         iter_start, iter_end = self._partition(worker_info, len(self.mainchunk))
         self.mainchunk = self.mainchunk[iter_start:iter_end]
         self.meterchunk = self.meterchunk[iter_start:iter_end]
 
-    def _should_partition(self, worker_info):
+    @staticmethod
+    def _partition(worker_info, chunksize):
+        partition_size = chunksize // worker_info.num_workers
+        iter_start = worker_info.id * partition_size
+        iter_end = min(iter_start + partition_size, chunksize)
+        print(iter_start, iter_end)
+        return iter_start, iter_end
+
+    @staticmethod
+    def _should_partition(worker_info):
         return worker_info is not None and worker_info.num_workers > 1
 
 
 class ElectricityDataset(BaseElectricityDataset, Dataset):
     """ElectricityDataset dataset."""
 
-    def __init__(self, datasource, building, device, dates=None,rolling_window=True,
+    def __init__(self, datasource, building, device, dates=None, rolling_window=True,
                  window_size=50, test=False, chunksize=10 ** 10,
                  mmax=None, means=None, stds=None, meter_means=None, meter_stds=None,
                  sample_period=None, **load_kwargs):
@@ -229,24 +212,15 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
                         eg:['2016-04-01','2017-04-01']
         """
         super().__init__(datasource, building, device,
-                         dates[0], dates[1],rolling_window, window_size,
+                         dates[0], dates[1], rolling_window, window_size,
                          mmax, means, stds, meter_means, meter_stds,
                          sample_period, chunksize)
 
-    def __len__(self):
-        return len(self.mainchunk)
-
-    def __mmax__(self):
-        return self.mmax
-
-    def __getitem__(self, i):
-        x = self.mainchunk
-        y = self.meterchunk
-        return x[i].float(), y[i].float()
 
 class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
     """ElectricityMultiBuildingsDataset dataset."""
-    def __init__(self, train_info=None,device=None, rolling_window=True,
+
+    def __init__(self, train_info=None, device=None, rolling_window=True,
                  window_size=50, test=False, chunksize=10 ** 10,
                  mmax=None, means=None, stds=None, meter_means=None, meter_stds=None,
                  sample_period=None, **load_kwargs):
@@ -284,9 +258,9 @@ class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
             self.mains_generators = [None] * num_buildings
             self.appliance_generators = [None] * num_buildings
             self.datasources = [None] * num_buildings
-            self._init_generators(train_info, sample_period, chunksize)
+            self._init_generators(train_info, sample_period, chunksize, )
 
-    def _init_generators(self, train_info, sample_period, chunksize):
+    def _init_generators(self, train_info, sample_period, chunksize, **kwargs):
         for (index, element) in enumerate(train_info):
             datasource = element['datasource']
             building = element['building']
@@ -300,48 +274,16 @@ class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
                                          end_date, sample_period, chunksize, index):
         self.datasources[index] = datasource
         self.mains_generators[index] = self.datasources[index].get_mains_generator(start=start_date,
-                                                                           end=end_date,
-                                                                           sample_period=sample_period,
-                                                                           building=building,
-                                                                           chunksize=chunksize)
-
-        self.appliance_generators[index] = self.datasources[index].get_appliance_generator(appliance=device,
-                                                                                   start=start_date,
                                                                                    end=end_date,
                                                                                    sample_period=sample_period,
                                                                                    building=building,
                                                                                    chunksize=chunksize)
-        self._reload(index)
 
-    def _reload(self, index):
-        self.mainchunk = torch.tensor([])
-        self.meterchunk = torch.tensor([])
-        try:
-            mainchunk = next(self.mains_generators[index])
-            meterchunk = next(self.appliance_generators[index])
-
-            mainchunk, meterchunk = self._align_chunks(mainchunk, meterchunk)
-            mainchunk, meterchunk = self._replace_nans(mainchunk, meterchunk)
-            # mainchunk, meterchunk = self._replace_with_zero_small_values(mainchunk, meterchunk, self.threshold)
-            # mainchunk, meterchunk = self._normalize_chunks(mainchunk, meterchunk)
-            # mainchunk, meterchunk = self._denoise(mainchunk, meterchunk)
-            mainchunk, meterchunk = self._standardize_chunks(mainchunk, meterchunk)
-            if self.rolling_window:
-                mainchunk, meterchunk = self._apply_rolling_window(mainchunk, meterchunk)
-            else:
-                mainchunk, meterchunk = self._create_batches(mainchunk, meterchunk)
-            self.mainchunk, self.meterchunk = torch.from_numpy(np.array(mainchunk)), torch.from_numpy(
-                np.array(meterchunk))
-        except StopIteration:
-            return
-
-    def __len__(self):
-        return len(self.mainchunk)
-
-    def __mmax__(self):
-        return self.mmax
-
-    def __getitem__(self, i):
-        x = self.mainchunk
-        y = self.meterchunk
-        return x[i].float(), y[i].float()
+        self.appliance_generators[index] = self.datasources[index].get_appliance_generator(appliance=device,
+                                                                                           start=start_date,
+                                                                                           end=end_date,
+                                                                                           sample_period=sample_period,
+                                                                                           building=building,
+                                                                                           chunksize=chunksize)
+        self.mains_generator, self.appliance_generator = self.mains_generators[index], self.appliance_generators[index]
+        self._reload()
