@@ -51,7 +51,7 @@ class BaseElectricityDataset(ABC):
         return len(self.mainchunk)
 
     def __set_mmax__(self, mainchunk):
-        if self.mmax is None:
+        if self.mmax is None and len(mainchunk):
             self.mmax = mainchunk.max()
 
     def __set_means_stds__(self, mainchunk, meterchunk):
