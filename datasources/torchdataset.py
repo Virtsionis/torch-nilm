@@ -33,6 +33,8 @@ class BaseElectricityDataset(ABC):
         self.shuffle = shuffle
         self.threshold = ON_THRESHOLDS.get(device, 50)
         self.normalization_method = 'standardization'
+        self.mainchunk = torch.tensor([])
+        self.meterchunk = torch.tensor([])
         self.__run__()
 
     def __run__(self):
@@ -47,6 +49,19 @@ class BaseElectricityDataset(ABC):
 
     def __len__(self):
         return len(self.mainchunk)
+
+    def __set_mmax__(self, mainchunk):
+        if self.mmax is None:
+            self.mmax = mainchunk.max()
+
+    def __set_means_stds__(self, mainchunk, meterchunk):
+        if self.means is None and self.stds is None and len(mainchunk):
+            self.means = mainchunk.mean()
+            self.stds = mainchunk.std()
+
+        if self.meter_means is None and self.meter_stds is None and len(meterchunk):
+            self.meter_means = meterchunk.mean()
+            self.meter_stds = meterchunk.std()
 
     def __getitem__(self, i):
         x = self.mainchunk
@@ -73,8 +88,6 @@ class BaseElectricityDataset(ABC):
                                                                            chunksize=chunksize)
 
     def _reload(self):
-        self.mainchunk = torch.tensor([])
-        self.meterchunk = torch.tensor([])
         try:
             mainchunk = next(self.mains_generator)
             meterchunk = next(self.appliance_generator)
@@ -92,8 +105,10 @@ class BaseElectricityDataset(ABC):
     def _chunk_preprocessing(self, mainchunk, meterchunk):
         mainchunk, meterchunk = replace_nans(mainchunk, meterchunk)
         if self.normalization_method == 'standardization':
+            self.__set_means_stds__(mainchunk, meterchunk)
             mainchunk, meterchunk = self._standardize_chunks(mainchunk, meterchunk)
         else:
+            self.__set_mmax__(mainchunk)
             mainchunk, meterchunk = normalize_chunks(mainchunk, meterchunk, self.mmax)
         if self.rolling_window:
             mainchunk, meterchunk = apply_rolling_window(mainchunk, meterchunk, self.window_size)
@@ -243,8 +258,6 @@ class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
         """
         print('ElectricityMultiBuildingsDataset INIT')
         self.train_info = train_info
-        self.mainchunk = torch.tensor([])
-        self.meterchunk = torch.tensor([])
         super().__init__(datasource=None, building=None, device=None, start_date=None, end_date=None,
                          rolling_window=rolling_window, window_size=window_size, mmax=mmax, means=means,
                          stds=stds, meter_means=meter_means, meter_stds=meter_stds, sample_period=sample_period,
@@ -359,12 +372,7 @@ class ElectricityIterableMultiBuildingsDataset(ElectricityMultiBuildingsDataset,
 
     def _reload(self):
         for (index, element) in enumerate(self.train_info):
-            print('Mainchunk shape', self.mainchunk.shape)
             try:
-                print('>'*80)
-                print(index)
-                print(element)
-                print('<'*80)
                 mainchunk = next(self.mains_generators[index])
                 meterchunk = next(self.appliance_generators[index])
                 mainchunk, meterchunk = align_chunks(mainchunk, meterchunk)
@@ -412,7 +420,6 @@ class ElectricityIterableMultiBuildingsDataset(ElectricityMultiBuildingsDataset,
         partition_size = chunksize // worker_info.num_workers
         iter_start = worker_info.id * partition_size
         iter_end = min(iter_start + partition_size, chunksize)
-        print(iter_start, iter_end)
         return iter_start, iter_end
 
     @staticmethod
