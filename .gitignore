@@ -102,3 +102,11 @@ results/*
 /SINGLE_BUILDING_EXP/
 /Single_Building_3fold_CV/
 /window_tuning/
+/FNET_MULTI_BUILDINGS/
+/FNET_VIB_SINGLE_BUILDINGS/
+/NFED_ENTROPY_POOL/
+/NFED_V2_ABLATION_FINAL/
+/VIB_BENCHMARK/
+/fnet_multi.tar.gz
+/multi_final.tar.gz
+/vibbenchmark.tar.gz

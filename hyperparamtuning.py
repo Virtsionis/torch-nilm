@@ -10,17 +10,17 @@ from modules.helpers import create_tree_dir, train_eval
 with torch.no_grad():
     torch.cuda.empty_cache()
 
-clean = True
+clean = False
 PLOTS = False
 SAVE_TIMESERIES = False
-ROOT = 'NFED_V2_ABLATION_FINAL'
+ROOT = 'NFED_ENTROPY_POOL'
 exp_volume = 'large'
 data_dir = '../Datasets'
 train_file_dir = 'benchmark/{}/train/'.format(exp_volume)
 test_file_dir = 'benchmark/{}/test/'.format(exp_volume)
 
 dev_list = [
-                        'kettle',
+                        # 'kettle',
                         'microwave',
                         'washing machine',
                         'fridge',
@@ -29,7 +29,7 @@ dev_list = [
 mod_list = [
     'FNET',
 ]
-cat_list = [x for x in ['Single', 'Multi']]
+cat_list = [x for x in ['Single']]
 tree_levels = {'root': ROOT, 'l1': ['results'], 'l2': dev_list, 'l3': mod_list, 'experiments': cat_list}
 create_tree_dir(tree_levels=tree_levels, clean=clean)
 
@@ -57,10 +57,10 @@ for device in dev_list:
 
     model_hparams = {
         'FNET'     : [
-            {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128, 'mode':'att',
-            'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.0,},
-            {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128, 'mode':'plain',
-            'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.0,},
+            # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128, 'mode':'att',
+            # 'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.0,},
+            # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128, 'mode':'plain',
+            # 'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.0,},
             {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128, 'mode':'fft',
             'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.0,},
             ],
