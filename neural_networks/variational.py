@@ -251,29 +251,45 @@ class VIBFnet(FNET, VIBNet):
         super(VIBFnet, self).__init__(depth, kernel_size, cnn_dim, **block_args)
         self.max_noise = max_noise
         self.K = cnn_dim // 2
-        self.dense2 = LinearDropRelu(cnn_dim, 2 * self.K, self.drop)
-        self.decoder = VIBDecoder(self.K)
+        # self.dense2 = LinearDropRelu(cnn_dim, 2 * self.K, self.drop)
+        # self.decoder = VIBDecoder(self.K)
         print('MAX NOISE: ', max_noise)
 
+    # def forward(self, x, current_epoch=0, num_sample=1):
+    #     x = x.unsqueeze(1)
+    #     x = self.conv(x)
+    #
+    #     x = x.transpose(1, 2).contiguous()
+    #     x = self.pool(x)
+    #     x = x.transpose(1, 2).contiguous()
+    #     for layer in self.fnet_layers:
+    #         x = layer(x)
+    #     x = self.flat(x)
+    #     x = self.dense1(x)
+    #     statistics = self.dense2(x)
+    #     mu = statistics[:, :self.K]
+    #     std = F.softplus(statistics[:, self.K:], beta=1)
+    #     encoding = self.reparametrize_n(mu, std, current_epoch, num_sample, self.max_noise)
+    #     logit = self.decoder(encoding)
+    #
+    #     return (mu, std), logit
     def forward(self, x, current_epoch=0, num_sample=1):
+        # x must be in shape [batch_size, 1, window_size]
+        # eg: [1024, 1, 50]
+        x = x
         x = x.unsqueeze(1)
         x = self.conv(x)
-
         x = x.transpose(1, 2).contiguous()
-        x = self.pool(x)
+        x, kl_term = self.pool(x)
         x = x.transpose(1, 2).contiguous()
         for layer in self.fnet_layers:
+            # x, imag = layer(x)
             x = layer(x)
         x = self.flat(x)
         x = self.dense1(x)
-        statistics = self.dense2(x)
-        mu = statistics[:, :self.K]
-        std = F.softplus(statistics[:, self.K:], beta=1)
-        encoding = self.reparametrize_n(mu, std, current_epoch, num_sample, self.max_noise)
-        logit = self.decoder(encoding)
-
-        return (mu, std), logit
-
+        x = self.dense2(x)
+        out = self.output(x)
+        return out, kl_term
 
 class VIBShortFnet(ShortFNET, VIBNet):
     def __init__(self, depth, kernel_size, cnn_dim, K=256, max_noise=0.1, **block_args):

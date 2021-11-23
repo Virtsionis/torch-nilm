@@ -239,10 +239,11 @@ class VIBTrainingTools(ClassicTrainingTools):
         # x must be in shape [batch_size, 1, window_size]
         x, y = batch
         # Forward pass
-        (mu, std), logit = self(x)
+        logit, info_loss = self(x)
+        # (mu, std), logit = self(x)
         class_loss = F.mse_loss(logit.squeeze(), y.squeeze()).div(math.log(2))
 
-        info_loss = -0.5 * (1 + 2 * std.log() - mu.pow(2) - std.pow(2)).sum(1).mean().div(math.log(2))
+        # info_loss = -0.5 * (1 + 2 * std.log() - mu.pow(2) - std.pow(2)).sum(1).mean().div(math.log(2))
         total_loss = class_loss + self.beta * info_loss
         # total_loss = class_loss
 
@@ -253,7 +254,8 @@ class VIBTrainingTools(ClassicTrainingTools):
     def test_step(self, batch, batch_idx):
         x, y = batch
         # Forward pass
-        (mu, std), outputs = self(x)
+        # (mu, std), outputs = self(x)
+        outputs, info_loss = self(x)
 
         loss = F.mse_loss(outputs.squeeze(), y.squeeze())
         preds_batch = outputs.squeeze().cpu().numpy()
@@ -263,9 +265,10 @@ class VIBTrainingTools(ClassicTrainingTools):
 
     def _forward_step(self, batch: Tensor) -> Tuple[Tensor, Tensor]:
         inputs, labels = batch
-        (mu, std), outputs = self.forward(inputs)
+        # (mu, std), outputs = self.forward(inputs)
+        outputs, info_loss = self.forward(inputs)
         loss = self.calculate_loss(outputs.squeeze(), labels)
-        mae = F.l1_loss(outputs, labels)
+        mae = F.l1_loss(outputs.squeeze(), labels)
 
         return loss, mae
 

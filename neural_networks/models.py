@@ -5,6 +5,7 @@ from torchnlp.nn.attention import Attention
 
 from neural_networks.base_models import BaseModel
 from neural_networks.custom_layers.entropy_pooling import EntropyPool2d
+from neural_networks.custom_layers.mvar_entropy_pool import MaxEntropySampling
 from neural_networks.custom_modules import ConvDropRelu, LinearDropRelu
 
 class GELU(nn.Module):
@@ -461,7 +462,8 @@ class FNET(BaseModel):
         else:
             self.conv = ConvDropRelu(1, cnn_dim, kernel_size=kernel_size, dropout=self.drop)
         # self.pool = nn.LPPool1d(norm_type=2, kernel_size=2, stride=2)
-        self.pool = EntropyPool2d(kernel_size=2, stride=2)
+        # self.pool = EntropyPool2d(kernel_size=2, stride=2)
+        self.pool = MaxEntropySampling(kernel_size=2, stride=2)
 
         self.fnet_layers = nn.ModuleList([FNETBLock(**block_args) for _ in range(depth)])
 

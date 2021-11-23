@@ -13,7 +13,7 @@ with torch.no_grad():
 clean = False
 PLOTS = False
 SAVE_TIMESERIES = False
-ROOT = 'NFED_ENTROPY_POOL'
+ROOT = 'VIB_FNet'
 exp_volume = 'large'
 data_dir = '../Datasets'
 train_file_dir = 'benchmark/{}/train/'.format(exp_volume)
@@ -27,14 +27,14 @@ dev_list = [
                         'dish washer',
             ]
 mod_list = [
-    'FNET',
+    'VIBFNET',
 ]
 cat_list = [x for x in ['Single']]
 tree_levels = {'root': ROOT, 'l1': ['results'], 'l2': dev_list, 'l3': mod_list, 'experiments': cat_list}
 create_tree_dir(tree_levels=tree_levels, clean=clean)
 
 EPOCHS = 100
-ITERATIONS = 3
+ITERATIONS = 1
 SAMPLE_PERIOD = 6
 
 
@@ -56,7 +56,7 @@ for device in dev_list:
     WINDOW = WINDOWS[device]
 
     model_hparams = {
-        'FNET'     : [
+        'VIBFNET'     : [
             # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128, 'mode':'att',
             # 'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.0,},
             # {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128, 'mode':'plain',
