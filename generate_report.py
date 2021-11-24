@@ -3,24 +3,24 @@ from modules.helpers import create_tree_dir, save_report, get_final_report
 
 
 #ROOT = 'APPLIANCE_Window_Study'
-ROOT = 'NFED_ENTROPY_POOL'
+ROOT = 'VIBPOOLING_BATCH_4'
 # ROOT = 'window_study'
 dev_list = [
 #                        'television',
 #                        'computer',
                        'washing machine',
-#                        'kettle',
-                        # 'dish washer',
+                       'kettle',
+                        'dish washer',
                        'fridge',
                         'microwave',
 ]
 mod_list = [
      # 'VIB_SAED',
      # 'VIBWGRU',
-     # 'VIBFNET',
+     'VIBFNET',
      # 'VIBShortFNET',
      # 'VIBSeq2Point',
-     'FNET',
+     # 'FNET',
 # 'ShortFNET',
 #      'S2P',
 #      'SimpleGru',
@@ -31,5 +31,5 @@ mod_list = [
 cat_list = [x for x in ['Single']]
 tree_levels = {'root': ROOT, 'l1': ['results'], 'l2': dev_list, 'l3': mod_list, 'experiments': cat_list}
 
-report = get_final_report(tree_levels, save=True, root_dir=ROOT, save_name='entropy_pool_single')
+report = get_final_report(tree_levels, save=True, root_dir=ROOT, save_name='vib_pooling_single')
 
