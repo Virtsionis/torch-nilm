@@ -13,18 +13,18 @@ with torch.no_grad():
 clean = False
 PLOTS = False
 SAVE_TIMESERIES = False
-ROOT = 'VIB_FNet'
+ROOT = 'VIBPOOLING_BATCH_4'
 exp_volume = 'large'
 data_dir = '../Datasets'
 train_file_dir = 'benchmark/{}/train/'.format(exp_volume)
 test_file_dir = 'benchmark/{}/test/'.format(exp_volume)
 
 dev_list = [
-                        # 'kettle',
                         'microwave',
                         'washing machine',
-                        'fridge',
                         'dish washer',
+                        'fridge',
+                        'kettle'
             ]
 mod_list = [
     'VIBFNET',
@@ -46,12 +46,12 @@ WINDOWS = {
         'dish washer'          : 450,
 
 }
-
+BATCH = 16
 for device in dev_list:
-    if device=='dish washer' or device=='fridge':
-        BATCH = 256
-    else:
-        BATCH = 512
+    # if device=='dish washer' or device=='fridge':
+    #     BATCH = 256
+    # else:
+    #     BATCH = 512
 
     WINDOW = WINDOWS[device]
 
@@ -102,9 +102,9 @@ for device in dev_list:
                                                 generator=torch.Generator().manual_seed(42))
 
         train_loader = DataLoader(train_dataset, batch_size=BATCH,
-                                shuffle=True, num_workers=8)
+                                shuffle=False, num_workers=8)
         val_loader = DataLoader(val_dataset, batch_size=BATCH,
-                                shuffle=True, num_workers=8)
+                                shuffle=False, num_workers=8)
 
         mmax = train_dataset_all.mmax
         means = train_dataset_all.means
