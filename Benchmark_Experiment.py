@@ -4,7 +4,7 @@ import pandas as pd
 from callbacks.callbacks_factories import TrainerCallbacksFactory
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset
-from modules.helpers import create_tree_dir, train_eval, get_final_report
+from modules.helpers import create_tree_dir, train_eval
 from torch.utils.data import DataLoader, random_split
 
 
@@ -159,10 +159,9 @@ for exp_type in ['Single']:
                                     }
                                     )
                 train_file.close()
-                train_dataset_all = ElectricityMultiBuildingsDataset(train_info,
-                                                                    device=device,
-                                                                    window_size=WINDOW,
-                                                                    sample_period=SAMPLE_PERIOD)
+                train_dataset_all = ElectricityMultiBuildingsDataset(train_info=train_info,
+                                                                     window_size=WINDOW,
+                                                                     sample_period=SAMPLE_PERIOD)
             train_size = int(0.8 * len(train_dataset_all))
             val_size = len(train_dataset_all) - train_size
             train_dataset, val_dataset = random_split(train_dataset_all, [train_size, val_size],

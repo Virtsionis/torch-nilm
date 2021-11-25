@@ -3,8 +3,8 @@ import pandas as pd
 
 from callbacks.callbacks_factories import TrainerCallbacksFactory
 from datasources.datasource import DatasourceFactory
-from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset
-from modules.helpers import create_tree_dir, train_eval, get_final_report
+from datasources.torchdataset import ElectricityDataset
+from modules.helpers import create_tree_dir, train_eval
 from torch.utils.data import DataLoader, random_split
 
 with torch.no_grad():
@@ -33,8 +33,7 @@ dev_list = [
             ]
 mod_list = [
     'S2P',
-                # 'SimpleGru',
-                # 'SAED',
+    # 'SAED',
     # 'FNET',
     # 'WGRU',
 ]
@@ -49,7 +48,6 @@ ITERATIONS = 1
 
 SAMPLE_PERIOD = 6
 windows = [i*50 for i in range(1,11)]
-# batches = [1000,1000,1000,1000,1000,500,500,500,500,500]
 batches = [1000]*len(windows)
 for device in dev_list:
     for WINDOW,BATCH in zip(windows, batches):

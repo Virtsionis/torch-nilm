@@ -19,9 +19,9 @@ data_dir = '../Datasets'
 train_file_dir = 'benchmark/{}/train/'.format(exp_volume)
 
 dev_list = [
-                        'dish washer',
+                        # 'dish washer',
                         # 'washing machine',
-                        # 'kettle',
+                        'kettle',
                         # 'fridge',
                         # 'microwave',
                         # 'computer',
@@ -30,18 +30,10 @@ dev_list = [
                         # 'electric space heater',
             ]
 mod_list = [
-    # 'VIB_SAED',
-    # 'VIBWGRU',
-    # 'VIBFNET',
-    # 'VIBShortFNET',
-    # 'VIBSeq2Point',
-    # 'FNET',
+    'FNET',
     # 'S2P',
-    # 'SimpleGru',
     # 'SAED',
     # 'WGRU',
-    # 'VAE',
-    'DAE',
 ]
 
 cat_list = [x for x in ['Single', 'Multi']]
@@ -61,62 +53,17 @@ for device in dev_list:
     print('DEVICE: ', device)
     print('#' * 160)
     model_hparams = {
-        'SimpleGru'            : {},
         'SAED'                 : {'window_size': WINDOW},
-        'FFED'                 : {},
         'WGRU'                 : {'dropout': 0.25},
         'S2P'                  : {'window_size': WINDOW, 'dropout': 0.25},
-        'ConvFourier'          : {'window_size': WINDOW, 'dropout': 0.25},
-        'SF2P'                 : {'window_size': WINDOW, 'dropout': 0.25},
         'FNET'                 : {'depth'    : 4, 'kernel_size': 5, 'cnn_dim': 128,
                                   'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
-        'PosFNET'                 : {'depth'    : 8, 'kernel_size': 5, 'cnn_dim': 128,
-                                  'input_dim': WINDOW, 'hidden_dim': WINDOW * 10, 'dropout': 0},
-        'ShortFNET'            : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
-                                  'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
-        'ShortPosFNET'            : {'depth'    : 2, 'kernel_size': 5, 'cnn_dim': 64,
-                                  'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
-        'VIBSeq2Point'         : {'window_size': WINDOW, 'dropout': 0},
-        'VIB_SAED'             : {'window_size': WINDOW},
-        'VIBFNET'              : {'depth'    : 16, 'kernel_size': 2, 'cnn_dim': 128,
-                                  'input_dim': WINDOW, 'hidden_dim': WINDOW * 2, 'dropout': 0},
-        'ShortNeuralFourier'   : {'window_size': WINDOW},
-        'VIBShortNeuralFourier': {'window_size': WINDOW},
-        'BERT4NILM': {'window_size':WINDOW,'drop_out':0.5,'output_size':1,
-                      'hidden':256,'heads':2,'n_layers':2},
-        'BayesSimpleGru': {},
-        'BayesWGRU'                 : {'dropout': 0.0},
-        'BayesSeq2Point': {'window_size': WINDOW},
-        # 'BayesFNET'                 : {'depth'    : 6, 'kernel_size': 5, 'cnn_dim': 128,
-        #                           'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},#kettle
-        'BayesFNET'                 : {'depth'    : 6, 'kernel_size': 5, 'cnn_dim': 128,
-                                  'input_dim': WINDOW, 'hidden_dim': 500, 'dropout': 0},#fridge
-
-    'VIBSeq2Point'         : {'window_size': WINDOW, 'dropout': 0},
-    'VIB_SAED'             : {'window_size': WINDOW},
-    'VIBWGRU'              : {'dropout': 0.25},
-    'VIBFNET'              : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
-                              'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
-    'VIBShortFNET'         : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
-                              'input_dim': WINDOW, 'hidden_dim': WINDOW * 4, 'dropout': 0},
-
-    'VAE'             : {'sequence_len': WINDOW, 'dropout':0.2},
-    'DAE'             : {'sequence_len': WINDOW, 'dropout':0.2},
     }
 
     for model_name in mod_list:
         print('#' * 40)
         print('MODEL: ', model_name)
         print('#' * 40)
-
-        if model_name in ['VAE', 'DAE']:
-            rolling_window = False
-            WINDOW -= WINDOW % 8
-            print('NEW WINDOW =', WINDOW)
-            if WINDOW>BATCH:
-                BATCH=WINDOW
-        else:
-            rolling_window = True
 
         file = open('{}base{}TrainSetsInfo_{}'.format(train_file_dir, exp_type, device), 'r')
         for line in file:
@@ -152,11 +99,9 @@ for device in dev_list:
                                     'dates' : train_date,
                                     })
             print(train_info)
-            train_dataset_all = ElectricityMultiBuildingsDataset(train_info,
-                                                                device=device,
-                                                                window_size=WINDOW,
-                                                                rolling_window=rolling_window,
-                                                                sample_period=SAMPLE_PERIOD)
+            train_dataset_all = ElectricityMultiBuildingsDataset(train_info=train_info,
+                                                                 window_size=WINDOW,
+                                                                 sample_period=SAMPLE_PERIOD)
 
             train_size = int(0.8 * len(train_dataset_all))
             val_size = len(train_dataset_all) - train_size
@@ -207,5 +152,3 @@ for device in dev_list:
                        plots=PLOTS,
                        callbacks=[TrainerCallbacksFactory.create_earlystopping()]
                        )
-# get_final_report(tree_levels, save=True, root_dir=ROOT, save_name='FINAL_REPORT_{}'.format(ROOT))
-

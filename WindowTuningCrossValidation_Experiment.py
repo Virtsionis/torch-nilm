@@ -109,11 +109,9 @@ for device in dev_list:
                                         'dates' : train_date,
                                         })
                 print(train_info)
-                train_dataset_all = ElectricityMultiBuildingsDataset(train_info,
-                                                                    device=device,
-                                                                    window_size=WINDOW,
-                                                                    rolling_window=rolling_window,
-                                                                    sample_period=SAMPLE_PERIOD)
+                train_dataset_all = ElectricityMultiBuildingsDataset(train_info=train_info,
+                                                                     window_size=WINDOW,
+                                                                     sample_period=SAMPLE_PERIOD)
 
                 train_size = int(0.8 * len(train_dataset_all))
                 val_size = len(train_dataset_all) - train_size
