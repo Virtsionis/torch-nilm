@@ -168,20 +168,12 @@ class BayesFNETBLock(BAYESNet):
         self.consider_inverse_fft = inverse_fft
         s1 = 0.05
         s2 = 0.01
-        # self.linear_real = nn.Linear(input_dim, input_dim)
-        self.linear_real = BayesianLinear(input_dim, input_dim,
-                                          prior_sigma_1=s1,
-                                          prior_sigma_2=s2,
-                                         )
-
-        # self.linear_imag = nn.Linear(input_dim, input_dim)
-        self.linear_imag = BayesianLinear(input_dim, input_dim,
+        self.linear_fftout = BayesianLinear(2*input_dim, input_dim,
                                           prior_sigma_1=s1,
                                           prior_sigma_2=s2,
                                          )
         # Two-layer MLP
         self.linear_net = nn.Sequential(
-            # nn.Linear(input_dim, hidden_dim),
             BayesianLinear(input_dim, hidden_dim,
                            prior_sigma_1=s1,
                            prior_sigma_2=s2,
@@ -201,31 +193,78 @@ class BayesFNETBLock(BAYESNet):
     def forward(self, x, mask=None):
         fft_out = self.norm1(x)
         fft_out = torch.fft.fft(fft_out, dim=-1)
-
-        if self.consider_inverse_fft:
-            fft_out_real = self.linear_real(fft_out.real).unsqueeze(-1)
-            fft_out_imag = self.linear_imag(fft_out.imag).unsqueeze(-1)
-            x_complex = torch.cat((fft_out_real, fft_out_imag), dim=-1)
-            x_complex = torch.view_as_complex(x_complex)
-            fft_out = torch.fft.ifft(x_complex, dim=-1)
-
-        fft_out = torch.fft.fft(fft_out, dim=-2)
-        imag = fft_out.imag
-        fft_out = fft_out.real
-
-        if self.consider_inverse_fft:
-            fft_out = torch.fft.ifft(fft_out).real
-
+        fft_out = torch.cat((fft_out.real, fft_out.imag), dim=-1)
+        fft_out = self.linear_fftout(fft_out)
         x = x + self.dropout(fft_out)
-        # x = self.norm1(x)
-
-        # MLP part
         x = self.norm2(x)
         linear_out = self.linear_net(x)
         x = x + self.dropout(linear_out)
-        # x = self.norm2(x)
+        return x
 
-        return x, imag
+# class BayesFNETBLock(BAYESNet):
+
+#     def __init__(self, input_dim, hidden_dim, inverse_fft=False, dropout=0.0):
+#         """
+#         Inputs:
+#             input_dim - Dimensionality of the input (seq_len)
+#             hidden_dim - Dimensionality of the hidden layer in the MLP
+#             dropout - Dropout probability to use in the dropout layers
+#         """
+#         super().__init__()
+#         self.consider_inverse_fft = inverse_fft
+#         s1 = 0.05 #s1 = 0.05
+#         s2 = 0.01 #s2 = 0.01
+#         # # self.linear_real = nn.Linear(input_dim, input_dim)
+#         # self.linear_real = BayesianLinear(input_dim, input_dim,
+#         #                                   prior_sigma_1=s1,
+#         #                                   prior_sigma_2=s2,
+#         #                                  )
+
+#         # # self.linear_imag = nn.Linear(input_dim, input_dim)
+#         # self.linear_imag = BayesianLinear(input_dim, input_dim,
+#         #                                   prior_sigma_1=s1,
+#         #                                   prior_sigma_2=s2,
+#         #                                  )
+#         # Two-layer MLP
+#         self.linear_net = nn.Sequential(
+#             # nn.Linear(input_dim, hidden_dim),
+#             BayesianLinear(input_dim, hidden_dim,
+#                            prior_sigma_1=s1,
+#                            prior_sigma_2=s2,
+#                           ),
+#             nn.Dropout(dropout),
+#             nn.ReLU(inplace=True),
+#             BayesianLinear(hidden_dim, input_dim,
+#                            prior_sigma_1=s1,
+#                            prior_sigma_2=s2,)
+#         )
+
+#         # Layers to apply in between the main layers
+#         self.norm1 = nn.LayerNorm(input_dim)
+#         self.norm2 = nn.LayerNorm(input_dim)
+#         self.dropout = nn.Dropout(dropout)
+
+#     def forward(self, x, mask=None):
+#         fft_out = self.norm1(x)
+#         fft_out = torch.fft.fft(fft_out, dim=-1)
+
+#         fft_out = torch.fft.fft(fft_out, dim=-2)
+#         imag = fft_out.imag
+#         fft_out = fft_out.real
+
+#         if self.consider_inverse_fft:
+#             fft_out = torch.fft.ifft(fft_out).real
+
+#         x = x + self.dropout(fft_out)
+#         # x = self.norm1(x)
+
+#         # MLP part
+#         x = self.norm2(x)
+#         linear_out = self.linear_net(x)
+#         x = x + self.dropout(linear_out)
+#         # x = self.norm2(x)
+
+#         return x, imag
 
 class BayesFNET(BaseModel):
 
@@ -257,7 +296,8 @@ class BayesFNET(BaseModel):
         x = self.pool(x)
         x = x.transpose(1, 2).contiguous()
         for layer in self.fnet_layers:
-            x, imag = layer(x)
+            # x, imag = layer(x)
+            x = layer(x)
         x = self.flat(x)
         x = self.dense1(x)
         x = self.dense2(x)

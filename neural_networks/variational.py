@@ -32,7 +32,7 @@ class VIBNet(BaseModel):
         return True
 
     @staticmethod
-    def reparametrize_n(mu, std, current_epoch, n=1, max_noise=0.1):
+    def reparametrize_n(mu, std, current_epoch, n=1, max_noise=0.1, distribution='Normal'):
         # reference :
         # http://pytorch.org/docs/0.3.1/_modules/torch/distributions.html#Distribution.sample_n
         def expand(v):
@@ -44,12 +44,13 @@ class VIBNet(BaseModel):
         if n != 1:
             mu = expand(mu)
             std = expand(std)
-
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
         noise_rate = torch.tanh(torch.tensor(current_epoch))
         if current_epoch>0:
-            noise_distribution = torch.distributions.Normal(0, noise_rate * max_noise)
+            noise_distribution = torch.distributions.Normal(0, max_noise)
+            # noise_distribution = torch.distributions.Normal(0, noise_rate * max_noise)
+            # noise_distribution = torch.distributions.LogNormal(0, noise_rate * max_noise)
             eps = noise_distribution.sample(std.size()).to(device)
         else:
             eps = torch.tensor(0).to(device)
@@ -253,14 +254,18 @@ class VIBFnet(FNET, VIBNet):
         self.K = cnn_dim // 2
         self.dense2 = LinearDropRelu(cnn_dim, 2 * self.K, self.drop)
         self.decoder = VIBDecoder(self.K)
+        self.lin_in = LinearDropRelu(self.input_dim, self.K, self.drop)
         print('MAX NOISE: ', max_noise)
 
     def forward(self, x, current_epoch=0, num_sample=1):
+        x_in = self.lin_in(x)
         x = x.unsqueeze(1)
         x = self.conv(x)
 
         x = x.transpose(1, 2).contiguous()
         x = self.pool(x)
+        x_res = self.flat(x)
+
         x = x.transpose(1, 2).contiguous()
         for layer in self.fnet_layers:
             x = layer(x)
@@ -270,6 +275,9 @@ class VIBFnet(FNET, VIBNet):
         mu = statistics[:, :self.K]
         std = F.softplus(statistics[:, self.K:], beta=1)
         encoding = self.reparametrize_n(mu, std, current_epoch, num_sample, self.max_noise)
+        # encoding =  torch.cat((x_in, encoding), dim=-1)
+        encoding =  x_in + encoding
+        # print(encoding.shape)
         logit = self.decoder(encoding)
 
         return (mu, std), logit
