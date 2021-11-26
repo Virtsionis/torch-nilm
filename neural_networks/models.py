@@ -463,7 +463,6 @@ class FNET(BaseModel):
             self.conv = ConvDropRelu(1, cnn_dim, kernel_size=kernel_size, dropout=self.drop)
         # self.pool = nn.LPPool1d(norm_type=2, kernel_size=2, stride=2)
         # self.pool = EntropyPool2d(kernel_size=2, stride=2)
-        self.pool = MaxEntropySampling(kernel_size=2, stride=2)
 
         self.fnet_layers = nn.ModuleList([FNETBLock(**block_args) for _ in range(depth)])
 

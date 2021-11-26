@@ -11,7 +11,7 @@ from utils import stats_tools as stattools
 
 class MaxEntropySampling(nn.Module):
 
-    def __init__(self, kernel_size=3, stride=1, padding=0, same=False, entr=None, noise_sd=0.25,
+    def __init__(self, kernel_size=3, stride=1, padding=0, same=False, entr=None, noise_sd=0.01,
                  online_adaptation=False, inference_resampling=False, scores_step: float = 0.1):
         super(MaxEntropySampling, self).__init__()
         self.k = _pair(kernel_size)

@@ -7,6 +7,7 @@ from torch import nn
 from torch.autograd import Variable
 
 from neural_networks.base_models import BaseModel
+from neural_networks.custom_layers.mvar_entropy_pool import MaxEntropySampling
 from neural_networks.custom_modules import VIBDecoder
 from neural_networks.models import Seq2Point, LinearDropRelu, ConvDropRelu, FNET, SAED, ShortNeuralFourier, ShortFNET, \
     WGRU, SimpleGru
@@ -249,6 +250,7 @@ class VIBSeq2Point(Seq2Point, VIBNet):
 class VIBFnet(FNET, VIBNet):
     def __init__(self, depth, kernel_size, cnn_dim, K=256, max_noise=0.1, beta=1e-3,**block_args):
         super(VIBFnet, self).__init__(depth, kernel_size, cnn_dim, **block_args)
+        self.pool = MaxEntropySampling(kernel_size=2, stride=2, noise_sd=max_noise)
         self.max_noise = max_noise
         self.K = cnn_dim // 2
         # self.dense2 = LinearDropRelu(cnn_dim, 2 * self.K, self.drop)

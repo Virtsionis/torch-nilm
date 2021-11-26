@@ -13,7 +13,7 @@ with torch.no_grad():
 clean = False
 PLOTS = False
 SAVE_TIMESERIES = False
-ROOT = 'VIBPOOLING_BATCH_4'
+ROOT = 'VIBPOOLING_BATCH_512'
 exp_volume = 'large'
 data_dir = '../Datasets'
 train_file_dir = 'benchmark/{}/train/'.format(exp_volume)
@@ -29,12 +29,12 @@ dev_list = [
 mod_list = [
     'VIBFNET',
 ]
-cat_list = [x for x in ['Single']]
+cat_list = [x for x in ['Single', 'Multi']]
 tree_levels = {'root': ROOT, 'l1': ['results'], 'l2': dev_list, 'l3': mod_list, 'experiments': cat_list}
 create_tree_dir(tree_levels=tree_levels, clean=clean)
 
 EPOCHS = 100
-ITERATIONS = 1
+ITERATIONS = 3
 SAMPLE_PERIOD = 6
 
 
@@ -46,7 +46,7 @@ WINDOWS = {
         'dish washer'          : 450,
 
 }
-BATCH = 16
+BATCH = 512
 for device in dev_list:
     # if device=='dish washer' or device=='fridge':
     #     BATCH = 256
