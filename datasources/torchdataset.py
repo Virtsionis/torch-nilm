@@ -15,7 +15,6 @@ class BaseElectricityDataset(ABC):
                  end_date, rolling_window=True, window_size=50, mmax=None,
                  means=None, stds=None, meter_means=None, meter_stds=None,
                  sample_period=None, chunksize: int = 10000, shuffle=False):
-        print('BaseElectricityDataset INIT')
         self.building = building
         self.device = device
         self.mmax = mmax
@@ -125,7 +124,6 @@ class BaseElectricityDataset(ABC):
         # TODO: If chunk is a bad chunk (all zeros) then means/stds will be problematic
         ######
         if is_bad_chunk(mainchunk) or is_bad_chunk(meterchunk):
-            print('chunks are all zeros')
             return mainchunk, meterchunk
         else:
             return standardize_chunks(mainchunk, meterchunk, self.means, self.stds, self.meter_means, self.meter_stds)
@@ -145,7 +143,6 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
             dates(list): list with the start and end(optional) dates for training window [start, end]
                         eg:['2016-04-01','2017-04-01']
         """
-        print('ElectricityDataset INIT')
         super().__init__(datasource, building, device,
                          dates[0], dates[1], rolling_window, window_size,
                          mmax, means, stds, meter_means, meter_stds,
@@ -175,7 +172,6 @@ class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
             dates(list): list with the start and end(optional) dates for training window [start, end]
                         eg:['2016-04-01','2017-04-01']
         """
-        print('ElectricityMultiBuildingsDataset INIT')
         self.train_info = train_info
         super().__init__(datasource=None, building=None, device=None, start_date=None, end_date=None,
                          rolling_window=rolling_window, window_size=window_size, mmax=mmax, means=means,
@@ -252,7 +248,6 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
             a. It is recommended that the chuncksize is no less than 10**6
             b. For the pytorch dataloader to work properly with iterable datasets, shuffle must be False
         """
-        print('ElectricityIterableDataset INIT')
         self.batch_size = batch_size
         self.data_len = None
         super().__init__(datasource, building, device,
@@ -278,8 +273,6 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
         return self.data_len
 
     def _calc_data_len(self):
-        print('#'*80)
-        print('Calculating data length...')
         data_len = 0
         self._init_generators(datasource=self.datasource,
                               building=self.building,
@@ -295,14 +288,10 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
                 meterchunk = next(self.appliance_generator)
                 mainchunk, meterchunk = align_chunks(mainchunk, meterchunk)
                 data_len += len(mainchunk)
-                print(data_len)
             except StopIteration:
-                print('Calculation Done!')
                 has_data = False
 
         self.data_len = data_len
-        print('data length: ', self.data_len)
-        print('#' * 80)
 
     def __iter__(self) -> Iterator[T_co]:
         worker_info = torch.utils.data.get_worker_info()
