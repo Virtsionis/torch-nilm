@@ -2,7 +2,7 @@ import math
 import torch
 import numpy as np
 
-def NILM_metrics(pred, ground, threshold=40, mmax=None, round_digit=3):
+def NILM_metrics(pred, ground, threshold=40, mmax=None, means=None, stds=None, round_digit=3):
 
     def tp_tn_fp_fn(states_pred, states_ground):
         tp = np.sum(np.logical_and(states_pred == 1, states_ground == 1))
@@ -42,6 +42,9 @@ def NILM_metrics(pred, ground, threshold=40, mmax=None, round_digit=3):
     if mmax:
         threshold = threshold/mmax
 
+    if means and stds:
+        threshold = (threshold - means)/stds
+
     print(f"Threshold {threshold}")
 
     if torch.is_tensor(pred):
@@ -62,6 +65,10 @@ def NILM_metrics(pred, ground, threshold=40, mmax=None, round_digit=3):
 
     if mmax:
         MAE *= mmax
+
+    if means and stds:
+        MAE *= stds
+        # MAE += means
     MAE = round(MAE,round_digit)
 
     pr = np.array([0 if (p)<threshold else 1 for p in pr])

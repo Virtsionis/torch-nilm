@@ -98,3 +98,7 @@ results/*
 !results/__init__.py
 /lightning_logs/
 /output/
+/FNET_VIB_SINGLE_BUILDINGS/
+/SINGLE_BUILDING_EXP/
+/Single_Building_3fold_CV/
+/window_tuning/

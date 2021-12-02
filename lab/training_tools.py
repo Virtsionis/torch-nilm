@@ -1,17 +1,26 @@
 import math
+from typing import Dict, Tuple
 
 import torch
+import torch.nn as nn
 import numpy as np
 import pytorch_lightning as pl
 import torch.nn.functional as F
+from torch import Tensor
+
 from modules.NILM_metrics import NILM_metrics
 from neural_networks.base_models import BaseModel
-from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, FFED, FNET, ConvFourier
+from neural_networks.bert import BERT4NILM
+from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, FNET, ShortNeuralFourier, \
+ShortFNET, ShortPosFNET, PosFNET, DAE, PAFnet
+
+from neural_networks.variational import VIBSeq2Point, VIBFnet, VIB_SAED, VIBShortNeuralFourier,\
+VIBWGRU,VIBShortFnet,VIBSeq2Point,VAE, VIB_SimpleGru
+
+from neural_networks.bayesian import BayesSimpleGru, BayesSeq2Point, BayesWGRU, BayesFNET
 
 # Setting the seed
-from neural_networks.variational import VIBSeq2Point, ToyNet, VIBFnet, VIB_SAED
-
-pl.seed_everything(42)
+# pl.seed_everything(42)
 
 # Ensure that all operations are deterministic on GPU (if used) for reproducibility
 torch.backends.cudnn.determinstic = True
@@ -26,18 +35,39 @@ ON_THRESHOLDS = {'dish washer'    : 10,
                  'microwave'      : 200,
                  'washing machine': 20}
 
+VAL_ACC = "val_acc"
+VAL_LOSS = 'val_loss'
+
 
 def create_model(model_name, model_hparams):
-    model_dict = {'WGRU'        : WGRU,
-                  'S2P'         : Seq2Point,
-                  'SAED'        : SAED,
-                  'SimpleGru'   : SimpleGru,
+    model_dict = {'WGRU'                 : WGRU,
+                  'S2P'                  : Seq2Point,
+                  'SAED'                 : SAED,
+                  'SimpleGru'            : SimpleGru,
                   # 'FFED'        : FFED,
-                  'FNET'        : FNET,
+                  'FNET'                 : FNET,
+                  'ShortFNET'            : ShortFNET,
+                  'ShortPosFNET'            : ShortPosFNET,
+                  'PosFNET'                 : PosFNET,
+                  'PAFNET':PAFnet,
                   # 'ConvFourier' : ConvFourier,
-                  'VIB_SAED'    : VIB_SAED,
-                  'VIBFNET'     : VIBFnet,
-                  'VIBSeq2Point': VIBSeq2Point}
+                  'BERT4NILM':BERT4NILM,
+                  'VIB_SAED'             : VIB_SAED,
+                  'VIB_SimpleGru': VIB_SimpleGru,
+                  'VIBFNET'              : VIBFnet,
+'VIBShortFNET':VIBShortFnet,
+'VIBWGRU':VIBWGRU,
+'VIBSeq2Point'         : VIBSeq2Point,
+                  'ShortNeuralFourier'   : ShortNeuralFourier,
+                  'VIBShortNeuralFourier': VIBShortNeuralFourier,
+                  'BayesSimpleGru': BayesSimpleGru,
+                  'BayesWGRU': BayesWGRU,
+                  'BayesSeq2Point': BayesSeq2Point,
+                  'BayesFNET': BayesFNET,
+
+                  'VAE':VAE,
+                  'DAE':DAE,
+                  }
 
     if model_name in model_dict:
         return model_dict[model_name](**model_hparams)
@@ -56,6 +86,10 @@ class TrainingToolsFactory:
     def equip_model(model, model_hparams, eval_params):
         if model.supports_vib():
             return VIBTrainingTools(model, model_hparams, eval_params)
+        elif model.supports_bayes():
+            return BayesTrainingTools(model, model_hparams, eval_params)
+        elif model.supports_bert():
+            return BertTrainingTools(model, model_hparams, eval_params)
         else:
             return ClassicTrainingTools(model, model_hparams, eval_params)
 
@@ -90,6 +124,7 @@ class ClassicTrainingTools(pl.LightningModule):
         # print(f"model params {[p for p in self.model.parameters()]}")
         # print(f"params {[p for p in self.parameters()]}")
         return torch.optim.Adam(self.parameters())
+        # return torch.optim.SGD(self.parameters(), lr=0.001)
 
     def training_step(self, batch, batch_idx):
         # x must be in shape [batch_size, 1, window_size]
@@ -100,6 +135,24 @@ class ClassicTrainingTools(pl.LightningModule):
 
         tensorboard_logs = {'train_loss': loss}
         return {'loss': loss, 'log': tensorboard_logs}
+
+    def validation_step(self, val_batch: Tensor, batch_idx: int) -> Dict:
+        loss, mae = self._forward_step(val_batch)
+        # self.log("loss", loss, prog_bar=True)
+        self.log(VAL_LOSS, mae, prog_bar=True)
+        return {"vloss": loss, "val_loss": mae}
+
+    @staticmethod
+    def calculate_loss(logits, labels):
+        return F.mse_loss(logits, labels)
+
+    def _forward_step(self, batch: Tensor) -> Tuple[Tensor, Tensor]:
+        inputs, labels = batch
+        outputs = self.forward(inputs).squeeze(1)
+        loss = self.calculate_loss(outputs, labels)
+        mae = F.l1_loss(outputs, labels)
+
+        return loss, mae
 
     def train_epoch_end(self, outputs):
         # outputs is a list of whatever you returned in `training_step`
@@ -120,11 +173,12 @@ class ClassicTrainingTools(pl.LightningModule):
         # outputs is a list of whatever you returned in `test_step`
         avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
         tensorboard_logs = {'test_avg_loss': avg_loss}
+        if self.model_name=='DAE':
+            self.final_preds = np.reshape(self.final_preds,(-1))
         res = self._metrics()
         print('#### model name: {} ####'.format(res['model']))
         print('metrics: {}'.format(res['metrics']))
-
-        self.log("test_test_avg_loss", avg_loss, 'log', tensorboard_logs)
+        self.log("test_test_avg_loss", avg_loss)
         return res
 
     def _metrics(self):
@@ -132,10 +186,14 @@ class ClassicTrainingTools(pl.LightningModule):
                                     self.eval_params['mmax'], \
                                     self.eval_params['groundtruth']
 
+        means = self.eval_params['means']
+        stds = self.eval_params['stds']
         res = NILM_metrics(pred=self.final_preds,
                            ground=groundtruth,
                            mmax=mmax,
-                           threshold=ON_THRESHOLDS[device])
+                           means=means,
+                           stds=stds,
+                           threshold=ON_THRESHOLDS.get(device, 50))
 
         results = {'model'  : self.model_name,
                    'metrics': res,
@@ -168,7 +226,14 @@ class VIBTrainingTools(ClassicTrainingTools):
             model_hparams - Hyperparameters for the model, as dictionary.
         """
         super().__init__(model, model_hparams, eval_params)
-        self.beta = beta
+        if 'beta' in model_hparams.keys():
+            self.beta = model_hparams['beta']
+        else:
+            self.beta = beta
+
+    def forward(self, x):
+        # Forward function that is run when visualizing the graph
+        return self.model(x, self.current_epoch)
 
     def training_step(self, batch, batch_idx):
         # x must be in shape [batch_size, 1, window_size]
@@ -189,8 +254,76 @@ class VIBTrainingTools(ClassicTrainingTools):
         x, y = batch
         # Forward pass
         (mu, std), outputs = self(x)
+
         loss = F.mse_loss(outputs.squeeze(), y.squeeze())
         preds_batch = outputs.squeeze().cpu().numpy()
         self.final_preds = np.append(self.final_preds, preds_batch)
         return {'test_loss': loss}
         # return {'test_loss': loss, 'metrics': self._metrics(test=True)}
+
+    def _forward_step(self, batch: Tensor) -> Tuple[Tensor, Tensor]:
+        inputs, labels = batch
+        (mu, std), outputs = self.forward(inputs)
+        loss = self.calculate_loss(outputs.squeeze(), labels)
+        mae = F.l1_loss(outputs, labels)
+
+        return loss, mae
+
+    def test_epoch_end(self, outputs):
+        # outputs is a list of whatever you returned in `test_step`
+        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
+        tensorboard_logs = {'test_avg_loss': avg_loss}
+        if self.model_name=='VAE':
+            self.final_preds = np.reshape(self.final_preds,(-1))
+        res = self._metrics()
+        print('#### model name: {} ####'.format(res['model']))
+        print('metrics: {}'.format(res['metrics']))
+
+        self.log("test_test_avg_loss", avg_loss)
+        return res
+
+class BayesTrainingTools(ClassicTrainingTools):
+    def __init__(self, model, model_hparams, eval_params, sample_nbr=3):
+        """
+        Inputs:
+            model_name - Name of the model to run. Used for creating the model (see function below)
+            model_hparams - Hyperparameters for the model, as dictionary.
+        """
+        super().__init__(model, model_hparams, eval_params)
+        print('BAYES TRAINING')
+        self.criterion = torch.nn.MSELoss()#F.mse_loss()
+        self.sample_nbr = sample_nbr
+
+    def training_step(self, batch, batch_idx):
+        # x must be in shape [batch_size, 1, window_size]
+        x, y = batch
+        # Forward pass
+        outputs = self(x)
+        # fit_loss = F.mse_loss(outputs.squeeze(1), y)
+        # complexity_loss = self.model.nn_kl_divergence()
+        # loss = fit_loss + complexity_loss
+
+        loss = self.model.sample_elbo(inputs=x,
+                                      labels=y,
+                                      criterion=self.criterion,
+                                      sample_nbr=self.sample_nbr,
+                                      complexity_cost_weight=1./x.shape[0])
+
+        tensorboard_logs = {'train_loss': loss}
+        return {'loss': loss, 'log': tensorboard_logs}
+
+
+class BertTrainingTools(ClassicTrainingTools):
+    def __init__(self, model, model_hparams, eval_params):
+        """
+        Inputs:
+            model_name - Name of the model to run. Used for creating the model (see function below)
+            model_hparams - Hyperparameters for the model, as dictionary.
+        """
+        super().__init__(model, model_hparams, eval_params)
+        print('BERT4NILM')
+        self.kl = nn.KLDivLoss(reduction='batchmean')
+        self.mse = nn.MSELoss()
+        self.margin = nn.SoftMarginLoss()
+        self.l1_on = nn.L1Loss(reduction='sum')
+    pass
