@@ -14,7 +14,7 @@ STATISTIC_MEASURES = {
 
 
 def get_supported_stat_measures():
-    return STATISTIC_MEASURES
+    return list(STATISTIC_MEASURES.keys())
 
 
 def get_statistical_report(save_name=None, data=None, data_filename=None, root_dir=None, stat_measures=[]):
