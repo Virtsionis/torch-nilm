@@ -22,7 +22,7 @@ def get_supported_stat_measures():
 
 def get_statistical_report(save_name=None, data=None, data_filename=None, root_dir=None, stat_measures=[]):
     """
-    Method that re-formats the report from the generate report to an excel-type report with statistical calculations.
+    Method that re-formats the report from get_final_report to an excel-type report with statistical calculations.
     The data can either be loaded from disk or given as pandas DataFrame.
 
     Args:
