@@ -8,6 +8,7 @@ from lab.training_tools import TrainingToolsFactory
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityIterableDataset, ElectricityDataset
 
+
 def create_tree_dir(tree_levels={}, clean=False, plots=True):
     tree_gen = (level for level in tree_levels)
     level = next(tree_gen)
@@ -44,6 +45,7 @@ def create_tree_dir(tree_levels={}, clean=False, plots=True):
         except:
             end = True
     print(1)
+
 
 def save_report(root_dir=None, model_name=None, device=None, exp_type=None, save_timeseries=True,
                 experiment_name=None, exp_volume='large', iteration=None, results={},
@@ -96,6 +98,7 @@ def save_report(root_dir=None, model_name=None, device=None, exp_type=None, save
         else:
             print('Can"t plot, no experiment with name: {}'.format(experiment_name))
 
+
 def display_res(root_dir=None, model_name=None, device=None,
                 exp_type=None, experiment_name=None, iteration=None,
                 low_lim=None, upper_lim=None, save_fig=True, plt_show=True, save_dir='plots'):
@@ -133,12 +136,12 @@ def display_res(root_dir=None, model_name=None, device=None,
         if save_fig:
             if save_dir:
                 plt.savefig(root_dir+'/'+save_dir+'/'+snapshot_name,
-                            #dpi=1000
                             )
             else:
                 plt.savefig(path+snapshot_name)
         plt.clf()
         del ax
+
 
 def get_tree_paths(tree_levels={}):
     tree_gen = (level for level in tree_levels)
@@ -162,6 +165,7 @@ def get_tree_paths(tree_levels={}):
             end = True
     return base_paths
 
+
 def get_exp_paths(cat_paths):
     exp_paths = []
     for cat_path in cat_paths:
@@ -171,12 +175,13 @@ def get_exp_paths(cat_paths):
                 exp_paths.append(exp_path)
     return exp_paths
 
+
 def get_final_report(tree_levels, save=True, root_dir=None, save_name=None):
 
     path = '/'.join([root_dir, 'results', ''])
-    columns = ['model', 'appliance','category','experiment',
-           'recall','f1','precision','accuracy','MAE',
-           'RETE','epochs','hparams']
+    columns = ['model', 'appliance', 'category', 'experiment',
+               'recall', 'f1', 'precision', 'accuracy', 'MAE',
+               'RETE', 'epochs', 'hparams']
     data = pd.DataFrame(columns=columns)
 
     cat_paths = get_tree_paths(tree_levels=tree_levels)
@@ -199,8 +204,9 @@ def get_final_report(tree_levels, save=True, root_dir=None, save_name=None):
     data = data[columns]
     data = data.sort_values(by=['appliance', 'experiment'])
     if save:
-        data.to_csv(path+ save_name +'.csv',index=False)
+        data.to_csv(path+ save_name + '.csv',index=False)
     return data
+
 
 def train_model(model_name, train_loader, test_loader,
                 epochs=5, **kwargs):
@@ -217,6 +223,7 @@ def train_model(model_name, train_loader, test_loader,
     preds = test_result[0]['preds']
 
     return model, metrics, preds
+
 
 def train_eval(model_name, train_loader, exp_type, tests_params,
                sample_period, batch_size, experiment_name, exp_volume,
@@ -278,8 +285,9 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
                     iteration, results, preds, ground, model_hparams, epochs, plots=plots)
         del test_dataset, test_loader, ground, final_experiment_name
 
+
 def create_timeframes(start, end, freq):
-    '''
+    """
     freq(str): 'M' for month, 'D' for day
     start/end(str): the dates we want
         formats:
@@ -288,21 +296,22 @@ def create_timeframes(start, end, freq):
             '%Y-%m' for 'M'
     when freq 'D', the dates are inclusive
     when freq 'M', the end date is exclusive
-    '''
+    """
     # check if start <end else error
     datelist = pd.date_range(start, end, freq=freq).tolist()
-    if freq=='D':
-        date_format='%Y-%m-%d'
+    if freq == 'D':
+        date_format = '%Y-%m-%d'
     else:
-        date_format='%Y-%m'
+        date_format = '%Y-%m'
     return [d.strftime(date_format) for d in datelist]
 
+
 def create_time_folds(start_date, end_date, folds, freq='D', drop_last=False):
-    '''
+    """
     receives a start and stop date and returns a dictionary
     with the necessary folds for train & test
     drop_last(bool): drops last dates to have folds with same lengths
-    '''
+    """
 
     date_list = create_timeframes(start=start_date, end=end_date, freq='D')
 
@@ -347,7 +356,7 @@ def create_time_folds(start_date, end_date, folds, freq='D', drop_last=False):
 
 
 def rename_columns_by_type(data, col_type, postfix):
-    '''
+    """
     This method renames all columns of a pandas DataFrame by a specified type adding a postfix
     at the end. After the renaming, returns the new dataframe.
 
@@ -357,7 +366,7 @@ def rename_columns_by_type(data, col_type, postfix):
             'numeric'=> int64 or float64 type column
             'object' => string type column
         postfix(str): the string we want to add in the end of column names to be renamed
-    '''
+    """
     if col_type == 'numeric':
         rename_cols = data.select_dtypes(include=['int64', 'float64']).columns.tolist()
     elif col_type == 'object':
