@@ -1,13 +1,7 @@
 import os
 import shutil
-import numpy as np
 import pandas as pd
-import pytorch_lightning as pl
 import matplotlib.pyplot as plt
-from torch.utils.data import DataLoader
-from lab.training_tools import TrainingToolsFactory
-from datasources.datasource import DatasourceFactory
-from datasources.torchdataset import ElectricityIterableDataset, ElectricityDataset
 
 
 def create_tree_dir(tree_levels={}, clean=False, plots=True):
@@ -46,58 +40,6 @@ def create_tree_dir(tree_levels={}, clean=False, plots=True):
         except:
             end = True
     print(1)
-
-
-def save_appliance_report(root_dir=None, model_name=None, device=None, exp_type=None, save_timeseries=True,
-                          experiment_name=None, exp_volume='large', iteration=None, results={},
-                          preds=None, ground=None, model_hparams=None, epochs=None, plots=True):
-
-    root_dir = os.getcwd() + '/' + root_dir
-    path = '/'.join([root_dir, 'results', device, model_name,
-                     exp_type, experiment_name, ''])
-    report_filename = 'REPORT_' + experiment_name + '.csv'
-    data_filename = experiment_name + '_iter_' + str(iteration) + '.csv'
-
-    print('Report saved at: ', path)
-
-    if not os.path.exists(path):
-        os.makedirs(path)
-
-    if report_filename in os.listdir(path):
-        report = pd.read_csv(path + report_filename)
-    else:
-        cols = ['recall', 'f1', 'precision',
-                'accuracy', 'MAE', 'RETE', 'epochs', 'hparams']
-        report = pd.DataFrame(columns=cols)
-    hparams = {'hparams': model_hparams, 'epochs': int(epochs) + 1}
-    report = report.append({**results, **hparams}, ignore_index=True)
-    report.fillna(np.nan, inplace=True)
-    report.to_csv(path + report_filename, index=False)
-
-    if save_timeseries:
-        cols = ['ground', 'preds']
-        res_data = pd.DataFrame(list(zip(ground, preds)),
-                            columns=cols)
-        res_data.to_csv(path + data_filename, index=False)
-        print('Time series saved at: ', path + data_filename)
-
-    if plots:
-        exp_list = experiment_name.split('_')
-        device = exp_list[0]
-        bounds = os.getcwd()+'/modules/plot_bounds/{}/{}_bounds_{}.csv'.format(exp_volume,exp_list[0],exp_list[1])
-        bounds = pd.read_csv(str(bounds))
-        bounds = bounds[(bounds['test_set'] == exp_list[6])&(bounds['test_house'] == int(exp_list[5]))]
-
-        if not bounds.empty:
-            low_lim = bounds['low_lim'].values[0]
-            upper_lim = bounds['upper_lim'].values[0]
-
-            display_res(root_dir, model_name, device, exp_type, experiment_name,
-                        iteration, low_lim=low_lim, upper_lim=upper_lim,
-                        plt_show=True, save_fig=True, save_dir='plots'
-                       )
-        else:
-            print('Can"t plot, no experiment with name: {}'.format(experiment_name))
 
 
 def display_res(root_dir=None, model_name=None, device=None,
@@ -177,84 +119,6 @@ def get_exp_paths(cat_paths):
     return exp_paths
 
 
-def train_model(model_name, train_loader, test_loader,
-                epochs=5, **kwargs):
-    """
-    Inputs:
-        model_name - Name of the model you want to run. Is used to look up the class in "model_dict"
-    """
-    trainer = pl.Trainer(gpus=1, max_epochs=epochs)
-    model = TrainingToolsFactory.build_and_equip_model(model_name=model_name, **kwargs)
-    trainer.fit(model, train_loader)
-
-    test_result = trainer.test(model, test_dataloaders=test_loader)
-    metrics = test_result[0]['metrics']
-    preds = test_result[0]['preds']
-
-    return model, metrics, preds
-
-
-def train_eval(model_name, train_loader, exp_type, tests_params,
-               sample_period, batch_size, experiment_name, exp_volume,
-               iteration, device, mmax, means, stds, meter_means, meter_stds,
-               window_size, root_dir, data_dir, model_hparams,plots=True,save_timeseries=True,
-               epochs=5, callbacks=None, val_loader=None,rolling_window=True, inference_cpu=True,**kwargs):
-    """
-    Inputs:
-        model_name - Name of the model you want to run.
-            It's used to look up the class in "model_dict"
-    """
-    progress_bar = True
-    if progress_bar:
-        trainer = pl.Trainer(gpus=1, max_epochs=epochs, auto_lr_find=True, callbacks=callbacks)
-    else:
-        trainer = pl.Trainer(gpus=1, max_epochs=epochs, auto_lr_find=True, callbacks=callbacks, progress_bar_refresh_rate=0)
-
-    model = TrainingToolsFactory.build_and_equip_model(model_name=model_name, model_hparams=model_hparams, **kwargs)
-    if val_loader:
-        trainer.fit(model, train_loader, val_loader)
-    else:
-        trainer.fit(model, train_loader)
-    epochs = trainer.early_stopping_callback.stopped_epoch
-
-    for i in range(len(tests_params)):
-        building = tests_params['test_house'][i]
-        dataset = tests_params['test_set'][i]
-        dates = tests_params['test_date'][i]
-        print(80 * '#')
-        print('Evaluate house {} of {} for {}'.format(building, dataset, dates))
-        print(80 * '#')
-
-        datasource = DatasourceFactory.create_datasource(dataset)
-        test_dataset = ElectricityDataset(datasource=datasource, building=int(building),
-                                          window_size=window_size, device=device,
-                                          dates=dates, mmax=mmax, means=means, stds=stds,
-                                          meter_means=meter_means, meter_stds=meter_stds,
-                                          sample_period=sample_period, rolling_window=rolling_window)
-
-        test_loader = DataLoader(test_dataset, batch_size=batch_size,
-                                 shuffle=False, num_workers=8)
-
-        if rolling_window:
-            ground = test_dataset.meterchunk.numpy()
-        else:
-            ground = test_dataset.meterchunk.numpy()
-            ground = np.reshape(ground,-1)
-        if inference_cpu:
-            print('Model to CPU')
-            model.to('cpu')
-        model.set_ground(ground)
-
-        trainer.test(model, test_dataloaders=test_loader)
-        test_result = model.get_res()
-        results = test_result['metrics']
-        preds = test_result['preds']
-        final_experiment_name = experiment_name + 'test_' + building + '_' + dataset
-        save_appliance_report(root_dir, model_name, device, exp_type, save_timeseries, final_experiment_name, exp_volume,
-                              iteration, results, preds, ground, model_hparams, epochs, plots=plots)
-        del test_dataset, test_loader, ground, final_experiment_name
-
-
 def create_timeframes(start, end, freq):
     """
     freq(str): 'M' for month, 'D' for day
@@ -331,7 +195,7 @@ def rename_columns_by_type(data, col_type, postfix):
 
     Args:
         data(pandas DataFrame): the target dataframe
-        col_type: the type of the columns we want to rename
+        col_type(str): the type of the columns we want to rename
             'numeric'=> int64 or float64 type column
             'object' => string type column
         postfix(str): the string we want to add in the end of column names to be renamed

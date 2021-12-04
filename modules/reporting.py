@@ -1,4 +1,5 @@
 import warnings
+import numpy as np
 from modules.helpers import*
 from functools import reduce
 
@@ -108,6 +109,7 @@ def get_final_report(tree_levels, save=True, root_dir=None, save_name=None, metr
             Default value is True
         root_dir(str): the ROOT of the project
         save_name(str): the name of the resulted file
+        metrics(list of str): the metrics to be included in the report
 
     Example of use:
         dev_list = [
@@ -156,3 +158,53 @@ def get_final_report(tree_levels, save=True, root_dir=None, save_name=None, metr
     if save:
         data.to_csv(path + save_name + '.csv', index=False)
     return data
+
+
+def save_appliance_report(root_dir=None, model_name=None, device=None, exp_type=None, save_timeseries=True,
+                          experiment_name=None, exp_volume='large', iteration=None, results={},
+                          preds=None, ground=None, model_hparams=None, epochs=None, plots=True):
+
+    root_dir = os.getcwd() + '/' + root_dir
+    path = '/'.join([root_dir, 'results', device, model_name,
+                     exp_type, experiment_name, ''])
+    report_filename = 'REPORT_' + experiment_name + '.csv'
+    data_filename = experiment_name + '_iter_' + str(iteration) + '.csv'
+
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    if report_filename in os.listdir(path):
+        report = pd.read_csv(path + report_filename)
+    else:
+        cols = ['recall', 'f1', 'precision',
+                'accuracy', 'MAE', 'RETE', 'epochs', 'hparams']
+        report = pd.DataFrame(columns=cols)
+    hparams = {'hparams': model_hparams, 'epochs': int(epochs) + 1}
+    report = report.append({**results, **hparams}, ignore_index=True)
+    report.fillna(np.nan, inplace=True)
+    report.to_csv(path + report_filename, index=False)
+
+    if save_timeseries:
+        cols = ['ground', 'preds']
+        res_data = pd.DataFrame(list(zip(ground, preds)),
+                                columns=cols)
+        res_data.to_csv(path + data_filename, index=False)
+        print('Time series saved at: ', path + data_filename)
+
+    if plots:
+        exp_list = experiment_name.split('_')
+        device = exp_list[0]
+        bounds = os.getcwd()+'/modules/plot_bounds/{}/{}_bounds_{}.csv'.format(exp_volume,exp_list[0],exp_list[1])
+        bounds = pd.read_csv(str(bounds))
+        bounds = bounds[(bounds['test_set'] == exp_list[6])&(bounds['test_house'] == int(exp_list[5]))]
+
+        if not bounds.empty:
+            low_lim = bounds['low_lim'].values[0]
+            upper_lim = bounds['upper_lim'].values[0]
+
+            display_res(root_dir, model_name, device, exp_type, experiment_name,
+                        iteration, low_lim=low_lim, upper_lim=upper_lim,
+                        plt_show=True, save_fig=True, save_dir='plots'
+                        )
+        else:
+            raise Exception('Can"t plot, no experiment with name: {}'.format(experiment_name))
