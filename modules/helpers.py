@@ -176,38 +176,6 @@ def get_exp_paths(cat_paths):
     return exp_paths
 
 
-def get_final_report(tree_levels, save=True, root_dir=None, save_name=None):
-
-    path = '/'.join([root_dir, 'results', ''])
-    columns = ['model', 'appliance', 'category', 'experiment',
-               'recall', 'f1', 'precision', 'accuracy', 'MAE',
-               'RETE', 'epochs', 'hparams']
-    data = pd.DataFrame(columns=columns)
-
-    cat_paths = get_tree_paths(tree_levels=tree_levels)
-    exp_paths = get_exp_paths(cat_paths)
-
-    for exp_path in exp_paths:
-        for item in os.listdir(exp_path):
-            if 'REPORT' in item:
-                report = pd.read_csv(exp_path+'/'+item)
-                model = exp_path.split('/')[-3]
-                appliance = exp_path.split('/')[-1].split('_')[0]
-                category = exp_path.split('/')[-2]
-                experiment = exp_path.split('/')[-1]
-                report['appliance'] = appliance
-                report['model'] = model
-                report['category'] = category
-                report['experiment'] = experiment
-                data = data.append(report, ignore_index=True)
-
-    data = data[columns]
-    data = data.sort_values(by=['appliance', 'experiment'])
-    if save:
-        data.to_csv(path+ save_name + '.csv',index=False)
-    return data
-
-
 def train_model(model_name, train_loader, test_loader,
                 epochs=5, **kwargs):
     """
@@ -407,3 +375,17 @@ def pd_max(data, reset_index=True):
     if reset_index:
         return data.max().reset_index()
     return data.max()
+
+
+def pd_quantile(data, q=.1, reset_index=True):
+    if reset_index:
+        return data.quantile(q).reset_index()
+    return data.quantile(q)
+
+
+def quantile_25(data, reset_index=True):
+    return pd_quantile(data, q=.25, reset_index=reset_index)
+
+
+def quantile_75(data, reset_index=True):
+    return pd_quantile(data, q=.75, reset_index=reset_index)
