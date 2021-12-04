@@ -14,6 +14,9 @@ STATISTIC_MEASURES = {
 
 
 def get_supported_stat_measures():
+    """
+    returns the supported statistical measures
+    """
     return list(STATISTIC_MEASURES.keys())
 
 

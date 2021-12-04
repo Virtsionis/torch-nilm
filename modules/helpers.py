@@ -1,4 +1,5 @@
-import os, shutil
+import os
+import shutil
 import numpy as np
 import pandas as pd
 import pytorch_lightning as pl
@@ -47,9 +48,9 @@ def create_tree_dir(tree_levels={}, clean=False, plots=True):
     print(1)
 
 
-def save_report(root_dir=None, model_name=None, device=None, exp_type=None, save_timeseries=True,
-                experiment_name=None, exp_volume='large', iteration=None, results={},
-                preds=None, ground=None, model_hparams=None, epochs=None, plots=True):
+def save_appliance_report(root_dir=None, model_name=None, device=None, exp_type=None, save_timeseries=True,
+                          experiment_name=None, exp_volume='large', iteration=None, results={},
+                          preds=None, ground=None, model_hparams=None, epochs=None, plots=True):
 
     root_dir = os.getcwd() + '/' + root_dir
     path = '/'.join([root_dir, 'results', device, model_name,
@@ -249,8 +250,8 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
         results = test_result['metrics']
         preds = test_result['preds']
         final_experiment_name = experiment_name + 'test_' + building + '_' + dataset
-        save_report(root_dir, model_name, device, exp_type, save_timeseries, final_experiment_name, exp_volume,
-                    iteration, results, preds, ground, model_hparams, epochs, plots=plots)
+        save_appliance_report(root_dir, model_name, device, exp_type, save_timeseries, final_experiment_name, exp_volume,
+                              iteration, results, preds, ground, model_hparams, epochs, plots=plots)
         del test_dataset, test_loader, ground, final_experiment_name
 
 
