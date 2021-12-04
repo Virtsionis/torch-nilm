@@ -344,3 +344,57 @@ def create_time_folds(start_date, end_date, folds, freq='D', drop_last=False):
         final_folds[fold] = {'test_dates': test_dates, 'train_dates': [train_1, train_2]}
 
     return final_folds
+
+
+def rename_columns_by_type(data, col_type, postfix):
+    '''
+    This method renames all columns of a pandas DataFrame by a specified type adding a postfix
+    at the end. After the renaming, returns the new dataframe.
+
+    Args:
+        data(pandas DataFrame): the target dataframe
+        col_type: the type of the columns we want to rename
+            'numeric'=> int64 or float64 type column
+            'object' => string type column
+        postfix(str): the string we want to add in the end of column names to be renamed
+    '''
+    if col_type == 'numeric':
+        rename_cols = data.select_dtypes(include=['int64', 'float64']).columns.tolist()
+    elif col_type == 'object':
+        rename_cols = data.select_dtypes(include=['object']).columns.tolist()
+    else:
+        rename_cols = data.select_dtypes(include=[col_type]).columns.tolist()
+
+    rename_cols = {col: col + '_{}'.format(postfix) for col in rename_cols}
+    data.rename(columns=rename_cols, inplace=True)
+    return data
+
+
+def pd_mean(data, reset_index=True):
+    if reset_index:
+        return data.mean().reset_index()
+    return data.mean()
+
+
+def pd_median(data, reset_index=True):
+    if reset_index:
+        return data.median().reset_index()
+    return data.median()
+
+
+def pd_std(data, reset_index=True):
+    if reset_index:
+        return data.std().reset_index()
+    return data.std()
+
+
+def pd_min(data, reset_index=True):
+    if reset_index:
+        return data.min().reset_index()
+    return data.min()
+
+
+def pd_max(data, reset_index=True):
+    if reset_index:
+        return data.max().reset_index()
+    return data.max()
