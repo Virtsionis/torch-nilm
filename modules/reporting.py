@@ -22,13 +22,24 @@ def get_statistical_report(save_name=None, data=None, data_filename=None, root_d
     Method that re-formats the report from the generate report to an excel-type report with statistical calculations.
     The data can either be loaded from disk or given as pandas DataFrame.
 
-    save_name(str): the name of the result report xlsx file, without the '.xlsx'
-    data(pandas DataFrame): the data generated from the 'generate report' method
-    data_filename(str): the name of the report data generated from the 'generate report' method, if user wants to load
-        from disk
-    root_dir(str): the root folder of the project
-    stat_measures(list of strings): user can define the appropriate statistical measures to be included to the report
-        e.g:  stat_measures = ['mean', 'std', 'max', 'min']
+    Args:
+        save_name(str): the name of the result report xlsx file, without the '.xlsx'
+        data(pandas DataFrame): the data generated from the 'generate report' method
+        data_filename(str): the name of the report data generated from the 'generate report' method,
+            if user wants to load from disk
+        root_dir(str): the root folder of the project
+        stat_measures(list of strings): user can define the appropriate statistical measures to be included to the report
+            supported measures: ['mean', 'median', 'std', 'min', 'max', '25th_percentile', '75th_percentile']
+
+    Example of use:
+        report = get_final_report(tree_levels, save=True, root_dir=ROOT, save_name='single_building_exp')
+        get_statistical_report(save_name='test', data=None, data_filename='single_building_exp',
+                       root_dir=ROOT, stat_measures=['min', '75th_percentile'])
+
+                                            or
+
+        get_statistical_report(save_name='test', data=report, data_filename=None,
+                               root_dir=ROOT, stat_measures=['min', '75th_percentile'])
     """
 
     if root_dir:
@@ -94,6 +105,20 @@ def get_final_report(tree_levels, save=True, root_dir=None, save_name=None, metr
             Default value is True
         root_dir(str): the ROOT of the project
         save_name(str): the name of the resulted file
+
+    Example of use:
+        dev_list = [
+            'washing machine',
+            'kettle',
+        ]
+        mod_list = [
+            'SAED',
+            'WGRU',
+        ]
+        ROOT = 'Params'
+        cat_list = [x for x in ['Single', 'Multi']]
+        tree_levels = {'root': ROOT, 'l1': ['results'], 'l2': dev_list, 'l3': mod_list, 'experiments': cat_list}
+        report = get_final_report(tree_levels, save=True, root_dir=ROOT, save_name='single_building_exp')
     """
     if metrics:
         columns = ['model', 'appliance', 'category', 'experiment'] + metrics + ['epochs', 'hparams']
