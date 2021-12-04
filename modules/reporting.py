@@ -84,7 +84,7 @@ def get_statistical_report(save_name=None, data=None, data_filename=None, root_d
                               )
 
 
-def get_final_report(tree_levels, save=True, root_dir=None, save_name=None):
+def get_final_report(tree_levels, save=True, root_dir=None, save_name=None, metrics=[]):
     """
     This method merges all produced reports in one csv file. To generate the
     report file, the tree structure of the resulted reports should be given.
@@ -95,11 +95,14 @@ def get_final_report(tree_levels, save=True, root_dir=None, save_name=None):
         root_dir(str): the ROOT of the project
         save_name(str): the name of the resulted file
     """
+    if metrics:
+        columns = ['model', 'appliance', 'category', 'experiment'] + metrics + ['epochs', 'hparams']
+    else:
+        columns = ['model', 'appliance', 'category', 'experiment',
+                   'recall', 'f1', 'precision', 'accuracy', 'MAE',
+                   'RETE', 'epochs', 'hparams']
 
     path = '/'.join([root_dir, 'results', ''])
-    columns = ['model', 'appliance', 'category', 'experiment',
-               'recall', 'f1', 'precision', 'accuracy', 'MAE',
-               'RETE', 'epochs', 'hparams']
     data = pd.DataFrame(columns=columns)
 
     cat_paths = get_tree_paths(tree_levels=tree_levels)
