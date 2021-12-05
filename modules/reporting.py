@@ -47,7 +47,7 @@ def get_statistical_report(save_name=None, data=None, data_filename=None, root_d
     """
 
     if root_dir:
-        data_path = '/'.join([root_dir, 'results', ''])
+        data_path = '/'.join([root_dir, DIR_RESULTS_NAME, ''])
     else:
         data_path = ''
 
@@ -60,7 +60,7 @@ def get_statistical_report(save_name=None, data=None, data_filename=None, root_d
     if save_name:
         output_path = '{}{}.xlsx'.format(data_path, save_name)
     else:
-        output_path = '{}final_report.xlsx'.format(data_path)
+        output_path = '{}{}.xlsx'.format(data_path, DEFAULT_FINAL_REPORT_NAME)
 
     if data.empty or data is None:
         raise Exception('Empty dataframe given, no report is generated.')
@@ -75,7 +75,7 @@ def get_statistical_report(save_name=None, data=None, data_filename=None, root_d
         for measure in stat_measures:
             if measure in STATISTIC_MEASURES.keys():
                 x = STATISTIC_MEASURES[measure](grouped_data)
-                x = rename_columns_by_type(x, 'numeric', measure)
+                x = rename_columns_by_type(x, NUMERIC_TYPE, measure)
                 results.append(x)
             else:
                 stat_measures.remove(measure)
@@ -88,9 +88,9 @@ def get_statistical_report(save_name=None, data=None, data_filename=None, root_d
         df = df[categorical_cols + numeric_cols]
 
         with pd.ExcelWriter(output_path) as writer:
-            for appliance in df['appliance'].unique():
-                temp = df[df['appliance'] == appliance]
-                temp = temp.sort_values(by=['category', 'experiment'])
+            for appliance in df[COLUMN_APPLIANCE].unique():
+                temp = df[df[COLUMN_APPLIANCE] == appliance]
+                temp = temp.sort_values(by=[COLUMN_CATEGORY, COLUMN_EXPERIMENT])
                 temp.to_excel(writer,
                               sheet_name=appliance.upper(),
                               engine='xlsxwriter',
@@ -126,13 +126,14 @@ def get_final_report(tree_levels, save=True, root_dir=None, save_name=None, metr
         report = get_final_report(tree_levels, save=True, root_dir=ROOT, save_name='single_building_exp')
     """
     if metrics:
-        columns = ['model', 'appliance', 'category', 'experiment'] + metrics + ['epochs', 'hparams']
+        columns = [COLUMN_MODEL, COLUMN_APPLIANCE, COLUMN_CATEGORY, COLUMN_EXPERIMENT] + metrics +\
+                   [COLUMN_EPOCHS, COLUMN_HPARAMS]
     else:
-        columns = ['model', 'appliance', 'category', 'experiment',
-                   'recall', 'f1', 'precision', 'accuracy', 'MAE',
-                   'RETE', 'epochs', 'hparams']
+        columns = [COLUMN_MODEL, COLUMN_APPLIANCE, COLUMN_CATEGORY, COLUMN_EXPERIMENT,
+                   COLUMN_RECALL, COLUMN_F1, COLUMN_PRECISION, COLUMN_ACCURACY, COLUMN_MAE,
+                   COLUMN_RETE, COLUMN_EPOCHS, COLUMN_HPARAMS]
 
-    path = '/'.join([root_dir, 'results', ''])
+    path = '/'.join([root_dir, DIR_RESULTS_NAME, ''])
     data = pd.DataFrame(columns=columns)
 
     cat_paths = get_tree_paths(tree_levels=tree_levels)
@@ -146,15 +147,15 @@ def get_final_report(tree_levels, save=True, root_dir=None, save_name=None, metr
                 appliance = exp_path.split('/')[-1].split('_')[0]
                 category = exp_path.split('/')[-2]
                 experiment = exp_path.split('/')[-1]
-                report['appliance'] = appliance
-                report['model'] = model
-                report['category'] = category
-                report['experiment'] = experiment
+                report[COLUMN_APPLIANCE] = appliance
+                report[COLUMN_MODEL] = model
+                report[COLUMN_CATEGORY] = category
+                report[COLUMN_EXPERIMENT] = experiment
                 data = data.append(report, ignore_index=True, sort=False)
 
     data = data[columns]
-    data = data.sort_values(by=['appliance', 'experiment'])
-    data['epochs'] = data['epochs'].astype('int')
+    data = data.sort_values(by=[COLUMN_APPLIANCE, COLUMN_EXPERIMENT])
+    data[COLUMN_EPOCHS] = data[COLUMN_EPOCHS].astype('int')
     if save:
         data.to_csv(path + save_name + '.csv', index=False)
     return data
@@ -165,10 +166,10 @@ def save_appliance_report(root_dir=None, model_name=None, device=None, exp_type=
                           preds=None, ground=None, model_hparams=None, epochs=None, plots=True):
 
     root_dir = os.getcwd() + '/' + root_dir
-    path = '/'.join([root_dir, 'results', device, model_name,
+    path = '/'.join([root_dir, DIR_RESULTS_NAME, device, model_name,
                      exp_type, experiment_name, ''])
-    report_filename = 'REPORT_' + experiment_name + '.csv'
-    data_filename = experiment_name + '_iter_' + str(iteration) + '.csv'
+    report_filename = REPORT_PREFIX + experiment_name + '.csv'
+    data_filename = experiment_name + ITERATION_ID + str(iteration) + '.csv'
 
     if not os.path.exists(path):
         os.makedirs(path)
@@ -176,16 +177,16 @@ def save_appliance_report(root_dir=None, model_name=None, device=None, exp_type=
     if report_filename in os.listdir(path):
         report = pd.read_csv(path + report_filename)
     else:
-        cols = ['recall', 'f1', 'precision',
-                'accuracy', 'MAE', 'RETE', 'epochs', 'hparams']
+        cols = [COLUMN_RECALL, COLUMN_F1, COLUMN_PRECISION, COLUMN_ACCURACY,
+                COLUMN_MAE, COLUMN_RETE, COLUMN_EPOCHS, COLUMN_HPARAMS]
         report = pd.DataFrame(columns=cols)
-    hparams = {'hparams': model_hparams, 'epochs': int(epochs) + 1}
+    hparams = {COLUMN_HPARAMS: model_hparams, COLUMN_EPOCHS: int(epochs) + 1}
     report = report.append({**results, **hparams}, ignore_index=True)
     report.fillna(np.nan, inplace=True)
     report.to_csv(path + report_filename, index=False)
 
     if save_timeseries:
-        cols = ['ground', 'preds']
+        cols = [COLUMN_GROUNDTRUTH, COLUMN_PREDICTIONS]
         res_data = pd.DataFrame(list(zip(ground, preds)),
                                 columns=cols)
         res_data.to_csv(path + data_filename, index=False)

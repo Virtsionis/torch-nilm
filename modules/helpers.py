@@ -2,14 +2,14 @@ import os
 import shutil
 import pandas as pd
 import matplotlib.pyplot as plt
+from constants.constants import*
 
 
 def create_tree_dir(tree_levels={}, clean=False, plots=True):
     tree_gen = (level for level in tree_levels)
     level = next(tree_gen)
     end = False
-    if level == 'root':
-        # print(level)
+    if level == ROOT_LEVEL:
         root_path = os.getcwd() + '/' + tree_levels[level]
         if clean and os.path.exists(root_path):
             shutil.rmtree(root_path)
@@ -20,7 +20,7 @@ def create_tree_dir(tree_levels={}, clean=False, plots=True):
     # print(root_path)
     base_paths = [root_path]
     if plots:
-        plot_path = root_path + '/plots'
+        plot_path = root_path + '/' + DIR_PLOTS_NAME
         if not os.path.exists(plot_path):
             os.mkdir(plot_path)
 
@@ -44,18 +44,18 @@ def create_tree_dir(tree_levels={}, clean=False, plots=True):
 
 def display_res(root_dir=None, model_name=None, device=None,
                 exp_type=None, experiment_name=None, iteration=None,
-                low_lim=None, upper_lim=None, save_fig=True, plt_show=True, save_dir='plots'):
+                low_lim=None, upper_lim=None, save_fig=True, plt_show=True, save_dir=DIR_PLOTS_NAME):
     if low_lim > upper_lim:
         low_lim, upper_lim = upper_lim, low_lim
 
     root_dir = root_dir
-    path = '/'.join([root_dir, 'results', device, model_name,
-                     exp_type, experiment_name,''])
+    path = '/'.join([root_dir, DIR_RESULTS_NAME, device, model_name,
+                     exp_type, experiment_name, ''])
 
     if os.path.exists(path):
-        report_filename = 'REPORT_' + experiment_name + '.csv'
-        snapshot_name = model_name + '_' + experiment_name + '_iter_' + str(iteration) + '.png'
-        data_filename = experiment_name + '_iter_' + str(iteration) + '.csv'
+        report_filename = REPORT_PREFIX + experiment_name + CSV_EXTENSION
+        snapshot_name = model_name + '_' + experiment_name + ITERATION_ID + str(iteration) + PNG_EXTENSION
+        data_filename = experiment_name + ITERATION_ID + str(iteration) + CSV_EXTENSION
 
         report = pd.read_csv(path + report_filename)
 
@@ -66,15 +66,15 @@ def display_res(root_dir=None, model_name=None, device=None,
         #     print(report.iloc[int(iteration)])
 
         data = pd.read_csv(path + data_filename)
-        data['ground'][low_lim:upper_lim].plot.line(legend=False,
+        data[COLUMN_GROUNDTRUTH][low_lim:upper_lim].plot.line(legend=False,
                                                     # linestyle='dashed',
                                                    )
-        data['preds'][low_lim:upper_lim].plot.line(legend=False)
+        data[COLUMN_PREDICTIONS][low_lim:upper_lim].plot.line(legend=False)
         ax = plt.gca()
         ax.axes.xaxis.set_ticklabels([])
         ax.axes.yaxis.set_ticklabels([])
         plt.rcParams["figure.figsize"] = (8, 10)
-        plt.legend(['ground truth', model_name])
+        plt.legend([LEGEND_GROUNDTRUTH, model_name])
 
         if save_fig:
             if save_dir:
@@ -90,7 +90,7 @@ def get_tree_paths(tree_levels={}):
     tree_gen = (level for level in tree_levels)
     level = next(tree_gen)
     end = False
-    if level == 'root':
+    if level == ROOT_LEVEL:
         root_path = os.getcwd() + '/' + tree_levels[level]
     base_paths = [root_path]
     while not end:
@@ -179,11 +179,11 @@ def create_time_folds(start_date, end_date, folds, freq='D', drop_last=False):
         train_1 = date_bounds[:fold]
         train_2 = date_bounds[fold+1:]
         if len(train_1):
-            train_1 = [train_1[0][0],train_1[len(train_1)-1][-1]]
+            train_1 = [train_1[0][0], train_1[len(train_1)-1][-1]]
         if len(train_2):
-            train_2 = [train_2[0][0],train_2[len(train_2)-1][-1]]
+            train_2 = [train_2[0][0], train_2[len(train_2)-1][-1]]
 
-        final_folds[fold] = {'test_dates': test_dates, 'train_dates': [train_1, train_2]}
+        final_folds[fold] = {TEST_DATES: test_dates, TRAIN_DATES: [train_1, train_2]}
 
     return final_folds
 
@@ -200,9 +200,9 @@ def rename_columns_by_type(data, col_type, postfix):
             'object' => string type column
         postfix(str): the string we want to add in the end of column names to be renamed
     """
-    if col_type == 'numeric':
+    if col_type == NUMERIC_TYPE:
         rename_cols = data.select_dtypes(include=['int64', 'float64']).columns.tolist()
-    elif col_type == 'object':
+    elif col_type == OBJECT_TYPE:
         rename_cols = data.select_dtypes(include=['object']).columns.tolist()
     else:
         rename_cols = data.select_dtypes(include=[col_type]).columns.tolist()

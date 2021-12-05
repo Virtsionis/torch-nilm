@@ -1,5 +1,6 @@
 import numpy as np
 import pytorch_lightning as pl
+from constants.constants import*
 from torch.utils.data import DataLoader
 from lab.training_tools import TrainingToolsFactory
 from modules.reporting import save_appliance_report
@@ -32,9 +33,9 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
     epochs = trainer.early_stopping_callback.stopped_epoch
 
     for i in range(len(tests_params)):
-        building = tests_params['test_house'][i]
-        dataset = tests_params['test_set'][i]
-        dates = tests_params['test_date'][i]
+        building = tests_params[TEST_HOUSE][i]
+        dataset = tests_params[TEST_SET][i]
+        dates = tests_params[TEST_DATE][i]
         print(80 * '#')
         print('Evaluate house {} of {} for {}'.format(building, dataset, dates))
         print(80 * '#')
@@ -61,9 +62,9 @@ def train_eval(model_name, train_loader, exp_type, tests_params,
 
         trainer.test(model, test_dataloaders=test_loader)
         test_result = model.get_res()
-        results = test_result['metrics']
-        preds = test_result['preds']
-        final_experiment_name = experiment_name + 'test_' + building + '_' + dataset
+        results = test_result[COLUMN_METRICS]
+        preds = test_result[COLUMN_PREDICTIONS]
+        final_experiment_name = experiment_name + TEST_ID + building + '_' + dataset
         save_appliance_report(root_dir, model_name, device, exp_type, save_timeseries, final_experiment_name, exp_volume,
                               iteration, results, preds, ground, model_hparams, epochs, plots=plots)
         del test_dataset, test_loader, ground, final_experiment_name
