@@ -3,6 +3,7 @@ import shutil
 import pandas as pd
 import matplotlib.pyplot as plt
 from constants.constants import*
+from constants.enumerates import DataTypes
 
 
 def create_tree_dir(tree_levels={}, clean=False, plots=True):
@@ -201,9 +202,9 @@ def rename_columns_by_type(data, col_type, postfix):
         postfix(str): the string we want to add in the end of column names to be renamed
     """
     if col_type == NUMERIC_TYPE:
-        rename_cols = data.select_dtypes(include=['int64', 'float64']).columns.tolist()
+        rename_cols = data.select_dtypes(include=[DataTypes.INT64.value, DataTypes.FLOAT64.value]).columns.tolist()
     elif col_type == OBJECT_TYPE:
-        rename_cols = data.select_dtypes(include=['object']).columns.tolist()
+        rename_cols = data.select_dtypes(include=[DataTypes.OBJECT.value]).columns.tolist()
     else:
         rename_cols = data.select_dtypes(include=[col_type]).columns.tolist()
 

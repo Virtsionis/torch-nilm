@@ -1,16 +1,17 @@
 import warnings
 import numpy as np
-from modules.helpers import*
 from functools import reduce
+from modules.helpers import*
+from constants.enumerates import StatMeasures
 
 STATISTIC_MEASURES = {
-        'mean': pd_mean,
-        'median': pd_median,
-        'std': pd_std,
-        'min': pd_min,
-        'max': pd_max,
-        '25th_percentile': quantile_25,
-        '75th_percentile': quantile_75,
+        StatMeasures.MEAN: pd_mean,
+        StatMeasures.MEDIAN: pd_median,
+        StatMeasures.STANDARD_DEVIATION: pd_std,
+        StatMeasures.MINIMUM: pd_min,
+        StatMeasures.MAXIMUM: pd_max,
+        StatMeasures.PERCENTILE_25TH: quantile_25,
+        StatMeasures.PERCENTILE_75TH: quantile_75,
 }
 
 
@@ -18,7 +19,7 @@ def get_supported_stat_measures():
     """
     returns the supported statistical measures
     """
-    return list(STATISTIC_MEASURES.keys())
+    return [measure.name for measure in STATISTIC_MEASURES.keys()]
 
 
 def get_statistical_report(save_name=None, data=None, data_filename=None, root_dir=None, stat_measures=[]):
@@ -53,29 +54,29 @@ def get_statistical_report(save_name=None, data=None, data_filename=None, root_d
 
     try:
         if data_filename and data is None:
-            data = pd.read_csv(data_path + data_filename + '.csv')
+            data = pd.read_csv(data_path + data_filename + CSV_EXTENSION)
     except Exception as e:
         raise Exception(e)
 
     if save_name:
-        output_path = '{}{}.xlsx'.format(data_path, save_name)
+        output_path = '{}{}{}'.format(data_path, save_name, XLSX_EXTENSION)
     else:
-        output_path = '{}{}.xlsx'.format(data_path, DEFAULT_FINAL_REPORT_NAME)
+        output_path = '{}{}{}'.format(data_path, DEFAULT_FINAL_REPORT_NAME, XLSX_EXTENSION)
 
     if data.empty or data is None:
         raise Exception('Empty dataframe given, no report is generated.')
     else:
-        categorical_cols = data.select_dtypes(include=['object']).columns.tolist()
+        categorical_cols = data.select_dtypes(include=[DataTypes.OBJECT.value]).columns.tolist()
         grouped_data = data.groupby(by=categorical_cols)
 
         if not stat_measures:
-            stat_measures = ['mean', 'std']
+            stat_measures = [StatMeasures.MEAN, StatMeasures.STANDARD_DEVIATION]
 
         results = []
         for measure in stat_measures:
             if measure in STATISTIC_MEASURES.keys():
                 x = STATISTIC_MEASURES[measure](grouped_data)
-                x = rename_columns_by_type(x, NUMERIC_TYPE, measure)
+                x = rename_columns_by_type(x, NUMERIC_TYPE, measure.value)
                 results.append(x)
             else:
                 stat_measures.remove(measure)
@@ -83,7 +84,7 @@ def get_statistical_report(save_name=None, data=None, data_filename=None, root_d
 
         df = reduce(lambda left, right: pd.merge(left, right, on=categorical_cols), results)
 
-        numeric_cols = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
+        numeric_cols = df.select_dtypes(include=[DataTypes.INT64.value, DataTypes.FLOAT64.value]).columns.tolist()
         numeric_cols.sort(reverse=False)
         df = df[categorical_cols + numeric_cols]
 
@@ -93,7 +94,7 @@ def get_statistical_report(save_name=None, data=None, data_filename=None, root_d
                 temp = temp.sort_values(by=[COLUMN_CATEGORY, COLUMN_EXPERIMENT])
                 temp.to_excel(writer,
                               sheet_name=appliance.upper(),
-                              engine='xlsxwriter',
+                              engine=XLSX_ENGINE,
                               freeze_panes=(1, 4),
                               index=False,
                               )
@@ -141,7 +142,7 @@ def get_final_report(tree_levels, save=True, root_dir=None, save_name=None, metr
 
     for exp_path in exp_paths:
         for item in os.listdir(exp_path):
-            if 'REPORT' in item:
+            if REPORT in item:
                 report = pd.read_csv(exp_path+'/'+item)
                 model = exp_path.split('/')[-3]
                 appliance = exp_path.split('/')[-1].split('_')[0]
@@ -155,9 +156,9 @@ def get_final_report(tree_levels, save=True, root_dir=None, save_name=None, metr
 
     data = data[columns]
     data = data.sort_values(by=[COLUMN_APPLIANCE, COLUMN_EXPERIMENT])
-    data[COLUMN_EPOCHS] = data[COLUMN_EPOCHS].astype('int')
+    data[COLUMN_EPOCHS] = data[COLUMN_EPOCHS].astype(DataTypes.INT.value)
     if save:
-        data.to_csv(path + save_name + '.csv', index=False)
+        data.to_csv(path + save_name + CSV_EXTENSION, index=False)
     return data
 
 
@@ -168,8 +169,8 @@ def save_appliance_report(root_dir=None, model_name=None, device=None, exp_type=
     root_dir = os.getcwd() + '/' + root_dir
     path = '/'.join([root_dir, DIR_RESULTS_NAME, device, model_name,
                      exp_type, experiment_name, ''])
-    report_filename = REPORT_PREFIX + experiment_name + '.csv'
-    data_filename = experiment_name + ITERATION_ID + str(iteration) + '.csv'
+    report_filename = REPORT_PREFIX + experiment_name + CSV_EXTENSION
+    data_filename = experiment_name + ITERATION_ID + str(iteration) + CSV_EXTENSION
 
     if not os.path.exists(path):
         os.makedirs(path)
@@ -205,7 +206,7 @@ def save_appliance_report(root_dir=None, model_name=None, device=None, exp_type=
 
             display_res(root_dir, model_name, device, exp_type, experiment_name,
                         iteration, low_lim=low_lim, upper_lim=upper_lim,
-                        plt_show=True, save_fig=True, save_dir='plots'
+                        plt_show=True, save_fig=True, save_dir=DIR_PLOTS_NAME
                         )
         else:
             raise Exception('Can"t plot, no experiment with name: {}'.format(experiment_name))
