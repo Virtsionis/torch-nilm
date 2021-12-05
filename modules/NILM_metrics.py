@@ -3,7 +3,8 @@ import numpy as np
 from constants.constants import*
 
 
-def NILM_metrics(pred, ground, threshold=40, mmax=None, means=None, stds=None, round_digit=3):
+def NILM_metrics(pred: np.array, ground: np.array, threshold: int = 40, mmax: float = None, means: float = None,
+                 stds: float = None, round_digit: int = 3):
 
     def tp_tn_fp_fn(states_pred, states_ground):
         tp = np.sum(np.logical_and(states_pred == 1, states_ground == 1))

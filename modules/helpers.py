@@ -6,7 +6,7 @@ from constants.constants import*
 from constants.enumerates import DataTypes
 
 
-def create_tree_dir(tree_levels={}, clean=False, plots=True):
+def create_tree_dir(tree_levels: dict = None, clean: bool = False, plots: bool = True):
     tree_gen = (level for level in tree_levels)
     level = next(tree_gen)
     end = False
@@ -87,7 +87,7 @@ def display_res(root_dir=None, model_name=None, device=None,
         del ax
 
 
-def get_tree_paths(tree_levels={}):
+def get_tree_paths(tree_levels: dict = None):
     tree_gen = (level for level in tree_levels)
     level = next(tree_gen)
     end = False
@@ -110,7 +110,7 @@ def get_tree_paths(tree_levels={}):
     return base_paths
 
 
-def get_exp_paths(cat_paths):
+def get_exp_paths(cat_paths: list):
     exp_paths = []
     for cat_path in cat_paths:
         for exp in os.listdir(cat_path):
@@ -120,7 +120,7 @@ def get_exp_paths(cat_paths):
     return exp_paths
 
 
-def create_timeframes(start, end, freq):
+def create_timeframes(start: object, end: object, freq: object):
     """
     freq(str): 'M' for month, 'D' for day
     start/end(str): the dates we want
@@ -140,7 +140,7 @@ def create_timeframes(start, end, freq):
     return [d.strftime(date_format) for d in datelist]
 
 
-def create_time_folds(start_date, end_date, folds, freq='D', drop_last=False):
+def create_time_folds(start_date: str, end_date: str, folds: int, drop_last: bool = False):
     """
     receives a start and stop date and returns a dictionary
     with the necessary folds for train & test
@@ -189,7 +189,7 @@ def create_time_folds(start_date, end_date, folds, freq='D', drop_last=False):
     return final_folds
 
 
-def rename_columns_by_type(data, col_type, postfix):
+def rename_columns_by_type(data: pd.DataFrame, col_type: str, postfix: str):
     """
     This method renames all columns of a pandas DataFrame by a specified type adding a postfix
     at the end. After the renaming, returns the new dataframe.
@@ -213,45 +213,45 @@ def rename_columns_by_type(data, col_type, postfix):
     return data
 
 
-def pd_mean(data, reset_index=True):
+def pd_mean(data: pd.DataFrame, reset_index: bool = True):
     if reset_index:
         return data.mean().reset_index()
     return data.mean()
 
 
-def pd_median(data, reset_index=True):
+def pd_median(data: pd.DataFrame, reset_index: bool = True):
     if reset_index:
         return data.median().reset_index()
     return data.median()
 
 
-def pd_std(data, reset_index=True):
+def pd_std(data: pd.DataFrame, reset_index: bool = True):
     if reset_index:
         return data.std().reset_index()
     return data.std()
 
 
-def pd_min(data, reset_index=True):
+def pd_min(data: pd.DataFrame, reset_index: bool = True):
     if reset_index:
         return data.min().reset_index()
     return data.min()
 
 
-def pd_max(data, reset_index=True):
+def pd_max(data: pd.DataFrame, reset_index: bool = True):
     if reset_index:
         return data.max().reset_index()
     return data.max()
 
 
-def pd_quantile(data, q=.1, reset_index=True):
+def pd_quantile(data: pd.DataFrame, q: float = .1, reset_index: bool = True):
     if reset_index:
         return data.quantile(q).reset_index()
     return data.quantile(q)
 
 
-def quantile_25(data, reset_index=True):
+def quantile_25(data: pd.DataFrame, reset_index: bool = True):
     return pd_quantile(data, q=.25, reset_index=reset_index)
 
 
-def quantile_75(data, reset_index=True):
+def quantile_75(data: pd.DataFrame, reset_index: bool = True):
     return pd_quantile(data, q=.75, reset_index=reset_index)

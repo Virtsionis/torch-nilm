@@ -8,11 +8,12 @@ from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityIterableDataset, ElectricityDataset
 
 
-def train_eval(model_name, train_loader, exp_type, tests_params,
-               sample_period, batch_size, experiment_name, exp_volume,
-               iteration, device, mmax, means, stds, meter_means, meter_stds,
-               window_size, root_dir, data_dir, model_hparams,plots=True,save_timeseries=True,
-               epochs=5, callbacks=None, val_loader=None,rolling_window=True, inference_cpu=True,**kwargs):
+def train_eval(model_name: str, train_loader: DataLoader, exp_type: str, tests_params: list, sample_period: int,
+               batch_size: int, experiment_name: str, exp_volume: str, iteration: int, device: str, mmax: float,
+               means: float, stds: float, meter_means: float, meter_stds: float, window_size: int, root_dir: str,
+               data_dir: str, model_hparams: dict, plots: bool = True, save_timeseries: bool = True, epochs: int = 5,
+               callbacks=None, val_loader: DataLoader = None, rolling_window: bool = True, inference_cpu: bool = True,
+               **kwargs):
     """
     Inputs:
         model_name - Name of the model you want to run.

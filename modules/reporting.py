@@ -1,6 +1,9 @@
 import warnings
 import numpy as np
 from functools import reduce
+
+import pandas as pd
+
 from modules.helpers import*
 from constants.enumerates import StatMeasures
 
@@ -22,7 +25,8 @@ def get_supported_stat_measures():
     return [measure.name for measure in STATISTIC_MEASURES.keys()]
 
 
-def get_statistical_report(save_name=None, data=None, data_filename=None, root_dir=None, stat_measures=[]):
+def get_statistical_report(save_name: object = None, data: pd.DataFrame = None, data_filename: object = None,
+                           root_dir: object = None, stat_measures: list = []):
     """
     Method that re-formats the report from get_final_report to an excel-type report with statistical calculations.
     The data can either be loaded from disk or given as pandas DataFrame.
@@ -100,7 +104,8 @@ def get_statistical_report(save_name=None, data=None, data_filename=None, root_d
                               )
 
 
-def get_final_report(tree_levels, save=True, root_dir=None, save_name=None, metrics=[]):
+def get_final_report(tree_levels: dict, save: bool = True, root_dir: object = None,
+                     save_name: object = None, metrics: list = []):
     """
     This method merges all produced reports in one csv file. To generate the
     report file, the tree structure of the resulted reports should be given.
@@ -162,9 +167,11 @@ def get_final_report(tree_levels, save=True, root_dir=None, save_name=None, metr
     return data
 
 
-def save_appliance_report(root_dir=None, model_name=None, device=None, exp_type=None, save_timeseries=True,
-                          experiment_name=None, exp_volume='large', iteration=None, results={},
-                          preds=None, ground=None, model_hparams=None, epochs=None, plots=True):
+def save_appliance_report(root_dir: object = None, model_name: object = None, device: object = None,
+                          exp_type: object = None, save_timeseries: bool = True, experiment_name: object = None,
+                          exp_volume: object = LARGE, iteration: int = None, results: dict = None,
+                          preds: np.array = None, ground: np.array = None, model_hparams: dict = None,
+                          epochs: int = None, plots: bool = True):
 
     root_dir = os.getcwd() + '/' + root_dir
     path = '/'.join([root_dir, DIR_RESULTS_NAME, device, model_name,
