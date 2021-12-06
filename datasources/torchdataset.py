@@ -55,11 +55,11 @@ class BaseElectricityDataset(ABC):
         (depends on the chosen normalization method) and the creation of windows if rolling window is True.
         The feeding of the preprocessed data is taken care of the pytorch dataloader.
     """
-    def __init__(self, datasource, building, device, start_date,
-                 end_date, rolling_window=True, window_size=50, mmax=None,
-                 means=None, stds=None, meter_means=None, meter_stds=None,
-                 sample_period=None, chunksize: int = 10000, shuffle=False,
-                 normalization_method='standardization'):
+    def __init__(self, datasource: Datasource, building: int, device: str, start_date: str,
+                 end_date: str, rolling_window: bool = True, window_size: int = 50,
+                 mmax: float = None, means: float = None, stds: float = None, meter_means: float = None,
+                 meter_stds: float = None, sample_period: int = None, chunksize: int = 10000, shuffle: bool = False,
+                 normalization_method: str = 'standardization'):
         self.building = building
         self.device = device
         self.mmax = mmax
@@ -116,8 +116,8 @@ class BaseElectricityDataset(ABC):
     def __mmax__(self):
         return self.mmax
 
-    def _init_generators(self, datasource: Datasource, building, device, start_date,
-                         end_date, sample_period, chunksize):
+    def _init_generators(self, datasource: Datasource, building: int, device: str, start_date: str,
+                         end_date: str, sample_period: int, chunksize: int):
         self.datasource = datasource
         self.mains_generator = self.datasource.get_mains_generator(start=start_date,
                                                                    end=end_date,
@@ -237,9 +237,10 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
 
         trainer.fit(model, train_loader, val_loader)
     """
-    def __init__(self, datasource: Datasource, building, device, dates=None, rolling_window=True,
-                 window_size=50, chunksize=10 ** 10, mmax=None, means=None, stds=None, meter_means=None,
-                 meter_stds=None, sample_period=None, normalization_method='standardization'):
+    def __init__(self, datasource: Datasource, building: int, device: str, dates: list = None,
+                 rolling_window: bool = True, window_size: int = 50, chunksize: int = 10 ** 10,
+                 mmax: float = None, means: float = None, stds: float = None, meter_means: float = None,
+                 meter_stds: float = None, sample_period: int = None, normalization_method: str = 'standardization'):
         super().__init__(datasource, building, device,
                          dates[0], dates[1], rolling_window, window_size,
                          mmax, means, stds, meter_means, meter_stds,
@@ -327,11 +328,12 @@ class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
         trainer.fit(model, train_loader, val_loader)
 
     """
-    def __init__(self, train_info=None, rolling_window=True, window_size=50, chunksize=10 ** 10, mmax=None, means=None,
-                 stds=None, meter_means=None, meter_stds=None, sample_period=None,
+    def __init__(self, train_info: list = None, rolling_window: bool = True, window_size: int = 50,
+                 chunksize: int = 10 ** 10, mmax: float = None, means: float = None, stds: float = None,
+                 meter_means: float = None, meter_stds: float = None, sample_period: int = None,
                  normalization_method='standardization', **load_kwargs):
         self.train_info = train_info
-        super().__init__(datasource=None, building=None, device=None, start_date=None, end_date=None,
+        super().__init__(datasource=None, building=0, device='', start_date='', end_date='',
                          rolling_window=rolling_window, window_size=window_size, mmax=mmax, means=means,
                          stds=stds, meter_means=meter_means, meter_stds=meter_stds, sample_period=sample_period,
                          chunksize=chunksize, normalization_method=normalization_method, **load_kwargs)
@@ -468,10 +470,11 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
         b. For the pytorch dataloader to work properly with iterable datasets, shuffle must be False
         c. Iterable datasets don't support dataloader with shuffle=True
     """
-    def __init__(self, datasource: Datasource, building, device, dates=None, rolling_window=True,
-                 window_size=50, mmax=None, means=None, stds=None, meter_means=None, meter_stds=None,
-                 sample_period=None, chunksize: int = 10 ** 6, batch_size=32, shuffle=False,
-                 normalization_method='standardization'):
+    def __init__(self, datasource: Datasource, building: int, device: str, dates: list = None,
+                 rolling_window: bool = True, window_size: int = 50, mmax: float = None, means: float = None,
+                 stds: float = None,  meter_means: float = None, meter_stds: float = None, sample_period: int = None,
+                 chunksize: int = 10 ** 6, batch_size: int = 32, shuffle: bool = False,
+                 normalization_method: str = 'standardization'):
         self.batch_size = batch_size
         self.data_len = None
         super().__init__(datasource, building, device,
