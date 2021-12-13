@@ -6,19 +6,25 @@ from constants.constants import*
 from constants.enumerates import DataTypes
 
 
-def create_tree_dir(tree_levels: dict = None, clean: bool = False, plots: bool = True):
+def create_tree_dir(tree_levels: dict = None, clean: bool = False, plots: bool = True,
+                    output_dir: str = DIR_OUTPUT_NAME):
     tree_gen = (level for level in tree_levels)
     level = next(tree_gen)
     end = False
+    if output_dir:
+        output_path = '/'.join([os.getcwd(), output_dir])
+        if not os.path.exists(output_path):
+            os.mkdir(output_path)
+    else:
+        output_path = os.getcwd()
     if level == ROOT_LEVEL:
-        root_path = os.getcwd() + '/' + tree_levels[level]
+        root_path = '/'.join([output_path, tree_levels[level]])
         if clean and os.path.exists(root_path):
             shutil.rmtree(root_path)
             print('all clean')
         if not os.path.exists(root_path):
             os.mkdir(root_path)
 
-    # print(root_path)
     base_paths = [root_path]
     if plots:
         plot_path = root_path + '/' + DIR_PLOTS_NAME
