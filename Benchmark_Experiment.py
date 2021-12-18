@@ -4,8 +4,10 @@ import pandas as pd
 from callbacks.callbacks_factories import TrainerCallbacksFactory
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset
-from modules.helpers import create_tree_dir, train_eval
+from modules.helpers import create_tree_dir
+from modules.NILM_trainer import train_eval
 from torch.utils.data import DataLoader, random_split
+from constants.constants import *
 
 
 with torch.no_grad():
@@ -13,9 +15,9 @@ with torch.no_grad():
 
 clean = True
 PLOTS = False
-SAVE_TIMESERIES = False
-inference_cpu = True
-ROOT = 'Params'
+SAVE_TIMESERIES = True
+inference_cpu = False
+ROOT = 'testetetst2'
 exp_volume = 'large'
 data_dir = '../Datasets'
 train_file_dir = 'benchmark/{}/train/'.format(exp_volume)
@@ -108,7 +110,7 @@ for exp_type in ['Single']:
                 'S2P'                  : {'window_size': WINDOW, 'dropout': 0},
                 'FNET'                 : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128,
                                         'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0},
-                'VIBFNET'              : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128, 'max_noise':0.9, 
+                'VIBFNET'              : {'depth'    : 1, 'kernel_size': 5, 'cnn_dim': 128, 'max_noise':0.9,
                                         'beta':0.0001, 'input_dim': WINDOW, 'hidden_dim': 256, 'dropout': 0.0},
             }
 
@@ -122,7 +124,7 @@ for exp_type in ['Single']:
                 test_houses.append(toks[1])
                 test_dates.append([str(toks[2]), str(toks[3].rstrip("\n"))])
             test_file.close()
-            data = {'test_house': test_houses, 'test_set': test_sets, 'test_date': test_dates}
+            data = {TEST_HOUSE: test_houses, TEST_SET: test_sets, TEST_DATE: test_dates}
             tests_params = pd.DataFrame(data)
 
             train_file = open('{}base{}TrainSetsInfo_{}'.format(train_file_dir, exp_type, device), 'r')
@@ -139,7 +141,7 @@ for exp_type in ['Single']:
                 print(path)
                 datasource = DatasourceFactory.create_datasource(train_set)
                 train_dataset_all = ElectricityDataset(datasource=datasource, building=int(train_house), window_size=WINDOW,
-                                                    device=device, dates=train_dates, sample_period=SAMPLE_PERIOD)
+                                                       device=device, dates=train_dates, sample_period=SAMPLE_PERIOD)
 
             else:
                 train_info = []
@@ -152,10 +154,10 @@ for exp_type in ['Single']:
                     path = data_dir + '/{}/{}.h5'.format(train_set, train_set)
                     datasource = DatasourceFactory.create_datasource(train_set)
                     train_info.append({
-                                        'device' : device,
-                                        'datasource' : datasource,
-                                        'building' : int(train_house),
-                                        'dates' : train_dates,
+                                        COLUMN_DEVICE : device,
+                                        COLUMN_DATASOURCE : datasource,
+                                        COLUMN_BUILDING : int(train_house),
+                                        COLUMN_DATES : train_dates,
                                     }
                                     )
                 train_file.close()
@@ -165,55 +167,50 @@ for exp_type in ['Single']:
             train_size = int(0.8 * len(train_dataset_all))
             val_size = len(train_dataset_all) - train_size
             train_dataset, val_dataset = random_split(train_dataset_all, [train_size, val_size],
-                                                    generator=torch.Generator().manual_seed(42))
+                                                      generator=torch.Generator().manual_seed(42))
 
             train_loader = DataLoader(train_dataset, batch_size=BATCH,
-                                    shuffle=True, num_workers=8)
+                                      shuffle=True, num_workers=8)
             val_loader = DataLoader(val_dataset, batch_size=BATCH,
                                     shuffle=False, num_workers=8)
             mmax = train_dataset_all.mmax
             means = train_dataset_all.means
             stds = train_dataset_all.stds
 
-            experiments = []
-            experiment_name = '_'.join([device, exp_type, 'Train', train_set, '', ])
-            print(experiment_name)
-            eval_params = {'device'     : device,
-                        'mmax'       : mmax,
-                        'means'      : train_dataset_all.meter_means,
-                        'stds'       : train_dataset_all.meter_stds,
-                        'groundtruth': ''}
-
+            eval_params = {COLUMN_DEVICE: device,
+                           COLUMN_MMAX: mmax,
+                           COLUMN_MEANS: train_dataset_all.meter_means,
+                           COLUMN_STDS: train_dataset_all.meter_stds,
+                           COLUMN_GROUNDTRUTH: ''}
 
             for iteration in range(1, ITERATIONS + 1):
                 print('#' * 20)
                 print('Iteration: ', iteration)
                 print('#' * 20)
-                experiment_name = '_'.join([device, exp_type, 'Train', train_set, '', ])
-                train_eval(model_name,
-                        train_loader,
-                        exp_type,
-                        tests_params,
-                        SAMPLE_PERIOD,
-                        BATCH,
-                        experiment_name,
-                        exp_volume,
-                        iteration,
-                        device,
-                        mmax,
-                        means,
-                        stds,
-                        train_dataset_all.meter_means,
-                        train_dataset_all.meter_stds,
-                        WINDOW,
-                        ROOT,
-                        data_dir,
-                        epochs=EPOCHS,
-                        eval_params=eval_params,
-                        model_hparams=model_hparams[model_name],
-                        val_loader=val_loader,
-                        plots=PLOTS,
-                        save_timeseries=SAVE_TIMESERIES,
-                        inference_cpu=inference_cpu,
-                        callbacks=[TrainerCallbacksFactory.create_earlystopping()]
-                        )
+                experiment_name = '_'.join([device, exp_type, TRAIN_NAME, train_set, '', ])
+                print(experiment_name)
+                train_eval(
+                    model_name=model_name,
+                    train_loader=train_loader,
+                    exp_type=exp_type,
+                    tests_params=tests_params,
+                    sample_period=SAMPLE_PERIOD,
+                    batch_size=BATCH,
+                    experiment_name=experiment_name,
+                    iteration=iteration,
+                    device=device,
+                    mmax=mmax,
+                    means=means,
+                    stds=stds,
+                    meter_means=train_dataset_all.meter_means,
+                    meter_stds=train_dataset_all.meter_stds,
+                    window_size=WINDOW,
+                    root_dir=ROOT,
+                    model_hparams=model_hparams[model_name],
+                    eval_params=eval_params,
+                    save_timeseries=SAVE_TIMESERIES,
+                    epochs=EPOCHS,
+                    callbacks=[TrainerCallbacksFactory.create_earlystopping()],
+                    val_loader=val_loader,
+                    inference_cpu=inference_cpu,
+                    )
