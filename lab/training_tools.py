@@ -8,14 +8,16 @@ import pytorch_lightning as pl
 import torch.nn.functional as F
 from torch import Tensor
 
-from modules.NILM_metrics import NILM_metrics
+from constants.constants import*
+from modules.NILM_metrics import nilm_metrics
+from modules.helpers import denormalize, destandardize
 from neural_networks.base_models import BaseModel
 from neural_networks.bert import BERT4NILM
 from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, FNET, ShortNeuralFourier, \
-ShortFNET, ShortPosFNET, PosFNET, DAE, PAFnet
+    ShortFNET, ShortPosFNET, PosFNET, DAE, PAFnet
 
-from neural_networks.variational import VIBSeq2Point, VIBFnet, VIB_SAED, VIBShortNeuralFourier,\
-VIBWGRU,VIBShortFnet,VIBSeq2Point,VAE, VIB_SimpleGru
+from neural_networks.variational import VIBSeq2Point, VIBFnet, VIB_SAED, VIBShortNeuralFourier, \
+    VIBWGRU, VIBShortFnet, VIBSeq2Point, VAE, VIB_SimpleGru
 
 from neural_networks.bayesian import BayesSimpleGru, BayesSeq2Point, BayesWGRU, BayesFNET
 
@@ -29,10 +31,10 @@ torch.backends.cudnn.determinstic = True
 device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
 print("Device:", device)
 
-ON_THRESHOLDS = {'dish washer'    : 10,
-                 'fridge'         : 50,
-                 'kettle'         : 2000,
-                 'microwave'      : 200,
+ON_THRESHOLDS = {'dish washer': 10,
+                 'fridge': 50,
+                 'kettle': 2000,
+                 'microwave': 200,
                  'washing machine': 20}
 
 VAL_ACC = "val_acc"
@@ -40,33 +42,33 @@ VAL_LOSS = 'val_loss'
 
 
 def create_model(model_name, model_hparams):
-    model_dict = {'WGRU'                 : WGRU,
-                  'S2P'                  : Seq2Point,
-                  'SAED'                 : SAED,
-                  'SimpleGru'            : SimpleGru,
+    model_dict = {'WGRU': WGRU,
+                  'S2P': Seq2Point,
+                  'SAED': SAED,
+                  'SimpleGru': SimpleGru,
                   # 'FFED'        : FFED,
-                  'FNET'                 : FNET,
-                  'ShortFNET'            : ShortFNET,
-                  'ShortPosFNET'            : ShortPosFNET,
-                  'PosFNET'                 : PosFNET,
-                  'PAFNET':PAFnet,
+                  'FNET': FNET,
+                  'ShortFNET': ShortFNET,
+                  'ShortPosFNET': ShortPosFNET,
+                  'PosFNET': PosFNET,
+                  'PAFNET': PAFnet,
                   # 'ConvFourier' : ConvFourier,
-                  'BERT4NILM':BERT4NILM,
-                  'VIB_SAED'             : VIB_SAED,
+                  'BERT4NILM': BERT4NILM,
+                  'VIB_SAED': VIB_SAED,
                   'VIB_SimpleGru': VIB_SimpleGru,
-                  'VIBFNET'              : VIBFnet,
-'VIBShortFNET':VIBShortFnet,
-'VIBWGRU':VIBWGRU,
-'VIBSeq2Point'         : VIBSeq2Point,
-                  'ShortNeuralFourier'   : ShortNeuralFourier,
+                  'VIBFNET': VIBFnet,
+                  'VIBShortFNET': VIBShortFnet,
+                  'VIBWGRU': VIBWGRU,
+                  'VIBSeq2Point': VIBSeq2Point,
+                  'ShortNeuralFourier': ShortNeuralFourier,
                   'VIBShortNeuralFourier': VIBShortNeuralFourier,
                   'BayesSimpleGru': BayesSimpleGru,
                   'BayesWGRU': BayesWGRU,
                   'BayesSeq2Point': BayesSeq2Point,
                   'BayesFNET': BayesFNET,
 
-                  'VAE':VAE,
-                  'DAE':DAE,
+                  'VAE': VAE,
+                  'DAE': DAE,
                   }
 
     if model_name in model_dict:
@@ -173,37 +175,44 @@ class ClassicTrainingTools(pl.LightningModule):
         # outputs is a list of whatever you returned in `test_step`
         avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
         tensorboard_logs = {'test_avg_loss': avg_loss}
-        if self.model_name=='DAE':
-            self.final_preds = np.reshape(self.final_preds,(-1))
+        if self.model_name == 'DAE':
+            self.final_preds = np.reshape(self.final_preds, (-1))
         res = self._metrics()
-        print('#### model name: {} ####'.format(res['model']))
-        print('metrics: {}'.format(res['metrics']))
+        print('#### model name: {} ####'.format(res[COLUMN_MODEL]))
+        print('metrics: {}'.format(res[COLUMN_METRICS]))
         self.log("test_test_avg_loss", avg_loss)
         return res
 
     def _metrics(self):
-        device, mmax, groundtruth = self.eval_params['device'], \
-                                    self.eval_params['mmax'], \
-                                    self.eval_params['groundtruth']
+        dev, mmax, groundtruth = self.eval_params[COLUMN_DEVICE], \
+                                 self.eval_params[COLUMN_MMAX], \
+                                 self.eval_params[COLUMN_GROUNDTRUTH]
 
-        means = self.eval_params['means']
-        stds = self.eval_params['stds']
-        res = NILM_metrics(pred=self.final_preds,
-                           ground=groundtruth,
-                           mmax=mmax,
-                           means=means,
-                           stds=stds,
-                           threshold=ON_THRESHOLDS.get(device, 50))
+        means = self.eval_params[COLUMN_MEANS]
+        stds = self.eval_params[COLUMN_STDS]
 
-        results = {'model'  : self.model_name,
-                   'metrics': res,
-                   'preds'  : self.final_preds, }
+        if mmax:
+            preds = denormalize(self.final_preds, mmax)
+            ground = denormalize(groundtruth, mmax)
+        elif means and stds:
+            preds = destandardize(self.final_preds, means, stds)
+            ground = destandardize(groundtruth, means, stds)
+
+        res = nilm_metrics(pred=preds,
+                           ground=ground,
+                           threshold=ON_THRESHOLDS.get(dev, 50)
+                           )
+
+        results = {COLUMN_MODEL: self.model_name,
+                   COLUMN_METRICS: res,
+                   COLUMN_PREDICTIONS: preds,
+                   COLUMN_GROUNDTRUTH: ground, }
         self.set_res(results)
         self.final_preds = np.array([])
         return results
 
     def set_ground(self, ground):
-        self.eval_params['groundtruth'] = ground
+        self.eval_params[COLUMN_GROUNDTRUTH] = ground
 
     def set_res(self, res):
         print("set_res")
@@ -273,14 +282,15 @@ class VIBTrainingTools(ClassicTrainingTools):
         # outputs is a list of whatever you returned in `test_step`
         avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
         tensorboard_logs = {'test_avg_loss': avg_loss}
-        if self.model_name=='VAE':
-            self.final_preds = np.reshape(self.final_preds,(-1))
+        if self.model_name == 'VAE':
+            self.final_preds = np.reshape(self.final_preds, (-1))
         res = self._metrics()
         print('#### model name: {} ####'.format(res['model']))
         print('metrics: {}'.format(res['metrics']))
 
         self.log("test_test_avg_loss", avg_loss)
         return res
+
 
 class BayesTrainingTools(ClassicTrainingTools):
     def __init__(self, model, model_hparams, eval_params, sample_nbr=3):
@@ -291,7 +301,7 @@ class BayesTrainingTools(ClassicTrainingTools):
         """
         super().__init__(model, model_hparams, eval_params)
         print('BAYES TRAINING')
-        self.criterion = torch.nn.MSELoss()#F.mse_loss()
+        self.criterion = torch.nn.MSELoss()  # F.mse_loss()
         self.sample_nbr = sample_nbr
 
     def training_step(self, batch, batch_idx):
@@ -307,7 +317,7 @@ class BayesTrainingTools(ClassicTrainingTools):
                                       labels=y,
                                       criterion=self.criterion,
                                       sample_nbr=self.sample_nbr,
-                                      complexity_cost_weight=1./x.shape[0])
+                                      complexity_cost_weight=1. / x.shape[0])
 
         tensorboard_logs = {'train_loss': loss}
         return {'loss': loss, 'log': tensorboard_logs}
@@ -326,4 +336,5 @@ class BertTrainingTools(ClassicTrainingTools):
         self.mse = nn.MSELoss()
         self.margin = nn.SoftMarginLoss()
         self.l1_on = nn.L1Loss(reduction='sum')
+
     pass
