@@ -265,14 +265,8 @@ def quantile_75(data: pd.DataFrame, reset_index: bool = True):
 
 
 def destandardize(data: np.array, means: float, stds: float):
-    if means and stds and data:
-        return (data*stds)+means
-    else:
-        return data
+    return (data*stds)+means
 
 
 def denormalize(data: np.array, mmax: float):
-    if mmax and data:
-        return data*mmax
-    else:
-        return data
+    return data*mmax
