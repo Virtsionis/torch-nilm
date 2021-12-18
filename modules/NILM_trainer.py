@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import pytorch_lightning as pl
 from constants.constants import*
 from torch.utils.data import DataLoader
@@ -9,12 +10,11 @@ from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityIterableDataset, ElectricityDataset
 
 
-def train_eval(model_name: str, train_loader: DataLoader, exp_type: str, tests_params: list, sample_period: int,
-               batch_size: int, experiment_name: str, exp_volume: str, iteration: int, device: str, mmax: float,
+def train_eval(model_name: str, train_loader: DataLoader, exp_type: str, tests_params: pd.DataFrame, sample_period: int,
+               batch_size: int, experiment_name: str, iteration: int, device: str, mmax: float,
                means: float, stds: float, meter_means: float, meter_stds: float, window_size: int, root_dir: str,
-               model_hparams: dict, plots: bool = True, save_timeseries: bool = True, epochs: int = 5,
-               callbacks=None, val_loader: DataLoader = None, rolling_window: bool = True, inference_cpu: bool = True,
-               **kwargs):
+               model_hparams: dict, eval_params: dict, save_timeseries: bool = True, epochs: int = 5, callbacks=None,
+               val_loader: DataLoader = None, rolling_window: bool = True, inference_cpu: bool = True,):
     """
     Inputs:
         model_name - Name of the model you want to run.
@@ -27,7 +27,9 @@ def train_eval(model_name: str, train_loader: DataLoader, exp_type: str, tests_p
         trainer = pl.Trainer(gpus=1, max_epochs=epochs, auto_lr_find=True, callbacks=callbacks,
                              progress_bar_refresh_rate=0)
 
-    model = TrainingToolsFactory.build_and_equip_model(model_name=model_name, model_hparams=model_hparams, **kwargs)
+    model = TrainingToolsFactory.build_and_equip_model(model_name=model_name,
+                                                       model_hparams=model_hparams,
+                                                       eval_params=eval_params)
     if val_loader:
         trainer.fit(model, train_loader, val_loader)
     else:
@@ -63,19 +65,11 @@ def train_eval(model_name: str, train_loader: DataLoader, exp_type: str, tests_p
         model.set_ground(ground)
 
         trainer.test(model, test_dataloaders=test_loader)
-        test_result = model.get_res()
-        results = test_result[COLUMN_METRICS]
-        preds = test_result[COLUMN_PREDICTIONS]
+        model_results = model.get_res()
         final_experiment_name = experiment_name + TEST_ID + building + '_' + dataset
 
-        if save_timeseries:
-            if mmax:
-                ground = denormalize(ground, mmax)
-                preds = denormalize(preds, mmax)
-            elif meter_means and meter_stds:
-                ground = destandardize(ground, meter_means, meter_stds)
-                preds = destandardize(preds, meter_means, meter_stds)
-
-        save_appliance_report(root_dir, model_name, device, exp_type, save_timeseries, final_experiment_name, exp_volume,
-                              iteration, results, preds, ground, model_hparams, epochs, plots=plots)
+        save_appliance_report(root_dir=root_dir, model_name=model_name, device=device,
+                              exp_type=exp_type, save_timeseries=save_timeseries,
+                              experiment_name=final_experiment_name, iteration=iteration,
+                              model_results=model_results, model_hparams=model_hparams, epochs=epochs)
         del test_dataset, test_loader, ground, final_experiment_name
