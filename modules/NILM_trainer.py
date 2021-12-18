@@ -4,6 +4,7 @@ from constants.constants import*
 from torch.utils.data import DataLoader
 from lab.training_tools import TrainingToolsFactory
 from modules.reporting import save_appliance_report
+from modules.helpers import denormalize, destandardize
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityIterableDataset, ElectricityDataset
 
@@ -11,7 +12,7 @@ from datasources.torchdataset import ElectricityIterableDataset, ElectricityData
 def train_eval(model_name: str, train_loader: DataLoader, exp_type: str, tests_params: list, sample_period: int,
                batch_size: int, experiment_name: str, exp_volume: str, iteration: int, device: str, mmax: float,
                means: float, stds: float, meter_means: float, meter_stds: float, window_size: int, root_dir: str,
-               data_dir: str, model_hparams: dict, plots: bool = True, save_timeseries: bool = True, epochs: int = 5,
+               model_hparams: dict, plots: bool = True, save_timeseries: bool = True, epochs: int = 5,
                callbacks=None, val_loader: DataLoader = None, rolling_window: bool = True, inference_cpu: bool = True,
                **kwargs):
     """
@@ -58,7 +59,7 @@ def train_eval(model_name: str, train_loader: DataLoader, exp_type: str, tests_p
             ground = np.reshape(ground, -1)
         if inference_cpu:
             print('Model to CPU')
-            model.to('cpu')
+            model.to(CPU_NAME)
         model.set_ground(ground)
 
         trainer.test(model, test_dataloaders=test_loader)
@@ -66,6 +67,15 @@ def train_eval(model_name: str, train_loader: DataLoader, exp_type: str, tests_p
         results = test_result[COLUMN_METRICS]
         preds = test_result[COLUMN_PREDICTIONS]
         final_experiment_name = experiment_name + TEST_ID + building + '_' + dataset
+
+        if save_timeseries:
+            if mmax:
+                ground = denormalize(ground, mmax)
+                preds = denormalize(preds, mmax)
+            elif meter_means and meter_stds:
+                ground = destandardize(ground, meter_means, meter_stds)
+                preds = destandardize(preds, meter_means, meter_stds)
+
         save_appliance_report(root_dir, model_name, device, exp_type, save_timeseries, final_experiment_name, exp_volume,
                               iteration, results, preds, ground, model_hparams, epochs, plots=plots)
         del test_dataset, test_loader, ground, final_experiment_name

@@ -1,5 +1,6 @@
 import os
 import shutil
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from constants.constants import*
@@ -261,3 +262,17 @@ def quantile_25(data: pd.DataFrame, reset_index: bool = True):
 
 def quantile_75(data: pd.DataFrame, reset_index: bool = True):
     return pd_quantile(data, q=.75, reset_index=reset_index)
+
+
+def destandardize(data: np.array, means: float, stds: float):
+    if means and stds and data:
+        return (data*stds)+means
+    else:
+        return data
+
+
+def denormalize(data: np.array, mmax: float):
+    if mmax and data:
+        return data*mmax
+    else:
+        return data
