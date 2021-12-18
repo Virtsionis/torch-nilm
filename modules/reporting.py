@@ -175,9 +175,8 @@ def get_final_report(tree_levels: dict, save: bool = True, root_dir: object = No
 
 def save_appliance_report(root_dir: object = None, model_name: object = None, device: object = None,
                           exp_type: object = None, save_timeseries: bool = True, experiment_name: object = None,
-                          exp_volume: object = LARGE, iteration: int = None, results: dict = None,
-                          preds: np.array = None, ground: np.array = None, model_hparams: dict = None,
-                          epochs: int = None, plots: bool = True, output_dir: str = DIR_OUTPUT_NAME):
+                          iteration: int = None, model_results: dict = None, model_hparams: dict = None,
+                          epochs: int = None, output_dir: str = DIR_OUTPUT_NAME):
     if output_dir:
         root_dir = '/'.join([os.getcwd(), output_dir, root_dir])
     else:
@@ -198,6 +197,14 @@ def save_appliance_report(root_dir: object = None, model_name: object = None, de
                 COLUMN_MAE, COLUMN_RETE, COLUMN_EPOCHS, COLUMN_HPARAMS]
         report = pd.DataFrame(columns=cols)
     hparams = {COLUMN_HPARAMS: model_hparams, COLUMN_EPOCHS: int(epochs) + 1}
+
+    try:
+        results = model_results[COLUMN_METRICS]
+        preds = model_results[COLUMN_PREDICTIONS]
+        ground = model_results[COLUMN_GROUNDTRUTH]
+    except Exception as exception:
+        raise exception
+
     report = report.append({**results, **hparams}, ignore_index=True)
     report.fillna(np.nan, inplace=True)
     report.to_csv(path + report_filename, index=False)
@@ -208,21 +215,3 @@ def save_appliance_report(root_dir: object = None, model_name: object = None, de
                                 columns=cols)
         res_data.to_csv(path + data_filename, index=False)
         print('Time series saved at: ', path + data_filename)
-
-    if plots:
-        exp_list = experiment_name.split('_')
-        device = exp_list[0]
-        bounds = os.getcwd()+'/modules/plot_bounds/{}/{}_bounds_{}.csv'.format(exp_volume,exp_list[0],exp_list[1])
-        bounds = pd.read_csv(str(bounds))
-        bounds = bounds[(bounds['test_set'] == exp_list[6])&(bounds['test_house'] == int(exp_list[5]))]
-
-        if not bounds.empty:
-            low_lim = bounds['low_lim'].values[0]
-            upper_lim = bounds['upper_lim'].values[0]
-
-            display_res(root_dir, model_name, device, exp_type, experiment_name,
-                        iteration, low_lim=low_lim, upper_lim=upper_lim,
-                        plt_show=True, save_fig=True, save_dir=DIR_PLOTS_NAME
-                        )
-        else:
-            raise Exception('Can"t plot, no experiment with name: {}'.format(experiment_name))
