@@ -3,9 +3,7 @@ import numpy as np
 from constants.constants import*
 
 
-def NILM_metrics(pred: np.array, ground: np.array, threshold: int = 40, mmax: float = None, means: float = None,
-                 stds: float = None, round_digit: int = 3):
-
+def nilm_metrics(pred: np.array, ground: np.array, threshold: int = 40, round_digit: int = 3):
     def tp_tn_fp_fn(states_pred, states_ground):
         tp = np.sum(np.logical_and(states_pred == 1, states_ground == 1))
         fp = np.sum(np.logical_and(states_pred == 1, states_ground == 0))
@@ -25,29 +23,15 @@ def NILM_metrics(pred: np.array, ground: np.array, threshold: int = 40, mmax: fl
     def accuracy(tp, tn, p, n):
         return (tp + tn) / float(p + n)
 
-    def relative_error_total_energy(pred, ground):
+    def relative_error_total_energy(predictions, groundtruth):
+        e_pred = sum(predictions)
+        e_ground = sum(groundtruth)
+        return abs(e_pred - e_ground) / float(max(e_pred, e_ground))
 
-        E_pred = sum(pred)
-        E_ground = sum(ground)
-        return abs(E_pred - E_ground) / float(max(E_pred,E_ground))
-
-    def mean_absolute_error(pred, ground):
-        sum_samples = len(pred)
-        total_sum = sum(abs((pred) - ground))
+    def mean_absolute_error(predictions, groundtruth):
+        sum_samples = len(predictions)
+        total_sum = sum(abs(predictions - groundtruth))
         return total_sum / sum_samples
-
-#====================================================================#
-#                             "main"                                 #
-#====================================================================#
-
-    '''normalize the threshold if must'''
-    if mmax:
-        threshold = threshold/mmax
-
-    if means and stds:
-        threshold = (threshold - means)/stds
-
-    print(f"Threshold {threshold}")
 
     if torch.is_tensor(pred):
         pr = pred.numpy()
@@ -62,16 +46,9 @@ def NILM_metrics(pred: np.array, ground: np.array, threshold: int = 40, mmax: fl
     pr[np.isnan(pr)] = 0
     gr[np.isnan(gr)] = 0
 
-    RETE = round(relative_error_total_energy(pr, gr),round_digit)
-    MAE = mean_absolute_error(pr, gr)
-
-    if mmax:
-        MAE *= mmax
-
-    if means and stds:
-        MAE *= stds
-        # MAE += means
-    MAE = round(MAE, round_digit)
+    rete = round(relative_error_total_energy(pr, gr), round_digit)
+    mae = mean_absolute_error(pr, gr)
+    mae = round(mae, round_digit)
 
     pr = np.array([0 if p < threshold else 1 for p in pr])
     gr = np.array([0 if p < threshold else 1 for p in gr])
@@ -87,5 +64,5 @@ def NILM_metrics(pred: np.array, ground: np.array, threshold: int = 40, mmax: fl
 
     metrics_results = {COLUMN_RECALL: recall, COLUMN_PRECISION: precision,
                        COLUMN_F1: f1, COLUMN_ACCURACY: accuracy,
-                       COLUMN_MAE: MAE, COLUMN_RETE: RETE}
+                       COLUMN_MAE: mae, COLUMN_RETE: rete}
     return metrics_results
