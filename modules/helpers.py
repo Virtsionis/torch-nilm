@@ -7,7 +7,7 @@ from constants.constants import*
 from constants.enumerates import DataTypes
 
 
-def create_tree_dir(tree_levels: dict = None, clean: bool = False, plots: bool = True,
+def create_tree_dir(tree_levels: dict = None, clean: bool = False, plots: bool = False,
                     output_dir: str = DIR_OUTPUT_NAME):
     tree_gen = (level for level in tree_levels)
     level = next(tree_gen)
