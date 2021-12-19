@@ -17,3 +17,22 @@ class StatMeasures(Enum):
     MAXIMUM = 'max'
     PERCENTILE_25TH = '25th_percentile'
     PERCENTILE_75TH = '75th_percentile'
+
+
+class SupportedNilmExperiments(Enum):
+    BENCHMARK = 'benchmark'
+    CROSS_VALIDATION = 'cross_validation'
+    HYPERPARAM_TUNE_CV = 'hyperparameter_tuning_cross_validation'
+
+
+class SupportedExperimentCategories(Enum):
+    SINGLE_CATEGORY = 'Single'
+    MULTI_CATEGORY = 'Multi'
+
+
+class ElectricalAppliances(Enum):
+    MICROWAVE = 'microwave'
+    KETTLE = 'kettle'
+    FRIDGE = 'fridge'
+    WASHING_MACHINE = 'washing machine'
+    DISH_WASHER = 'dish washer'
