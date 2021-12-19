@@ -215,7 +215,6 @@ class ClassicTrainingTools(pl.LightningModule):
         self.eval_params[COLUMN_GROUNDTRUTH] = ground
 
     def set_res(self, res):
-        print("set_res")
         self.reset_res()
         self.results = res
 
@@ -223,7 +222,6 @@ class ClassicTrainingTools(pl.LightningModule):
         self.results = {}
 
     def get_res(self):
-        print("get res")
         return self.results
 
 
