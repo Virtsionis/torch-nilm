@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from torch import Tensor
 
 from constants.constants import*
-from modules.NILM_metrics import nilm_metrics
+from modules.nilm_metrics import NILMmetrics
 from modules.helpers import denormalize, destandardize
 from neural_networks.base_models import BaseModel
 from neural_networks.bert import BERT4NILM
@@ -198,10 +198,10 @@ class ClassicTrainingTools(pl.LightningModule):
             preds = destandardize(self.final_preds, means, stds)
             ground = destandardize(groundtruth, means, stds)
 
-        res = nilm_metrics(pred=preds,
-                           ground=ground,
-                           threshold=ON_THRESHOLDS.get(dev, 50)
-                           )
+        res = NILMmetrics(pred=preds,
+                          ground=ground,
+                          threshold=ON_THRESHOLDS.get(dev, 50)
+                          )
 
         results = {COLUMN_MODEL: self.model_name,
                    COLUMN_METRICS: res,

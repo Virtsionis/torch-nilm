@@ -8,7 +8,7 @@ from callbacks.callbacks_factories import TrainerCallbacksFactory
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset, ElectricityIterableDataset
 from modules.helpers import create_tree_dir
-from modules.NILM_trainer import train_eval
+from modules.nilm_trainer import train_eval
 from torch.utils.data import DataLoader, random_split
 from constants.constants import *
 from constants.device_windows import WINDOWS
@@ -18,7 +18,7 @@ with torch.no_grad():
     torch.cuda.empty_cache()
 
 
-class NilmExperiments:
+class NILMExperiments:
 
     def __init__(self, project_name: str = None, clean_project: bool = False, experiment_categories: list = None,
                  devices: list = None, experiment_volume: str = VOLUME_LARGE, save_timeseries_results: bool = True,
