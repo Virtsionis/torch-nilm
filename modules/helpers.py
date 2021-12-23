@@ -94,11 +94,13 @@ def display_res(root_dir=None, model_name=None, device=None,
         del ax
 
 
-def get_tree_paths(tree_levels: dict = None):
+def get_tree_paths(tree_levels: dict = None, output_dir: str = None):
     tree_gen = (level for level in tree_levels)
     level = next(tree_gen)
     end = False
-    if level == ROOT_LEVEL:
+    if level == ROOT_LEVEL and output_dir:
+        root_path = os.getcwd() + '/' + output_dir + '/' + tree_levels[level]
+    elif level == ROOT_LEVEL:
         root_path = os.getcwd() + '/' + tree_levels[level]
     base_paths = [root_path]
     while not end:
