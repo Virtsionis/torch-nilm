@@ -7,12 +7,14 @@ import pandas as pd
 from callbacks.callbacks_factories import TrainerCallbacksFactory
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset, ElectricityIterableDataset
-from modules.helpers import create_tree_dir
+from modules.helpers import create_tree_dir, create_time_folds
 from modules.nilm_trainer import train_eval
 from torch.utils.data import DataLoader, random_split
 from constants.constants import *
 from constants.device_windows import WINDOWS
-from constants.enumerates import SupportedNilmExperiments, ElectricalAppliances, SupportedExperimentCategories
+from constants.enumerates import SupportedNilmExperiments, ElectricalAppliances, SupportedExperimentCategories, \
+    StatMeasures
+from modules.reporting import get_final_report, get_statistical_report
 
 with torch.no_grad():
     torch.cuda.empty_cache()
@@ -70,6 +72,7 @@ class NILMExperiments:
         self.iterable_dataset = False
         self.fixed_window = 100
         self.train_test_split = 0.8
+        self.cv_folds = 3
 
     def _set_train_parameters(self, train_params: dict = None):
         if train_params:
@@ -80,12 +83,12 @@ class NILMExperiments:
             self.iterable_dataset = self.train_params[ITERABLE_DATASET]
             self.fixed_window = self.train_params[FIXED_WINDOW]
             self.train_test_split = self.train_params[TRAIN_TEST_SPLIT]
+            self.cv_folds = self.train_params[CV_FOLDS]
         else:
             self._set_default_train_parameters()
 
     def _set_experiment_categories(self, experiment_categories: list = None):
         if experiment_categories:
-            # self.experiment_categories = [experiment.value for experiment in experiment_categories]
             self.experiment_categories = [experiment.value for experiment in experiment_categories
                                           if experiment.value in [SupportedExperimentCategories.SINGLE_CATEGORY.value,
                                                                   SupportedExperimentCategories.MULTI_CATEGORY.value]]
@@ -123,11 +126,50 @@ class NILMExperiments:
         clean_project = self.clean_project
         project_name = self.project_name
         tree_levels = {ROOT_LEVEL: project_name,
-                       'l1': [DIR_RESULTS_NAME],
-                       'l2': devices,
-                       'l3': models,
+                       LEVEL_1_NAME: [DIR_RESULTS_NAME],
+                       LEVEL_2_NAME: devices,
+                       LEVEL_3_NAME: models,
                        EXPERIMENTS_NAME: experiment_categories}
         create_tree_dir(tree_levels=tree_levels, clean=clean_project)
+        self.tree_levels = tree_levels
+
+    def _prepare_cv_parameters(self, device: str = None, window: int = None):
+        try:
+            file = open('{}base{}TrainSetsInfo_{}'.format(self.train_file_dir, self.experiment_volume, device), 'r')
+        except Exception as e:
+            raise e
+        train_set, dates, train_house = None, None, None
+        for line in file:
+            toks = line.split(',')
+            train_set = toks[0]
+            train_house = int(toks[1])
+            dates = [str(toks[2]), str(toks[3].rstrip("\n"))]
+            break
+        file.close()
+        if train_set and dates and train_house:
+            datasource = DatasourceFactory.create_datasource(train_set)
+            time_folds = create_time_folds(start_date=dates[0], end_date=dates[1],
+                                           folds=self.cv_folds, drop_last=False)
+            return datasource, time_folds, train_set, train_house
+        else:
+            raise Exception('Not a proper train file')
+
+    def _prepare_cv_dataset(self, device, fold, window, datasource, time_folds, train_set, train_house):
+
+        train_dates = time_folds[fold][TRAIN_DATES]
+        train_info = []
+        for train_date in train_dates:
+            if len(train_date):
+                train_info.append({
+                    COLUMN_DEVICE: device,
+                    COLUMN_DATASOURCE: datasource,
+                    COLUMN_BUILDING: int(train_house),
+                    COLUMN_DATES: train_date,
+                })
+        train_dataset_all = ElectricityMultiBuildingsDataset(train_info=train_info,
+                                                             window_size=window,
+                                                             sample_period=self.sample_period)
+        return train_dataset_all
 
     def _prepare_train_dataset(self, experiment_category: str = None, device: str = None, window: int = None):
         file = open('{}base{}TrainSetsInfo_{}'.format(self.train_file_dir, experiment_category, device), 'r')
@@ -191,28 +233,42 @@ class NILMExperiments:
         else:
             raise Exception('Empty Dataset object given')
 
-    def _prepare_test_parameters(self, experiment_category: str = None, device: str = None):
-        test_houses = []
-        test_sets = []
-        test_dates = []
-        test_file = open('{}base{}TestSetsInfo_{}'.format(self.test_file_dir, experiment_category, device), 'r')
-        for line in test_file:
-            toks = line.split(',')
-            test_sets.append(toks[0])
-            test_houses.append(toks[1])
-            test_dates.append([str(toks[2]), str(toks[3].rstrip("\n"))])
-        test_file.close()
-        data = {TEST_HOUSE: test_houses, TEST_SET: test_sets, TEST_DATE: test_dates}
-        tests_params = pd.DataFrame(data)
-        return tests_params
+    def _prepare_test_parameters(self, experiment_category: str = None, device: str = None, train_house: int = None,
+                                 train_set: str = None, time_folds: list = None, fold: int = None):
+        if self.experiment_type == SupportedNilmExperiments.CROSS_VALIDATION.value:
+            data = {TEST_HOUSE: [train_house], TEST_SET: [train_set],
+                    TEST_DATE: [time_folds[fold][TEST_DATES]]}
+        else:
+            test_houses = []
+            test_sets = []
+            test_dates = []
+            test_file = open('{}base{}TestSetsInfo_{}'.format(self.test_file_dir, experiment_category, device), 'r')
+            for line in test_file:
+                toks = line.split(',')
+                test_sets.append(toks[0])
+                test_houses.append(toks[1])
+                test_dates.append([str(toks[2]), str(toks[3].rstrip("\n"))])
+            test_file.close()
+            data = {TEST_HOUSE: test_houses, TEST_SET: test_sets, TEST_DATE: test_dates}
+        if data:
+            return pd.DataFrame(data)
+        else:
+            return pd.DataFrame()
 
     def _prepare_train_eval_input(self, experiment_category: str = None, device: str = None, window: int = None,
-                                  model_name: str = None, iteration: int = None,):
-        train_dataset_all = self._prepare_train_dataset(experiment_category, device, window)
+                                  model_name: str = None, iteration: int = None, fold: int = None):
+        if self.experiment_type == SupportedNilmExperiments.CROSS_VALIDATION.value:
+            datasource, time_folds, train_set, train_house = self._prepare_cv_parameters()
+            train_dataset_all = self._prepare_cv_dataset(device, fold, window, datasource,
+                                                         time_folds, train_set, train_house)
+            tests_params = self._prepare_test_parameters(experiment_category, device, train_house,
+                                                         train_set, time_folds, fold)
+        else:
+            train_dataset_all = self._prepare_train_dataset(experiment_category, device, window)
+            tests_params = self._prepare_test_parameters(experiment_category, device)
         train_set_name = train_dataset_all.datasource.get_name()
         train_loader, val_loader = self._prepare_train_val_loaders(train_dataset_all)
         mmax, means, stds, meter_means, meter_stds = self.get_dataset_mmax_means_stds(train_dataset_all)
-        tests_params = self._prepare_test_parameters(experiment_category, device)
 
         eval_params = {COLUMN_DEVICE: device,
                        COLUMN_MMAX: mmax,
@@ -267,6 +323,12 @@ class NILMExperiments:
         else:
             raise Exception('Empty Dataset object given')
 
+    def export_report(self, save_name=STAT_REPORT, stat_measures=[StatMeasures.MEAN]):
+
+        report = get_final_report(self.tree_levels, save=True, root_dir=self.project_name, save_name=save_name)
+        get_statistical_report(save_name=save_name, data=report, data_filename=None,
+                               root_dir=self.project_name, stat_measures=stat_measures)
+
     def run_experiment(self):
         self._create_project_structure()
 
@@ -291,7 +353,7 @@ class NILMExperiments:
 
                     for iteration in range(1, self.iterations + 1):
                         print('#' * 20)
-                        print('Iteration: ', iteration)
+                        print(ITERATION_NAME, ': ', iteration)
                         print('#' * 20)
                         train_eval_args = self._prepare_train_eval_input(experiment_category, device.value, window,
                                                                          model_name, iteration)
@@ -300,7 +362,29 @@ class NILMExperiments:
                         )
 
     def run_cross_validation(self):
-        pass
+        for experiment_category in self.experiment_categories:
+            for model_name in self.models:
+                for device in self.devices:
+                    if self.fixed_window:
+                        window = self.fixed_window
+                    else:
+                        if model_name in WINDOWS:
+                            window = WINDOWS[model_name][device]
+                        else:
+                            raise Exception('Model with name {} has not window specified'.format(model_name))
+
+                    if WINDOW_SIZE in self.model_hparams[model_name]:
+                        self.model_hparams[model_name][WINDOW_SIZE] = window
+
+                    for fold in range(self.cv_folds):
+                        print('#' * 20)
+                        print(FOLD_NAME, ': ', fold)
+                        print('#' * 20)
+                        train_eval_args = self._prepare_train_eval_input(experiment_category, device.value, window,
+                                                                         model_name, None, fold)
+                        self._call_train_eval(
+                            train_eval_args
+                        )
 
     def run_hyperparameter_tuning_cross_validation(self):
         pass
