@@ -36,3 +36,9 @@ class ElectricalAppliances(Enum):
     FRIDGE = 'fridge'
     WASHING_MACHINE = 'washing machine'
     DISH_WASHER = 'dish washer'
+
+
+class SupportedExperimentVolumes(Enum):
+    LARGE_VOLUME = 'large'
+    SMALL_VOLUME = 'small'
+    CV_VOLUME = 'cv'

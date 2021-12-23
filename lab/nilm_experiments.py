@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader, random_split
 from constants.constants import *
 from constants.device_windows import WINDOWS
 from constants.enumerates import SupportedNilmExperiments, ElectricalAppliances, SupportedExperimentCategories, \
-    StatMeasures
+    StatMeasures, SupportedExperimentVolumes
 from modules.reporting import get_final_report, get_statistical_report
 
 with torch.no_grad():
@@ -23,10 +23,10 @@ with torch.no_grad():
 class NILMExperiments:
 
     def __init__(self, project_name: str = None, clean_project: bool = False, experiment_categories: list = None,
-                 devices: list = None, experiment_volume: str = VOLUME_LARGE, save_timeseries_results: bool = True,
-                 inference_cpu: bool = False, data_dir: str = None, train_file_dir: str = None,
-                 test_file_dir: str = None, experiment_type: str = None, train_params: dict = None,
-                 model_hparams: dict = None,
+                 devices: list = None, experiment_volume: str = SupportedExperimentVolumes.LARGE_VOLUME,
+                 save_timeseries_results: bool = True, inference_cpu: bool = False, data_dir: str = None,
+                 train_file_dir: str = None, test_file_dir: str = None, experiment_type: str = None,
+                 train_params: dict = None, model_hparams: dict = None,
                  ):
 
         self.project_name = project_name
@@ -44,6 +44,7 @@ class NILMExperiments:
         self._set_data_dir(data_dir)
         self._set_experiment_volume(experiment_volume)
         self._set_train_test_file_dir(train_file_dir, test_file_dir)
+        self._create_project_structure()
 
     def _set_models(self):
         if self.model_hparams and len(self.model_hparams):
@@ -104,9 +105,9 @@ class NILMExperiments:
 
     def _set_experiment_volume(self, experiment_volume: str = None):
         if experiment_volume:
-            self.experiment_volume = experiment_volume
+            self.experiment_volume = experiment_volume.value
         else:
-            self.experiment_volume = VOLUME_LARGE
+            self.experiment_volume = SupportedExperimentVolumes.LARGE_VOLUME.value
 
     def _set_train_test_file_dir(self, train_file_dir: str = None, test_file_dir: str = None):
         if train_file_dir and os.path.isdir(train_file_dir):
@@ -133,9 +134,11 @@ class NILMExperiments:
         create_tree_dir(tree_levels=tree_levels, clean=clean_project)
         self.tree_levels = tree_levels
 
-    def _prepare_cv_parameters(self, device: str = None, window: int = None):
+    def _prepare_cv_parameters(self, experiment_category: str = None, device: str = None, window: int = None):
+        if not experiment_category:
+            experiment_category = SupportedExperimentCategories.SINGLE_CATEGORY.value
         try:
-            file = open('{}base{}TrainSetsInfo_{}'.format(self.train_file_dir, self.experiment_volume, device), 'r')
+            file = open('{}base{}TrainSetsInfo_{}'.format(self.train_file_dir, experiment_category, device), 'r')
         except Exception as e:
             raise e
         train_set, dates, train_house = None, None, None
@@ -235,8 +238,8 @@ class NILMExperiments:
 
     def _prepare_test_parameters(self, experiment_category: str = None, device: str = None, train_house: int = None,
                                  train_set: str = None, time_folds: list = None, fold: int = None):
-        if self.experiment_type == SupportedNilmExperiments.CROSS_VALIDATION.value:
-            data = {TEST_HOUSE: [train_house], TEST_SET: [train_set],
+        if self.experiment_type == SupportedNilmExperiments.CROSS_VALIDATION:
+            data = {TEST_HOUSE: [str(train_house)], TEST_SET: [train_set],
                     TEST_DATE: [time_folds[fold][TEST_DATES]]}
         else:
             test_houses = []
@@ -257,16 +260,17 @@ class NILMExperiments:
 
     def _prepare_train_eval_input(self, experiment_category: str = None, device: str = None, window: int = None,
                                   model_name: str = None, iteration: int = None, fold: int = None):
-        if self.experiment_type == SupportedNilmExperiments.CROSS_VALIDATION.value:
-            datasource, time_folds, train_set, train_house = self._prepare_cv_parameters()
+        if self.experiment_type == SupportedNilmExperiments.CROSS_VALIDATION:
+            datasource, time_folds, train_set, train_house = self._prepare_cv_parameters(experiment_category, device)
             train_dataset_all = self._prepare_cv_dataset(device, fold, window, datasource,
                                                          time_folds, train_set, train_house)
             tests_params = self._prepare_test_parameters(experiment_category, device, train_house,
                                                          train_set, time_folds, fold)
+            iteration, train_set_name = fold, train_set
         else:
             train_dataset_all = self._prepare_train_dataset(experiment_category, device, window)
             tests_params = self._prepare_test_parameters(experiment_category, device)
-        train_set_name = train_dataset_all.datasource.get_name()
+            train_set_name = train_dataset_all.datasource.get_name()
         train_loader, val_loader = self._prepare_train_val_loaders(train_dataset_all)
         mmax, means, stds, meter_means, meter_stds = self.get_dataset_mmax_means_stds(train_dataset_all)
 
@@ -323,14 +327,13 @@ class NILMExperiments:
         else:
             raise Exception('Empty Dataset object given')
 
-    def export_report(self, save_name=STAT_REPORT, stat_measures=[StatMeasures.MEAN]):
+    def export_report(self, save_name=STAT_REPORT, stat_measures: list = None):
 
         report = get_final_report(self.tree_levels, save=True, root_dir=self.project_name, save_name=save_name)
         get_statistical_report(save_name=save_name, data=report, data_filename=None,
                                root_dir=self.project_name, stat_measures=stat_measures)
 
     def run_experiment(self):
-        self._create_project_structure()
 
         if self.experiment_type in self.experiments.keys():
             self.experiments[self.experiment_type]()
