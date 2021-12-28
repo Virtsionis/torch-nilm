@@ -1,21 +1,18 @@
 import os
-from typing import Union
-
 import torch
 import pandas as pd
-from datasources.datasource import Datasource
-
-from callbacks.callbacks_factories import TrainerCallbacksFactory
-from datasources.datasource import DatasourceFactory
-from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset, ElectricityIterableDataset
-from modules.helpers import create_tree_dir, create_time_folds
-from modules.nilm_trainer import train_eval
-from torch.utils.data import DataLoader, random_split
+from typing import Union
 from constants.constants import *
+from modules.nilm_trainer import train_eval
 from constants.device_windows import WINDOWS
-from constants.enumerates import SupportedNilmExperiments, ElectricalAppliances, SupportedExperimentCategories, \
-    StatMeasures, SupportedExperimentVolumes
+from datasources.datasource import Datasource
+from datasources.datasource import DatasourceFactory
+from torch.utils.data import DataLoader, random_split
+from modules.helpers import create_tree_dir, create_time_folds
+from callbacks.callbacks_factories import TrainerCallbacksFactory
 from modules.reporting import get_final_report, get_statistical_report
+from constants.enumerates import SupportedNilmExperiments, SupportedExperimentCategories, SupportedExperimentVolumes
+from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset, ElectricityIterableDataset
 
 with torch.no_grad():
     torch.cuda.empty_cache()
@@ -27,7 +24,7 @@ class NILMExperiments:
                  devices: list = None, experiment_volume: str = SupportedExperimentVolumes.LARGE_VOLUME,
                  save_timeseries_results: bool = True, inference_cpu: bool = False, data_dir: str = None,
                  train_file_dir: str = None, test_file_dir: str = None, experiment_type: str = None,
-                 train_params: dict = None, model_hparams: dict = None,
+                 train_params: dict = None, model_hparams: dict = None, hparam_tuning: dict = None,
                  ):
 
         self.project_name = project_name
@@ -35,6 +32,7 @@ class NILMExperiments:
         self.save_timeseries = save_timeseries_results
         self.inference_cpu = inference_cpu
         self.model_hparams = model_hparams
+        self.hparam_tuning = hparam_tuning
         self.experiment_type = experiment_type
         self.train_params = train_params
         self._set_models()
@@ -55,8 +53,9 @@ class NILMExperiments:
 
     def _set_models(self):
         if self.model_hparams and len(self.model_hparams):
-            self.models = self.model_hparams.keys()
             self.models = [*self.model_hparams]
+        elif self.hparam_tuning and len(self.hparam_tuning):
+            self.models = [*self.hparam_tuning]
         else:
             raise Exception('No models or model hyper parameters are defined')
 
@@ -269,7 +268,8 @@ class NILMExperiments:
 
     def _prepare_train_eval_input(self, experiment_category: str = None, device: str = None, window: int = None,
                                   model_name: str = None, iteration: int = None, fold: int = None):
-        if self.experiment_type == SupportedNilmExperiments.CROSS_VALIDATION:
+        if self.experiment_type in [SupportedNilmExperiments.CROSS_VALIDATION,
+                                    SupportedNilmExperiments.HYPERPARAM_TUNE_CV]:
             datasource, time_folds, train_set, train_house = self._prepare_cv_parameters(experiment_category, device)
             train_dataset_all = self._prepare_cv_dataset(device, fold, window, datasource,
                                                          time_folds, train_house)
@@ -355,15 +355,22 @@ class NILMExperiments:
         for experiment_category in self.experiment_categories:
             for model_name in self.models:
                 for device in self.devices:
-                    if self.fixed_window:
-                        window = self.fixed_window
+                    if WINDOW_SIZE in self.model_hparams[model_name] and self.model_hparams[model_name][WINDOW_SIZE]:
+                        window = self.model_hparams[model_name][WINDOW_SIZE]
+                    elif INPUT_DIM in self.model_hparams[model_name] and self.model_hparams[model_name][WINDOW_SIZE]:
+                        window = self.model_hparams[model_name][INPUT_DIM]
                     else:
-                        if model_name in WINDOWS:
-                            window = WINDOWS[model_name][device]
+                        if self.fixed_window:
+                            window = self.fixed_window
                         else:
-                            raise Exception('Model with name {} has not window specified'.format(model_name))
-                    if WINDOW_SIZE in self.model_hparams[model_name]:
-                        self.model_hparams[model_name][WINDOW_SIZE] = window
+                            if model_name in WINDOWS:
+                                window = WINDOWS[model_name][device]
+                            else:
+                                raise Exception('Model with name {} has not window specified'.format(model_name))
+                        if WINDOW_SIZE in self.model_hparams[model_name]:
+                            self.model_hparams[model_name][WINDOW_SIZE] = window
+                        elif INPUT_DIM in self.model_hparams[model_name]:
+                            self.model_hparams[model_name][INPUT_DIM] = window
 
                     for iteration in range(1, self.iterations + 1):
                         print('#' * 20)
@@ -379,16 +386,18 @@ class NILMExperiments:
         for experiment_category in self.experiment_categories:
             for model_name in self.models:
                 for device in self.devices:
-                    if self.fixed_window:
-                        window = self.fixed_window
+                    if WINDOW_SIZE in self.model_hparams[model_name] and self.model_hparams[model_name][WINDOW_SIZE]:
+                        window = self.model_hparams[model_name][WINDOW_SIZE]
                     else:
-                        if model_name in WINDOWS:
-                            window = WINDOWS[model_name][device]
+                        if self.fixed_window:
+                            window = self.fixed_window
                         else:
-                            raise Exception('Model with name {} has not window specified'.format(model_name))
-
-                    if WINDOW_SIZE in self.model_hparams[model_name]:
-                        self.model_hparams[model_name][WINDOW_SIZE] = window
+                            if model_name in WINDOWS:
+                                window = WINDOWS[model_name][device]
+                            else:
+                                raise Exception('Model with name {} has not window specified'.format(model_name))
+                        if WINDOW_SIZE in self.model_hparams[model_name]:
+                            self.model_hparams[model_name][WINDOW_SIZE] = window
 
                     for fold in range(self.cv_folds):
                         print('#' * 20)
@@ -401,4 +410,34 @@ class NILMExperiments:
                         )
 
     def run_hyperparameter_tuning_cross_validation(self):
-        pass
+        for experiment_category in self.experiment_categories:
+            for model_name in self.models:
+                for model_hparams in self.hparam_tuning[model_name]:
+                    self.model_hparams = {model_name: model_hparams}
+                    for device in self.devices:
+                        if WINDOW_SIZE in self.model_hparams[model_name] and self.model_hparams[model_name][WINDOW_SIZE]:
+                            window = self.model_hparams[model_name][WINDOW_SIZE]
+                        elif INPUT_DIM in self.model_hparams[model_name] and self.model_hparams[model_name][INPUT_DIM]:
+                            window = self.model_hparams[model_name][INPUT_DIM]
+                        else:
+                            if self.fixed_window:
+                                window = self.fixed_window
+                            else:
+                                if model_name in WINDOWS:
+                                    window = WINDOWS[model_name][device]
+                                else:
+                                    raise Exception('Model with name {} has not window specified'.format(model_name))
+                            if WINDOW_SIZE in self.model_hparams[model_name]:
+                                self.model_hparams[model_name][WINDOW_SIZE] = window
+                            elif INPUT_DIM in model_hparams:
+                                self.model_hparams[model_name][INPUT_DIM] = window
+
+                        for fold in range(self.cv_folds):
+                            print('#' * 20)
+                            print(FOLD_NAME, ': ', fold)
+                            print('#' * 20)
+                            train_eval_args = self._prepare_train_eval_input(experiment_category, device, window,
+                                                                             model_name, None, fold)
+                            self._call_train_eval(
+                                train_eval_args
+                            )

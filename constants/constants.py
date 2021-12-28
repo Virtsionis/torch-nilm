@@ -3,6 +3,7 @@ BASE_NETWORK = "BASE_NETWORK"
 EPOCHS = 'epochs'
 FIXED_WINDOW = 'fixed_window'
 WINDOW_SIZE = 'window_size'
+INPUT_DIM = 'input_dim'
 ITERATIONS = 'iterations'
 SAMPLE_PERIOD = 'sample_period'
 BATCH_SIZE = 'batch_size'
