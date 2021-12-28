@@ -147,9 +147,8 @@ def get_final_report(tree_levels: dict, save: bool = True, root_dir: object = No
         path = '/'.join([root_dir, DIR_RESULTS_NAME, ''])
     data = pd.DataFrame(columns=columns)
 
-    cat_paths = get_tree_paths(tree_levels=tree_levels)
+    cat_paths = get_tree_paths(tree_levels=tree_levels, output_dir=output_dir)
     exp_paths = get_exp_paths(cat_paths)
-
     for exp_path in exp_paths:
         for item in os.listdir(exp_path):
             if REPORT in item:
@@ -167,7 +166,6 @@ def get_final_report(tree_levels: dict, save: bool = True, root_dir: object = No
     data = data[columns]
     data = data.sort_values(by=[COLUMN_APPLIANCE, COLUMN_EXPERIMENT])
     data[COLUMN_EPOCHS] = data[COLUMN_EPOCHS].astype(DataTypes.INT.value)
-    print(data)
     if save:
         data.to_csv(path + save_name + CSV_EXTENSION, index=False)
     return data

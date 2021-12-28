@@ -1,30 +1,33 @@
-from lab.NILM_experiments import NilmExperiments
+from lab.nilm_experiments import NILMExperiments
 from constants.constants import *
-from constants.enumerates import ElectricalAppliances, SupportedExperimentCategories, SupportedNilmExperiments
+from constants.enumerates import ElectricalAppliances, SupportedExperimentCategories, \
+    SupportedNilmExperiments, SupportedExperimentVolumes
 
 train_params = {
-            EPOCHS: 3,
-            ITERATIONS: 2,
+            EPOCHS: 1,
+            ITERATIONS: 1,
             SAMPLE_PERIOD: 6,
             BATCH_SIZE: 512,
             ITERABLE_DATASET: False,
-            FIXED_WINDOW: None,
+            FIXED_WINDOW: 50,
             TRAIN_TEST_SPLIT: 0.8,
+            CV_FOLDS: 2,
         }
 
 devices = [
              ElectricalAppliances.KETTLE,
              ElectricalAppliances.MICROWAVE,
-             ElectricalAppliances.FRIDGE,
-             ElectricalAppliances.WASHING_MACHINE,
+             # ElectricalAppliances.FRIDGE,
+             # ElectricalAppliances.WASHING_MACHINE,
             ]
 
 experiment_categories = [
     SupportedExperimentCategories.SINGLE_CATEGORY,
-    SupportedExperimentCategories.MULTI_CATEGORY
+    # SupportedExperimentCategories.MULTI_CATEGORY
 ]
 
 experiment_type = SupportedNilmExperiments.BENCHMARK
+# experiment_type = SupportedNilmExperiments.CROSS_VALIDATION
 
 model_hparams = {
     'SimpleGru': {},
@@ -35,11 +38,11 @@ model_hparams = {
     #          'input_dim': None, 'hidden_dim': 256, 'dropout': 0},
 }
 
-experiment = NilmExperiments(project_name='API_TEST',
+experiment = NILMExperiments(project_name='API_TEST',
                              clean_project=False,
                              experiment_categories=experiment_categories,
                              devices=devices,
-                             experiment_volume=VOLUME_LARGE,
+                             experiment_volume=SupportedExperimentVolumes.LARGE_VOLUME,
                              # data_dir=None,
                              save_timeseries_results=True,
                              inference_cpu=False,
@@ -49,5 +52,6 @@ experiment = NilmExperiments(project_name='API_TEST',
                              train_params=train_params,
                              model_hparams=model_hparams
                              )
-experiment.run_experiment()
+# experiment.run_experiment()
+experiment.export_report()
 

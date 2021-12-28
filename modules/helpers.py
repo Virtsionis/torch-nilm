@@ -47,7 +47,6 @@ def create_tree_dir(tree_levels: dict = None, clean: bool = False, plots: bool =
             base_paths = paths
         except:
             end = True
-    print(1)
 
 
 def display_res(root_dir=None, model_name=None, device=None,
