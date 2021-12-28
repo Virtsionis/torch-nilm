@@ -732,25 +732,25 @@ class PAFnet(BaseModel):
         return out
 
 class DAE(BaseModel):
-    def __init__(self, sequence_len, dropout=0.2):
+    def __init__(self, input_dim, dropout=0.2):
         super().__init__()
-        self.sequence_len = sequence_len
+        self.sequence_len = input_dim
         self.encoder=nn.Sequential(
             nn.Conv1d(in_channels=1, out_channels=8, kernel_size=4, padding='same', stride=1),
             nn.Flatten(),
             nn.Dropout(dropout),
-            nn.Linear(sequence_len * 8, sequence_len * 8),
+            nn.Linear(input_dim * 8, input_dim * 8),
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Linear(sequence_len*8, sequence_len//2),
+            nn.Linear(input_dim * 8, input_dim // 2),
             nn.ReLU(),
             nn.Dropout(dropout),
         )
         self.decoder=nn.Sequential(
-            nn.Linear(sequence_len//2, sequence_len*8),
+            nn.Linear(input_dim // 2, input_dim * 8),
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Unflatten(1, (8, sequence_len)),
+            nn.Unflatten(1, (8, input_dim)),
             nn.ConvTranspose1d(in_channels=8, out_channels=1, kernel_size=4,
                                padding=131, stride=2, output_padding=1, dilation=2)
         )
