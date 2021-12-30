@@ -11,7 +11,8 @@ from torch.utils.data import DataLoader, random_split
 from modules.helpers import create_tree_dir, create_time_folds
 from callbacks.callbacks_factories import TrainerCallbacksFactory
 from modules.reporting import get_final_report, get_statistical_report
-from constants.enumerates import SupportedNilmExperiments, SupportedExperimentCategories, SupportedExperimentVolumes
+from constants.enumerates import SupportedNilmExperiments, SupportedExperimentCategories, SupportedExperimentVolumes, \
+    ElectricalAppliances
 from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset, ElectricityIterableDataset
 
 with torch.no_grad():
@@ -21,7 +22,7 @@ with torch.no_grad():
 class NILMExperiments:
 
     def __init__(self, project_name: str = None, clean_project: bool = False, experiment_categories: list = None,
-                 devices: list = None, save_timeseries_results: bool = True, inference_cpu: bool = False,
+                 devices: list = None, save_timeseries_results: bool = True,
                  experiment_volume: SupportedExperimentVolumes = SupportedExperimentVolumes.LARGE_VOLUME,
                  experiment_type: SupportedNilmExperiments = None, train_params: dict = None,
                  model_hparams: dict = None, hparam_tuning: dict = None, data_dir: str = None,
@@ -31,24 +32,73 @@ class NILMExperiments:
         self.project_name = project_name
         self.clean_project = clean_project
         self.save_timeseries = save_timeseries_results
-        self.inference_cpu = inference_cpu
         self.model_hparams = model_hparams
         self.hparam_tuning = hparam_tuning
         self.experiment_type = experiment_type
         self.train_params = train_params
+        self.devices = devices
+        self.experiment_categories = experiment_categories
+        self.experiment_volume = experiment_volume
+        self.data_dir = data_dir
+        self.train_file_dir = train_file_dir
+        self.test_file_dir = test_file_dir
+        # self._set_devices(self.devices)
+        # self._set_train_parameters(self.train_params)
+        # self._set_experiment_categories(self.experiment_categories)
+        # self._set_data_dir(self.data_dir)
+        # self._set_experiment_volume(self.experiment_volume)
+        # self._set_train_test_file_dir(self.train_file_dir, self.test_file_dir)
+
+    def _prepare_project_properties(self, devices: list = None, train_params: dict = None, data_dir: str = None,
+                                    train_file_dir: str = None, test_file_dir: str = None,
+                                    experiment_volume: SupportedExperimentVolumes = None, hparam_tuning: dict = None,
+                                    experiment_categories: list = None, model_hparams: dict = None,
+                                    experiment_type: SupportedNilmExperiments = None):
+
+        self.model_hparams = model_hparams
+        self.hparam_tuning = hparam_tuning
         self._set_models()
-        self._set_devices(devices)
-        self._set_train_parameters(train_params)
+
+        if devices:
+            self._set_devices(devices)
+        else:
+            self._set_devices(self.devices)
+
+        if train_params:
+            self._set_train_parameters(train_params)
+        else:
+            self._set_train_parameters(self.train_params)
+
         self._set_supported_experiments()
-        self._set_experiment_categories(experiment_categories)
-        self._set_data_dir(data_dir)
-        self._set_experiment_volume(experiment_volume)
-        self._set_train_test_file_dir(train_file_dir, test_file_dir)
+
+        if experiment_type:
+            self.experiment_type = experiment_type
+
+        if experiment_categories:
+            self._set_experiment_categories(experiment_categories)
+        else:
+            self._set_experiment_categories(self.experiment_categories)
+
+        if data_dir:
+            self._set_data_dir(data_dir)
+        else:
+            self._set_data_dir(self.data_dir)
+
+        if experiment_volume:
+            self._set_experiment_volume(experiment_volume)
+        else:
+            self._set_experiment_volume(self.experiment_volume)
+
+        if train_file_dir and test_file_dir:
+            self._set_train_test_file_dir(train_file_dir, test_file_dir)
+        else:
+            self._set_train_test_file_dir(self.train_file_dir, self.test_file_dir)
+
         self._create_project_structure()
 
     def _set_devices(self, devices: list = None):
         if devices and len(devices):
-            self.devices = [device.value for device in devices]
+            self.devices = [device.value if isinstance(device, ElectricalAppliances) else device for device in devices]
         else:
             raise Exception('No electrical devices are defined')
 
@@ -87,6 +137,7 @@ class NILMExperiments:
         if train_params:
             self.epochs = self.train_params[EPOCHS]
             self.iterations = self.train_params[ITERATIONS]
+            self.inference_cpu = self.train_params[INFERENCE_CPU]
             self.sample_period = self.train_params[SAMPLE_PERIOD]
             self.batch_size = self.train_params[BATCH_SIZE]
             self.iterable_dataset = self.train_params[ITERABLE_DATASET]
@@ -98,9 +149,16 @@ class NILMExperiments:
 
     def _set_experiment_categories(self, experiment_categories: list = None):
         if experiment_categories:
-            self.experiment_categories = [experiment.value for experiment in experiment_categories
-                                          if experiment.value in [SupportedExperimentCategories.SINGLE_CATEGORY.value,
-                                                                  SupportedExperimentCategories.MULTI_CATEGORY.value]]
+            temp = []
+            for experiment_category in experiment_categories:
+                if isinstance(experiment_category, SupportedExperimentCategories):
+                    temp.append(experiment_category.value)
+                else:
+                    temp.append(experiment_category)
+            self.experiment_categories = temp
+            # self.experiment_categories = [experiment.value for experiment in experiment_categories
+            #                               if experiment.value in [SupportedExperimentCategories.SINGLE_CATEGORY.value,
+            #                                                       SupportedExperimentCategories.MULTI_CATEGORY.value]]
         else:
             self.experiment_categories = [SupportedExperimentCategories.SINGLE_CATEGORY,
                                           SupportedExperimentCategories.MULTI_CATEGORY]
@@ -113,7 +171,10 @@ class NILMExperiments:
 
     def _set_experiment_volume(self, experiment_volume: SupportedExperimentVolumes = None):
         if experiment_volume:
-            self.experiment_volume = experiment_volume.value
+            if isinstance(self.experiment_volume, SupportedExperimentVolumes):
+                self.experiment_volume = experiment_volume.value
+            else:
+                self.experiment_volume = experiment_volume
         else:
             self.experiment_volume = SupportedExperimentVolumes.LARGE_VOLUME.value
 
@@ -133,14 +194,19 @@ class NILMExperiments:
         devices = self.devices
         clean_project = self.clean_project
         project_name = self.project_name
+        if isinstance(self.experiment_type, SupportedNilmExperiments):
+            experiment_type = self.experiment_type.value
+        else:
+            experiment_type = self.experiment_type
         tree_levels = {ROOT_LEVEL: project_name,
-                       EXPERIMENTS_LEVEL: [self.experiment_type.value],
+                       EXPERIMENTS_LEVEL: [experiment_type],
                        LEVEL_1_NAME: [DIR_RESULTS_NAME],
                        LEVEL_2_NAME: devices,
                        LEVEL_3_NAME: self.models,
                        EXPERIMENTS_NAME: experiment_categories}
         create_tree_dir(tree_levels=tree_levels, clean=clean_project)
         self.tree_levels = tree_levels
+        self.clean_project = False
 
     def _prepare_cv_parameters(self, experiment_category: SupportedExperimentVolumes = None, device: str = None):
         if not experiment_category:
@@ -340,7 +406,24 @@ class NILMExperiments:
         else:
             raise Exception('Empty Dataset object given')
 
-    def export_report(self, save_name=STAT_REPORT, stat_measures: list = None):
+    def export_report(self, save_name=STAT_REPORT, stat_measures: list = None, devices: list = None,
+                      train_params: list = None, data_dir: str = None, train_file_dir: str = None,
+                      test_file_dir: str = None, model_hparams: dict = None, hparam_tuning: dict = None,
+                      experiment_categories: list = None, experiment_volume: SupportedExperimentVolumes = None,
+                      experiment_type: SupportedNilmExperiments = None, prepare_project_properties: bool = True,
+                      ):
+        if prepare_project_properties:
+            self._prepare_project_properties(devices=devices,
+                                             train_params=train_params,
+                                             data_dir=data_dir,
+                                             train_file_dir=train_file_dir,
+                                             test_file_dir=test_file_dir,
+                                             model_hparams=model_hparams,
+                                             hparam_tuning=hparam_tuning,
+                                             experiment_volume=experiment_volume,
+                                             experiment_categories=experiment_categories,
+                                             experiment_type=experiment_type,
+                                             )
 
         if EXPERIMENTS_LEVEL in self.tree_levels and self.tree_levels[EXPERIMENTS_LEVEL] \
                 and isinstance(self.tree_levels[EXPERIMENTS_LEVEL], list) and len(self.tree_levels[EXPERIMENTS_LEVEL]):
@@ -354,14 +437,30 @@ class NILMExperiments:
                                root_dir=root_dir,
                                stat_measures=stat_measures)
 
-    def run_experiment(self):
+    # def run_experiment(self):
+    #
+    #     if self.experiment_type in self.experiments.keys():
+    #         self.experiments[self.experiment_type]()
+    #     else:
+    #         raise Exception('Not supported experiment with name: {}'.format(self.experiment_type))
 
-        if self.experiment_type in self.experiments.keys():
-            self.experiments[self.experiment_type]()
-        else:
-            raise Exception('Not supported experiment with name: {}'.format(self.experiment_type))
+    def run_benchmark(self, devices: list = None, train_params: list = None, data_dir: str = None,
+                      train_file_dir: str = None, test_file_dir: str = None, model_hparams: dict = None,
+                      experiment_volume: SupportedExperimentVolumes = None, experiment_categories: list = None,
+                      export_report: bool = True, stat_measures: list = None,):
 
-    def run_benchmark(self):
+        self._prepare_project_properties(devices=devices,
+                                         train_params=train_params,
+                                         data_dir=data_dir,
+                                         train_file_dir=train_file_dir,
+                                         test_file_dir=test_file_dir,
+                                         experiment_volume=experiment_volume,
+                                         model_hparams=model_hparams,
+                                         hparam_tuning=None,
+                                         experiment_categories=experiment_categories,
+                                         experiment_type=SupportedNilmExperiments.BENCHMARK,
+                                         )
+
         for experiment_category in self.experiment_categories:
             for model_name in self.models:
                 for device in self.devices:
@@ -391,8 +490,29 @@ class NILMExperiments:
                         self._call_train_eval(
                             train_eval_args
                         )
+        if export_report:
+            self.export_report(save_name=STAT_REPORT,
+                               stat_measures=stat_measures,
+                               prepare_project_properties=False,
+                               )
 
-    def run_cross_validation(self):
+    def run_cross_validation(self, devices: list = None, train_params: list = None, data_dir: str = None,
+                             train_file_dir: str = None, test_file_dir: str = None, model_hparams: dict = None,
+                             experiment_volume: SupportedExperimentVolumes = None, experiment_categories: list = None,
+                             export_report: bool = True, stat_measures: list = None,):
+
+        self._prepare_project_properties(devices=devices,
+                                         train_params=train_params,
+                                         data_dir=data_dir,
+                                         train_file_dir=train_file_dir,
+                                         test_file_dir=test_file_dir,
+                                         experiment_volume=experiment_volume,
+                                         model_hparams=model_hparams,
+                                         hparam_tuning=None,
+                                         experiment_categories=experiment_categories,
+                                         experiment_type=SupportedNilmExperiments.CROSS_VALIDATION,
+                                         )
+
         for experiment_category in self.experiment_categories:
             for model_name in self.models:
                 for device in self.devices:
@@ -418,8 +538,30 @@ class NILMExperiments:
                         self._call_train_eval(
                             train_eval_args
                         )
+        if export_report:
+            self.export_report(save_name=STAT_REPORT,
+                               stat_measures=stat_measures,
+                               prepare_project_properties=False,
+                               )
 
-    def run_hyperparameter_tuning_cross_validation(self):
+    def run_hyperparameter_tuning_cross_validation(self, devices: list = None, train_params: list = None, data_dir: str = None,
+                                                   train_file_dir: str = None, test_file_dir: str = None,
+                                                   experiment_volume: SupportedExperimentVolumes = None,
+                                                   hparam_tuning: dict = None, experiment_categories: list = None,
+                                                   export_report: bool = True,  stat_measures: list = None,):
+
+        self._prepare_project_properties(devices=devices,
+                                         train_params=train_params,
+                                         data_dir=data_dir,
+                                         train_file_dir=train_file_dir,
+                                         test_file_dir=test_file_dir,
+                                         experiment_volume=experiment_volume,
+                                         model_hparams=None,
+                                         hparam_tuning=hparam_tuning,
+                                         experiment_categories=experiment_categories,
+                                         experiment_type=SupportedNilmExperiments.HYPERPARAM_TUNE_CV,
+                                         )
+
         for experiment_category in self.experiment_categories:
             for model_name in self.models:
                 for model_hparams in self.hparam_tuning[model_name]:
@@ -451,3 +593,8 @@ class NILMExperiments:
                             self._call_train_eval(
                                 train_eval_args
                             )
+        if export_report:
+            self.export_report(save_name=STAT_REPORT,
+                               stat_measures=stat_measures,
+                               prepare_project_properties=False,
+                               )
