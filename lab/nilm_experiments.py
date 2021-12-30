@@ -42,12 +42,6 @@ class NILMExperiments:
         self.data_dir = data_dir
         self.train_file_dir = train_file_dir
         self.test_file_dir = test_file_dir
-        # self._set_devices(self.devices)
-        # self._set_train_parameters(self.train_params)
-        # self._set_experiment_categories(self.experiment_categories)
-        # self._set_data_dir(self.data_dir)
-        # self._set_experiment_volume(self.experiment_volume)
-        # self._set_train_test_file_dir(self.train_file_dir, self.test_file_dir)
 
     def _prepare_project_properties(self, devices: list = None, train_params: dict = None, data_dir: str = None,
                                     train_file_dir: str = None, test_file_dir: str = None,
@@ -156,9 +150,6 @@ class NILMExperiments:
                 else:
                     temp.append(experiment_category)
             self.experiment_categories = temp
-            # self.experiment_categories = [experiment.value for experiment in experiment_categories
-            #                               if experiment.value in [SupportedExperimentCategories.SINGLE_CATEGORY.value,
-            #                                                       SupportedExperimentCategories.MULTI_CATEGORY.value]]
         else:
             self.experiment_categories = [SupportedExperimentCategories.SINGLE_CATEGORY,
                                           SupportedExperimentCategories.MULTI_CATEGORY]
@@ -437,12 +428,6 @@ class NILMExperiments:
                                root_dir=root_dir,
                                stat_measures=stat_measures)
 
-    # def run_experiment(self):
-    #
-    #     if self.experiment_type in self.experiments.keys():
-    #         self.experiments[self.experiment_type]()
-    #     else:
-    #         raise Exception('Not supported experiment with name: {}'.format(self.experiment_type))
 
     def run_benchmark(self, devices: list = None, train_params: list = None, data_dir: str = None,
                       train_file_dir: str = None, test_file_dir: str = None, model_hparams: dict = None,
