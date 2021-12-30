@@ -21,10 +21,11 @@ with torch.no_grad():
 class NILMExperiments:
 
     def __init__(self, project_name: str = None, clean_project: bool = False, experiment_categories: list = None,
-                 devices: list = None, experiment_volume: str = SupportedExperimentVolumes.LARGE_VOLUME,
-                 save_timeseries_results: bool = True, inference_cpu: bool = False, data_dir: str = None,
-                 train_file_dir: str = None, test_file_dir: str = None, experiment_type: str = None,
-                 train_params: dict = None, model_hparams: dict = None, hparam_tuning: dict = None,
+                 devices: list = None, save_timeseries_results: bool = True, inference_cpu: bool = False,
+                 experiment_volume: SupportedExperimentVolumes = SupportedExperimentVolumes.LARGE_VOLUME,
+                 experiment_type: SupportedNilmExperiments = None, train_params: dict = None,
+                 model_hparams: dict = None, hparam_tuning: dict = None, data_dir: str = None,
+                 train_file_dir: str = None, test_file_dir: str = None,
                  ):
 
         self.project_name = project_name
@@ -133,6 +134,7 @@ class NILMExperiments:
         clean_project = self.clean_project
         project_name = self.project_name
         tree_levels = {ROOT_LEVEL: project_name,
+                       EXPERIMENTS_LEVEL: [self.experiment_type.value],
                        LEVEL_1_NAME: [DIR_RESULTS_NAME],
                        LEVEL_2_NAME: devices,
                        LEVEL_3_NAME: self.models,
@@ -295,10 +297,12 @@ class NILMExperiments:
             'model_name': model_name,
             'device': device,
             'window_size': window,
-            'exp_type': experiment_category,
+            'experiment_category': experiment_category,
+            'experiment_type': self.experiment_type.value,
             'sample_period': self.sample_period,
             'batch_size': self.batch_size,
             'iteration': iteration,
+            'inference_cpu': self.inference_cpu,
             'root_dir': self.project_name,
             'model_hparams': self.model_hparams[model_name],
             'save_timeseries': self.save_timeseries,
@@ -338,10 +342,16 @@ class NILMExperiments:
 
     def export_report(self, save_name=STAT_REPORT, stat_measures: list = None):
 
-        report = get_final_report(self.tree_levels, save=True, root_dir=self.project_name, save_name=save_name)
+        if EXPERIMENTS_LEVEL in self.tree_levels and self.tree_levels[EXPERIMENTS_LEVEL] \
+                and isinstance(self.tree_levels[EXPERIMENTS_LEVEL], list) and len(self.tree_levels[EXPERIMENTS_LEVEL]):
+            root_dir = '/'.join([self.project_name, self.tree_levels[EXPERIMENTS_LEVEL][0], ''])
+        else:
+            root_dir = self.project_name
+
+        report = get_final_report(self.tree_levels, save=True, root_dir=root_dir, save_name=save_name)
         get_statistical_report(save_name=save_name,
                                data=report,
-                               root_dir=self.project_name,
+                               root_dir=root_dir,
                                stat_measures=stat_measures)
 
     def run_experiment(self):

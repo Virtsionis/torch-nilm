@@ -10,11 +10,12 @@ from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityIterableDataset, ElectricityDataset
 
 
-def train_eval(model_name: str, train_loader: DataLoader, exp_type: str, tests_params: pd.DataFrame, sample_period: int,
+def train_eval(model_name: str, train_loader: DataLoader, tests_params: pd.DataFrame, sample_period: int,
                batch_size: int, experiment_name: str, iteration: int, device: str, mmax: float,
                means: float, stds: float, meter_means: float, meter_stds: float, window_size: int, root_dir: str,
                model_hparams: dict, eval_params: dict, save_timeseries: bool = True, epochs: int = 5, callbacks=None,
-               val_loader: DataLoader = None, rolling_window: bool = True, inference_cpu: bool = True,):
+               val_loader: DataLoader = None, rolling_window: bool = True, inference_cpu: bool = False,
+               experiment_type: str = None, experiment_category: str = None,):
     """
     Inputs:
         model_name - Name of the model you want to run.
@@ -69,7 +70,8 @@ def train_eval(model_name: str, train_loader: DataLoader, exp_type: str, tests_p
         final_experiment_name = experiment_name + TEST_ID + building + '_' + dataset
 
         save_appliance_report(root_dir=root_dir, model_name=model_name, device=device,
-                              exp_type=exp_type, save_timeseries=save_timeseries,
-                              experiment_name=final_experiment_name, iteration=iteration,
-                              model_results=model_results, model_hparams=model_hparams, epochs=epochs)
+                              experiment_type=experiment_type, experiment_category=experiment_category,
+                              save_timeseries=save_timeseries, experiment_name=final_experiment_name,
+                              iteration=iteration, model_results=model_results, model_hparams=model_hparams,
+                              epochs=epochs)
         del test_dataset, test_loader, ground, final_experiment_name

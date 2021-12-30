@@ -25,8 +25,8 @@ def get_supported_stat_measures():
     return [measure.name for measure in STATISTIC_MEASURES.keys()]
 
 
-def get_statistical_report(save_name: object = None, data: pd.DataFrame = None, data_filename: object = None,
-                           root_dir: object = None, output_dir: object = DIR_OUTPUT_NAME, stat_measures: list = []):
+def get_statistical_report(save_name: str = None, data: pd.DataFrame = None, data_filename: str = None,
+                           root_dir: str = None, output_dir: str = DIR_OUTPUT_NAME, stat_measures: list = []):
     """
     Method that re-formats the report from get_final_report to an excel-type report with statistical calculations.
     The data can either be loaded from disk or given as pandas DataFrame.
@@ -105,8 +105,8 @@ def get_statistical_report(save_name: object = None, data: pd.DataFrame = None, 
                               )
 
 
-def get_final_report(tree_levels: dict, save: bool = True, root_dir: object = None, output_dir: str = DIR_OUTPUT_NAME,
-                     save_name: object = None, metrics: list = []):
+def get_final_report(tree_levels: dict, save: bool = True, root_dir: str = None, output_dir: str = DIR_OUTPUT_NAME,
+                     save_name: str = None, metrics: list = []):
     """
     This method merges all produced reports in one csv file. To generate the
     report file, the tree structure of the resulted reports should be given.
@@ -171,17 +171,17 @@ def get_final_report(tree_levels: dict, save: bool = True, root_dir: object = No
     return data
 
 
-def save_appliance_report(root_dir: object = None, model_name: object = None, device: object = None,
-                          exp_type: object = None, save_timeseries: bool = True, experiment_name: object = None,
-                          iteration: int = None, model_results: dict = None, model_hparams: dict = None,
-                          epochs: int = None, output_dir: str = DIR_OUTPUT_NAME):
+def save_appliance_report(root_dir: str = None, model_name: str = None, device: str = None,
+                          experiment_type: str = None, experiment_category: str = None, save_timeseries: bool = True,
+                          experiment_name: str = None, iteration: int = None, model_results: dict = None,
+                          model_hparams: dict = None, epochs: int = None, output_dir: str = DIR_OUTPUT_NAME,):
     if output_dir:
         root_dir = '/'.join([os.getcwd(), output_dir, root_dir])
     else:
         root_dir = '/'.join([os.getcwd(), root_dir])
 
-    path = '/'.join([root_dir, DIR_RESULTS_NAME, device, model_name,
-                     exp_type, experiment_name, ''])
+    path = '/'.join([root_dir, experiment_type, DIR_RESULTS_NAME, device, model_name,
+                     experiment_category, experiment_name, ''])
     report_filename = REPORT_PREFIX + experiment_name + CSV_EXTENSION
     data_filename = experiment_name + ITERATION_ID + str(iteration) + CSV_EXTENSION
 
