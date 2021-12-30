@@ -428,7 +428,6 @@ class NILMExperiments:
                                root_dir=root_dir,
                                stat_measures=stat_measures)
 
-
     def run_benchmark(self, devices: list = None, train_params: list = None, data_dir: str = None,
                       train_file_dir: str = None, test_file_dir: str = None, model_hparams: dict = None,
                       experiment_volume: SupportedExperimentVolumes = None, experiment_categories: list = None,
