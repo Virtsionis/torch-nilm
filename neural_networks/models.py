@@ -733,12 +733,12 @@ class PAFnet(BaseModel):
         out = self.mlp(x)
         return out
 
+
 class DAE(BaseModel):
-    def __init__(self, input_dim, dropout=0.2):
+    def __init__(self, input_dim, dropout=0.2, output_dim=1):
         super().__init__()
-        self.sequence_len = input_dim
-        self.encoder=nn.Sequential(
-            nn.Conv1d(in_channels=1, out_channels=8, kernel_size=4, padding='same', stride=1),
+        self.encoder = nn.Sequential(
+            ConvDropRelu(1, 8, kernel_size=4, relu=False),
             nn.Flatten(),
             nn.Dropout(dropout),
             nn.Linear(input_dim * 8, input_dim * 8),
@@ -748,17 +748,21 @@ class DAE(BaseModel):
             nn.ReLU(),
             nn.Dropout(dropout),
         )
-        self.decoder=nn.Sequential(
+        self.decoder = nn.Sequential(
             nn.Linear(input_dim // 2, input_dim * 8),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Unflatten(1, (8, input_dim)),
-            nn.ConvTranspose1d(in_channels=8, out_channels=1, kernel_size=4,
-                               padding=131, stride=2, output_padding=1, dilation=2)
+            nn.ConvTranspose1d(in_channels=8, out_channels=1, kernel_size=4, padding=3, stride=1, dilation=2),
+            nn.Linear(input_dim, output_dim)
         )
 
     def forward(self, x):
         x = x
+        # x must be in shape [batch_size, 1, window_size]
+        # eg: [1024, 1, 50]
+        x = x
+        x = x.unsqueeze(1)
         x = self.encoder(x)
         x = self.decoder(x)
         return x
