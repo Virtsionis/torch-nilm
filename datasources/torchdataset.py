@@ -7,6 +7,8 @@ from datasources.datasource import Datasource
 from torch.utils.data import Dataset, IterableDataset
 from datasources.preprocessing_lib import *
 from lab.training_tools import ON_THRESHOLDS
+from constants.constants import *
+from constants.enumerates import *
 
 
 class BaseElectricityDataset(ABC):
@@ -24,10 +26,7 @@ class BaseElectricityDataset(ABC):
         device(string): the target electrical appliance
         dates(list): list with the start and end(optional) dates for training window [start, end]
                     eg:['2016-04-01','2017-04-01']
-        rolling_window(bool): corresponds to the preprocessing method which is the rolling_window described in:
-            https://dl.acm.org/doi/abs/10.1145/3200947.3201011
-            If given False, preprocessing is sequence-to-sequence type. Default value is True
-        window_size(int): the size of the rolling window, has effect if rolling_window=True
+        window_size(int): the size of the rolling window
         chunksize(int): the size of loaded chunk from NILMTK generators
         mmax(float): the maximum value of mains time series,
             needed for the de-normalization of the data
@@ -43,23 +42,37 @@ class BaseElectricityDataset(ABC):
             if sample_period is larger than the sampling of the data, then NILMTK downsamples the measurements.
             Else, upsampling is excecuted
         normalization_method(str): the normalization method of the time series
-            possible values: 'standardization' or 'normalization'
-            if 'standardization' is given, the time series are standardized with mean & std values
+            possible values: STANDARDIZATION or NORMALIZATION
+            if STANDARDIZATION is given, the time series are standardized with mean & std values
                 of the mains & target meter time series
-            if 'normalization' is given, the time series are normalized with the max value of the mains time series
+            if NORMALIZATION is given, the time series are normalized with the max value of the mains time series
+        preprocessing_method(str): the preprocessing_method method of the time series
+            possible values: ROLLING_WINDOW or MIDPOINT_WINDOW or SEQ_T0_SEQ or SEQ_T0_SUBSEQ
+            if ROLLING_WINDOW is given, the time series are preprocessed as described in paper:
+                'Sliding Window Approach for Online Energy Disaggregation Using Artificial Neural Networks'
+                https://dl.acm.org/doi/10.1145/3200947.3201011
+            if MIDPOINT_WINDOW is given, the time series are preprocessed as described in paper:
+                'Sequence-to-point learning with neural networks for non-intrusive load monitoring',
+                https://arxiv.org/pdf/1612.09106.pdf
+            if SEQ_T0_SEQ is given then sequence-to-sequence schema is applied as described in paper:
+                'Deep Neural Networks Applied to Energy Disaggregation'
+                https://arxiv.org/pdf/1507.06594.pdf
+            if SEQ_T0_SUBSEQ is given then sequence-to-subsequence schema is applied as described in paper:
+                'Sequence-To-Subsequence Learning With Conditional Gan For Power Disaggregation'
+                doi: 10.1109/ICASSP40776.2020.9053947
 
     Functionality in a nut-shell:
         After saving the input arguments as class properties, the NILMTK generators are initialized and
         all the data are loaded in the memory. Then, the mains & target meter time series are aligned before
         preprocessing takes place. The preprocessing consists of time series normalization/standardization
-        (depends on the chosen normalization method) and the creation of windows if rolling window is True.
-        The feeding of the preprocessed data is taken care of the pytorch dataloader.
+        (depends on the chosen normalization method) and the creation of windows if preprocessing_method and window_size
+        are specified. The feeding of the preprocessed data is taken care of the pytorch dataloader.
     """
     def __init__(self, datasource: Datasource, building: int, device: str, start_date: str,
-                 end_date: str, rolling_window: bool = True, window_size: int = 50,
-                 mmax: float = None, means: float = None, stds: float = None, meter_means: float = None,
-                 meter_stds: float = None, sample_period: int = None, chunksize: int = 10000, shuffle: bool = False,
-                 normalization_method: str = 'standardization'):
+                 end_date: str, window_size: int = 50, mmax: float = None, means: float = None, stds: float = None,
+                 meter_means: float = None, meter_stds: float = None, sample_period: int = None, chunksize: int = 10000,
+                 shuffle: bool = False, normalization_method: str = STANDARDIZATION,
+                 preprocessing_method: str = SupportedPreprocessingMethods.ROLLING_WINDOW, subseq_window: int = None,):
         self.building = building
         self.device = device
         self.mmax = mmax
@@ -72,8 +85,9 @@ class BaseElectricityDataset(ABC):
         self.end_date = end_date
         self.sample_period = sample_period
         self.datasource = datasource
-        self.rolling_window = rolling_window
+        self.preprocessing_method = preprocessing_method
         self.window_size = window_size
+        self.subseq_window = subseq_window
         self.shuffle = shuffle
         self.threshold = ON_THRESHOLDS.get(device, 50)
         self.normalization_method = normalization_method
@@ -149,19 +163,29 @@ class BaseElectricityDataset(ABC):
 
     def _chunk_preprocessing(self, mainchunk, meterchunk):
         mainchunk, meterchunk = replace_nans(mainchunk, meterchunk)
-        if self.normalization_method == 'standardization':
+        if self.normalization_method == STANDARDIZATION:
             if None in [self.means, self.meter_means, self.meter_stds, self.stds]:
                 self._set_means_stds(mainchunk, meterchunk)
             mainchunk, meterchunk = self._standardize_chunks(mainchunk, meterchunk)
-        elif self.normalization_method == 'normalization':
+        elif self.normalization_method == NORMALIZATION:
             self._set_mmax(mainchunk)
             mainchunk, meterchunk = normalize_chunks(mainchunk, meterchunk, self.mmax)
-        if self.rolling_window:
+
+        if self.preprocessing_method == SupportedPreprocessingMethods.ROLLING_WINDOW:
             mainchunk, meterchunk = apply_rolling_window(mainchunk, meterchunk, self.window_size)
-        else:
-            mainchunk, meterchunk = create_batches(mainchunk, meterchunk, self.window_size)
+        elif self.preprocessing_method == SupportedPreprocessingMethods.MIDPOINT_WINDOW:
+            mainchunk, meterchunk = apply_midpoint_window(mainchunk, meterchunk, self.window_size)
+        elif self.preprocessing_method == SupportedPreprocessingMethods.SEQ_T0_SEQ:
+            mainchunk, meterchunk = apply_sequence_to_sequence(mainchunk, meterchunk, self.window_size)
+        elif self.preprocessing_method == SupportedPreprocessingMethods.SEQ_T0_SUBSEQ:
+            mainchunk, meterchunk = apply_sequence_to_subsequence(mainchunk, meterchunk,
+                                                                  sequence_window=self.window_size,
+                                                                  subsequence_window=self.subseq_window)
+
         if self.shuffle:
             mainchunk, meterchunk = mainchunk.sample(frac=1), meterchunk.sample(frac=1)
+        print('mainchunk shape: ', mainchunk.shape)
+        print('meterchunk shape: ', meterchunk.shape)
         return mainchunk, meterchunk
 
     def _standardize_chunks(self, mainchunk, meterchunk):
@@ -191,10 +215,7 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
         device(string): the target electrical appliance
         dates(list): list with the start and end(optional) dates for training window [start, end]
                     eg:['2016-04-01','2017-04-01']
-        rolling_window(bool): corresponds to the preprocessing method which is the rolling_window described in:
-            https://dl.acm.org/doi/abs/10.1145/3200947.3201011
-            If given False, preprocessing is sequence-to-sequence type. Default value is True
-        window_size(int): the size of the rolling window, has effect if rolling_window=True
+        window_size(int): the size of the rolling window
         chunksize(int): the size of loaded chunk from NILMTK generators
         mmax(float): the maximum value of mains time series,
             needed for the de-normalization of the data
@@ -210,10 +231,24 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
             if sample_period is larger than the sampling of the data, then NILMTK downsamples the measurements.
             Else, upsampling is excecuted
         normalization_method(str): the normalization method of the time series
-            possible values: 'standardization' or 'normalization'
-            if 'standardization' is given, the time series are standardized with mean & std values
+            possible values: STANDARDIZATION or NORMALIZATION
+            if STANDARDIZATION is given, the time series are standardized with mean & std values
                 of the mains & target meter time series
-            if 'normalization' is given, the time series are normalized with the max value of the mains time series
+            if NORMALIZATION is given, the time series are normalized with the max value of the mains time series
+        preprocessing_method(str): the preprocessing_method method of the time series
+            possible values: ROLLING_WINDOW or MIDPOINT_WINDOW or SEQ_T0_SEQ or SEQ_T0_SUBSEQ
+            if ROLLING_WINDOW is given, the time series are preprocessed as described in paper:
+                'Sliding Window Approach for Online Energy Disaggregation Using Artificial Neural Networks'
+                https://dl.acm.org/doi/10.1145/3200947.3201011
+            if MIDPOINT_WINDOW is given, the time series are preprocessed as described in paper:
+                'Sequence-to-point learning with neural networks for non-intrusive load monitoring',
+                https://arxiv.org/pdf/1612.09106.pdf
+            if SEQ_T0_SEQ is given then sequence-to-sequence schema is applied as described in paper:
+                'Deep Neural Networks Applied to Energy Disaggregation'
+                https://arxiv.org/pdf/1507.06594.pdf
+            if SEQ_T0_SUBSEQ is given then sequence-to-subsequence schema is applied as described in paper:
+                'Sequence-To-Subsequence Learning With Conditional Gan For Power Disaggregation'
+                doi: 10.1109/ICASSP40776.2020.9053947
 
     Functionality in a nut-shell:
         After saving the input arguments as class properties, the NILMTK generators are initialized and
@@ -238,13 +273,15 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
         trainer.fit(model, train_loader, val_loader)
     """
     def __init__(self, datasource: Datasource, building: int, device: str, dates: list = None,
-                 rolling_window: bool = True, window_size: int = 50, chunksize: int = 10 ** 10,
-                 mmax: float = None, means: float = None, stds: float = None, meter_means: float = None,
-                 meter_stds: float = None, sample_period: int = None, normalization_method: str = 'standardization'):
+                 window_size: int = 50, chunksize: int = 10 ** 10, mmax: float = None, means: float = None,
+                 stds: float = None, meter_means: float = None, meter_stds: float = None, sample_period: int = None,
+                 normalization_method: str = STANDARDIZATION,
+                 preprocessing_method: str = SupportedPreprocessingMethods.ROLLING_WINDOW, subseq_window: int = None,):
         super().__init__(datasource, building, device,
-                         dates[0], dates[1], rolling_window, window_size,
+                         dates[0], dates[1], window_size,
                          mmax, means, stds, meter_means, meter_stds,
-                         sample_period, chunksize, normalization_method=normalization_method, )
+                         sample_period, chunksize, normalization_method=normalization_method,
+                         preprocessing_method=preprocessing_method, subseq_window=subseq_window,)
 
 
 class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
@@ -277,10 +314,7 @@ class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
         device(string): the desired electrical appliance
         train_dates(list): list with the start and end(optional) dates for training window [start, end]
                     eg:['2016-04-01','2017-04-01']
-        rolling_window(bool): corresponds to the preprocessing method which is the rolling_window described in:
-            https://dl.acm.org/doi/abs/10.1145/3200947.3201011
-            If given False, preprocessing is sequence-to-sequence type. Default value is True
-        window_size(int): the size of the rolling window, has effect if rolling_window=True
+        window_size(int): the size of the rolling window
         chunksize(int): the size of loaded chunk from NILMTK generators
         mmax(float): the maximum value of mains time series,
             needed for the de-normalization of the data
@@ -328,15 +362,14 @@ class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
         trainer.fit(model, train_loader, val_loader)
 
     """
-    def __init__(self, train_info: list = None, rolling_window: bool = True, window_size: int = 50,
-                 chunksize: int = 10 ** 10, mmax: float = None, means: float = None, stds: float = None,
-                 meter_means: float = None, meter_stds: float = None, sample_period: int = None,
-                 normalization_method='standardization', **load_kwargs):
+    def __init__(self, train_info: list = None, window_size: int = 50, chunksize: int = 10 ** 10, mmax: float = None,
+                 means: float = None, stds: float = None, meter_means: float = None, meter_stds: float = None,
+                 sample_period: int = None, normalization_method=STANDARDIZATION, **load_kwargs):
         self.train_info = train_info
         super().__init__(datasource=None, building=0, device='', start_date='', end_date='',
-                         rolling_window=rolling_window, window_size=window_size, mmax=mmax, means=means,
-                         stds=stds, meter_means=meter_means, meter_stds=meter_stds, sample_period=sample_period,
-                         chunksize=chunksize, normalization_method=normalization_method, **load_kwargs)
+                         window_size=window_size, mmax=mmax, means=means, stds=stds, meter_means=meter_means,
+                         meter_stds=meter_stds, sample_period=sample_period, chunksize=chunksize,
+                         normalization_method=normalization_method, **load_kwargs)
 
     def _run(self):
         num_buildings = len(self.train_info)
@@ -419,10 +452,7 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
         device(string): the desired device
         dates(list): list with the start and end(optional) dates for training window [start, end]
                     eg:['2016-04-01','2017-04-01']
-        rolling_window(bool): corresponds to the preprocessing method which is the rolling_window described in:
-            https://dl.acm.org/doi/abs/10.1145/3200947.3201011
-            If given False, preprocessing is sequence-to-sequence type. Default value is True
-        window_size(int): the size of the rolling window, has effect if rolling_window=True
+        window_size(int): the size of the rolling window
         chunksize(int): the size of loaded chunk from NILMTK generators
         mmax(float): the maximum value of mains time series,
             needed for the de-normalization of the data
@@ -438,13 +468,26 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
             if sample_period is larger than the sampling of the data, then NILMTK downsamples the measurements.
             Else, upsampling is excecuted
         normalization_method(str): the normalization method of the time series
-            possible values: 'standardization' or 'normalization'
-            if 'standardization' is given, the time series are standardized with mean & std values
+            possible values: STANDARDIZATION or NORMALIZATION
+            if STANDARDIZATION is given, the time series are standardized with mean & std values
                 of the mains & target meter time series
-            if 'normalization' is given, the time series are normalized with the max value of the mains time series
+            if NORMALIZATION is given, the time series are normalized with the max value of the mains time series
         batch_size(int): the batch size needed for the series iterator to work
             Default: 32
-
+        preprocessing_method(str): the preprocessing_method method of the time series
+            possible values: ROLLING_WINDOW or MIDPOINT_WINDOW or SEQ_T0_SEQ or SEQ_T0_SUBSEQ
+            if ROLLING_WINDOW is given, the time series are preprocessed as described in paper:
+                'Sliding Window Approach for Online Energy Disaggregation Using Artificial Neural Networks'
+                https://dl.acm.org/doi/10.1145/3200947.3201011
+            if MIDPOINT_WINDOW is given, the time series are preprocessed as described in paper:
+                'Sequence-to-point learning with neural networks for non-intrusive load monitoring',
+                https://arxiv.org/pdf/1612.09106.pdf
+            if SEQ_T0_SEQ is given then sequence-to-sequence schema is applied as described in paper:
+                'Deep Neural Networks Applied to Energy Disaggregation'
+                https://arxiv.org/pdf/1507.06594.pdf
+            if SEQ_T0_SUBSEQ is given then sequence-to-subsequence schema is applied as described in paper:
+                'Sequence-To-Subsequence Learning With Conditional Gan For Power Disaggregation'
+                doi: 10.1109/ICASSP40776.2020.9053947
     Functionality in a nut-shell:
         After saving the input arguments as class properties, the NILMTK generators are initialized for the
         first time and the length of the dataset is calculated. Then, the generators are re-initialized and
@@ -459,7 +502,6 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
                                                    device=device,
                                                    dates=train_dates,
                                                    sample_period=SAMPLE_PERIOD,
-                                                   rolling_window=True,
                                                   )
         train_loader = DataLoader(train_dataset, batch_size=BATCH,
                                   shuffle=True, num_workers=8)
@@ -471,17 +513,19 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
         c. Iterable datasets don't support dataloader with shuffle=True
     """
     def __init__(self, datasource: Datasource, building: int, device: str, dates: list = None,
-                 rolling_window: bool = True, window_size: int = 50, mmax: float = None, means: float = None,
-                 stds: float = None,  meter_means: float = None, meter_stds: float = None, sample_period: int = None,
+                 window_size: int = 50, mmax: float = None, means: float = None, stds: float = None,
+                 meter_means: float = None, meter_stds: float = None, sample_period: int = None,
                  chunksize: int = 10 ** 6, batch_size: int = 32, shuffle: bool = False,
-                 normalization_method: str = 'standardization'):
+                 normalization_method: str = STANDARDIZATION,
+                 preprocessing_method: str = SupportedPreprocessingMethods.ROLLING_WINDOW, subseq_window: int = None):
         self.batch_size = batch_size
         self.data_len = None
         super().__init__(datasource, building, device,
-                         dates[0], dates[1], rolling_window,
+                         dates[0], dates[1],
                          window_size, mmax, means, stds,
                          meter_means, meter_stds, sample_period,
-                         chunksize, shuffle, normalization_method=normalization_method)
+                         chunksize, shuffle, normalization_method=normalization_method,
+                         preprocessing_method=preprocessing_method, subseq_window=subseq_window,)
 
     def _run(self):
         self._calc_data_len()

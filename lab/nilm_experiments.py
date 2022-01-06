@@ -1,4 +1,6 @@
 import os
+import warnings
+
 import torch
 import pandas as pd
 from typing import Union
@@ -12,7 +14,7 @@ from modules.helpers import create_tree_dir, create_time_folds
 from callbacks.callbacks_factories import TrainerCallbacksFactory
 from modules.reporting import get_final_report, get_statistical_report
 from constants.enumerates import SupportedNilmExperiments, SupportedExperimentCategories, SupportedExperimentVolumes, \
-    ElectricalAppliances
+    ElectricalAppliances, SupportedPreprocessingMethods
 from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset, ElectricityIterableDataset
 
 with torch.no_grad():
@@ -20,6 +22,12 @@ with torch.no_grad():
 
 
 class BaseModelParameters:
+    """
+    A base class in order to standardize the model parameters for each experiment type.
+
+    Args:
+        params(list): list containing the parameters of every desired model.
+    """
     def __init__(self, params: list = None):
         self.params = params
 
@@ -44,17 +52,96 @@ class BaseModelParameters:
 
 
 class HyperParameterTuning(BaseModelParameters):
+    """
+    A class in order to standardize the model parameters for HYPERPARAM_TUNE_CV experiment.
+    The list of parameters is given in a json-like format.
+
+    Args:
+        params(list): list containing the parameters of every desired model.
+
+    Example of use:
+        hparam_tuning = [
+            {
+                'model_name': 'FNET',
+                'hparams': [
+                    {'depth': 5, 'kernel_size': 5, 'cnn_dim': 128, 'dual_cnn': False,
+                     'input_dim': None, 'hidden_dim': 256, 'dropout': 0.0},
+                    {'depth': 3, 'kernel_size': 5, 'cnn_dim': 128, 'dual_cnn': False,
+                     'input_dim': None, 'hidden_dim': 256, 'dropout': 0.0},
+                ]
+            },
+            {
+                'model_name': 'SAED',
+                'hparams': [
+                    {'window_size': None, 'bidirectional': False, 'hidden_dim': 128},
+                    {'window_size': None, 'bidirectional': False, 'hidden_dim': 128, 'num_heads': 4},
+                ]
+            },
+        ]
+
+        hparam_tuning = HyperParameterTuning(hparam_tuning)
+        experiment.run_hyperparameter_tuning_cross_validation(hparam_tuning=hparam_tuning)
+    """
     def __init__(self, hparam_tuning: list = None):
         super().__init__(params=hparam_tuning)
 
 
 class ModelHyperModelParameters(BaseModelParameters):
+    """
+    A class in order to standardize the model parameters for BENCHMARK and CROSS_VALIDATION experiments.
+    The list of parameters is given in a json-like format.
+    Args:
+        params(list): list containing the parameters of every desired model.
+
+    Example of use:
+        model_hparams = [
+        {
+            'model_name': 'SimpleGru',
+            'hparams': {},
+        },
+        {
+            'model_name': 'SAED',
+            'hparams': {'window_size': None},
+        },
+        {
+            'model_name': 'WGRU',
+            'hparams': {'dropout': 0},
+        },
+        {
+            'model_name': 'S2P',
+            'hparams': {'window_size': None, 'dropout': 0},
+        },
+    ]
+
+    model_hparams = ModelHyperModelParameters(model_hparams)
+    experiment = NILMExperiments(***)
+    experiment.run_benchmark(model_hparams=model_hparams)
+    experiment.run_cross_validation(model_hparams=model_hparams)
+    
+    """
     def __init__(self, model_hparams: list = None):
         super().__init__(params=model_hparams)
 
 
 class NILMExperiments:
+    """
+    The purpose of this class is to organise the NILM experiments/projects in an API-like way. Thus, each type of
+    experiment could be executed easily with the minimum number of commands from the user side. Furthermore, each NILM
+    project is  organised in separate folders under the main folder 'output'. The class could be easily extended in to
+    support a wider range of experiments. Currently, three main types of experiments are supported; BENCHMARK,
+    CROSS_VALIDATION, HYPERPARAM_TUNE_CV. A description of each experiment is presented below:
+        - BENCHMARK :
+        - CROSS_VALIDATION :
+        - HYPERPARAM_TUNE_CV :
 
+    Args:
+
+    Functionality in a nut-shell:
+
+    Example of use:
+
+
+    """
     def __init__(self, project_name: str = None, clean_project: bool = False, experiment_categories: list = None,
                  devices: list = None, save_timeseries_results: bool = True,
                  experiment_volume: SupportedExperimentVolumes = SupportedExperimentVolumes.LARGE_VOLUME,
@@ -159,8 +246,9 @@ class NILMExperiments:
         self.sample_period = 6
         self.batch_size = 256
         self.iterable_dataset = False
-        self.rolling_window = True
+        self.preprocessing_method = SupportedPreprocessingMethods.ROLLING_WINDOW.value
         self.fixed_window = 100
+        self.subseq_window = None
         self.train_test_split = 0.8
         self.cv_folds = 3
 
@@ -169,11 +257,13 @@ class NILMExperiments:
             self.epochs = self.experiment_parameters[EPOCHS]
             self.iterations = self.experiment_parameters[ITERATIONS]
             self.inference_cpu = self.experiment_parameters[INFERENCE_CPU]
-            self.rolling_window = self.experiment_parameters[ROLLING_WINDOW]
+            self.preprocessing_method = self.experiment_parameters[PREPROCESSING_METHOD]
+            self._set_preprocessing_method(experiment_parameters[PREPROCESSING_METHOD])
             self.sample_period = self.experiment_parameters[SAMPLE_PERIOD]
             self.batch_size = self.experiment_parameters[BATCH_SIZE]
             self.iterable_dataset = self.experiment_parameters[ITERABLE_DATASET]
             self.fixed_window = self.experiment_parameters[FIXED_WINDOW]
+            self.subseq_window = self.experiment_parameters[SUBSEQ_WINDOW]
             self.train_test_split = self.experiment_parameters[TRAIN_TEST_SPLIT]
             self.cv_folds = self.experiment_parameters[CV_FOLDS]
         else:
@@ -206,6 +296,13 @@ class NILMExperiments:
                 self.experiment_volume = experiment_volume
         else:
             self.experiment_volume = SupportedExperimentVolumes.LARGE_VOLUME.value
+
+    def _set_preprocessing_method(self, preprocessing_method: SupportedPreprocessingMethods = None):
+        if preprocessing_method and isinstance(self.preprocessing_method, SupportedPreprocessingMethods):
+            self.preprocessing_method = preprocessing_method
+        else:
+            warnings.warn('Preprocessing method was not properly defined. Used ROLLING_WINDOW instead by default.')
+            self.preprocessing_method = preprocessing_method.ROLLING_WINDOW
 
     def _set_train_test_file_dir(self, train_file_dir: str = None, test_file_dir: str = None):
         if train_file_dir and os.path.isdir(train_file_dir):
@@ -275,7 +372,9 @@ class NILMExperiments:
                 })
         train_dataset_all = ElectricityMultiBuildingsDataset(train_info=train_info,
                                                              window_size=window,
-                                                             sample_period=self.sample_period)
+                                                             sample_period=self.sample_period,
+                                                             preprocessing_method=self.preprocessing_method,
+                                                             subseq_window=self.subseq_window,)
         return train_dataset_all
 
     def _prepare_train_dataset(self, experiment_category: SupportedExperimentCategories = None, device: str = None,
@@ -303,20 +402,26 @@ class NILMExperiments:
                                                                    window_size=window,
                                                                    device=device,
                                                                    dates=train_dates,
-                                                                   sample_period=self.sample_period)
+                                                                   sample_period=self.sample_period,
+                                                                   preprocessing_method=self.preprocessing_method,
+                                                                   subseq_window=self.subseq_window,)
                 else:
                     train_dataset_all = ElectricityDataset(datasource=datasource,
                                                            building=int(train_house),
                                                            window_size=window,
                                                            device=device,
                                                            dates=train_dates,
-                                                           sample_period=self.sample_period)
+                                                           sample_period=self.sample_period,
+                                                           preprocessing_method=self.preprocessing_method,
+                                                           subseq_window=self.subseq_window,)
 
                 return train_dataset_all
         file.close()
         train_dataset_all = ElectricityMultiBuildingsDataset(train_info=train_info,
                                                              window_size=window,
-                                                             sample_period=self.sample_period)
+                                                             sample_period=self.sample_period,
+                                                             preprocessing_method=self.preprocessing_method,
+                                                             subseq_window=self.subseq_window,)
         return train_dataset_all
 
     def _prepare_train_val_loaders(self, train_dataset_all: Union[ElectricityDataset,
@@ -393,12 +498,13 @@ class NILMExperiments:
             'model_name': model_name,
             'device': device,
             'window_size': window,
+            'subseq_window': self.subseq_window,
             'experiment_category': experiment_category,
             'experiment_type': self.experiment_type.value,
             'sample_period': self.sample_period,
             'batch_size': self.batch_size,
             'iteration': iteration,
-            'rolling_window': self.rolling_window,
+            'preprocessing_method': self.preprocessing_method,
             'inference_cpu': self.inference_cpu,
             'root_dir': self.project_name,
             'model_hparams': model_hparams,
