@@ -46,7 +46,7 @@ class LayerNorm(nn.Module):
 
 class Seq2Point(BaseModel):
 
-    def __init__(self, window_size, dropout=0, lr=None):
+    def __init__(self, window_size, dropout=0, lr=None, output_dim: int = 1):
         super(Seq2Point, self).__init__()
         self.MODEL_NAME = 'Sequence2Point model'
         self.drop = dropout
@@ -63,7 +63,7 @@ class Seq2Point(BaseModel):
             nn.Flatten()
         )
         self.dense = LinearDropRelu(self.dense_input, 1024, self.drop)
-        self.output = nn.Linear(1024, 1)
+        self.output = nn.Linear(1024, output_dim)
 
     def forward(self, x):
         # x must be in shape [batch_size, 1, window_size]
@@ -77,7 +77,8 @@ class Seq2Point(BaseModel):
 
 class PayAttention2Fourier(nn.Module):
 
-    def __init__(self, window_size, dropout=0, lr=None):
+    def __init__(self, window_size, dropout=0, lr=None, output_dim: int = 1):
+
         super(PayAttention2Fourier, self).__init__()
         self.MODEL_NAME = 'PAF'
         self.drop = dropout
@@ -100,7 +101,7 @@ class PayAttention2Fourier(nn.Module):
             nn.Linear(4 * self.dense_input, self.dense_input),
             nn.Dropout(self.drop),
             nn.GELU(),
-            nn.Linear(self.dense_input, 1),
+            nn.Linear(self.dense_input, output_dim),
         )
 
     def forward(self, x):
@@ -117,7 +118,7 @@ class PayAttention2Fourier(nn.Module):
 
 class WGRU(BaseModel):
 
-    def __init__(self, dropout=0, lr=None):
+    def __init__(self, dropout=0, lr=None, output_dim: int = 1):
         super(WGRU, self).__init__()
 
         self.drop = dropout
@@ -134,7 +135,7 @@ class WGRU(BaseModel):
 
         self.dense1 = LinearDropRelu(512, 128, self.drop)
         self.dense2 = LinearDropRelu(128, 64, self.drop)
-        self.output = nn.Linear(64, 1)
+        self.output = nn.Linear(64, output_dim)
 
     def forward(self, x):
         # x must be in shape [batch_size, 1, window_size]
@@ -160,8 +161,8 @@ class WGRU(BaseModel):
 
 class SAED(BaseModel):
 
-    def __init__(self, window_size, mode='dot', hidden_dim=16,
-                 num_heads=1, dropout=0, bidirectional=True, lr=None):
+    def __init__(self, window_size, mode='dot', hidden_dim=16, num_heads=1, dropout=0, bidirectional=True, lr=None,
+                 output_dim: int = 1):
         super(SAED, self).__init__()
 
         '''
@@ -201,10 +202,10 @@ class SAED(BaseModel):
                            dropout=self.drop)
         if bidirectional:
             self.dense = LinearDropRelu(128, 64, self.drop)
-            self.output = nn.Linear(64, 1)
+            self.output = nn.Linear(64, output_dim)
         else:
             self.dense = LinearDropRelu(64, 32, self.drop)
-            self.output = nn.Linear(32, 1)
+            self.output = nn.Linear(32, output_dim)
 
     def forward(self, x):
         # x must be in shape [batch_size, 1, window_size]
@@ -234,7 +235,7 @@ class SAED(BaseModel):
 
 class SimpleGru(BaseModel):
 
-    def __init__(self, hidden_dim=16, dropout=0, bidirectional=True, lr=None):
+    def __init__(self, hidden_dim=16, dropout=0, bidirectional=True, lr=None, output_dim=1):
         super(SimpleGru, self).__init__()
 
         '''
@@ -257,10 +258,10 @@ class SimpleGru(BaseModel):
                            dropout=self.drop)
         if bidirectional:
             self.dense = LinearDropRelu(128, 64, self.drop)
-            self.output = nn.Linear(64, 1)
+            self.output = nn.Linear(64, output_dim)
         else:
             self.dense = LinearDropRelu(64, 32, self.drop)
-            self.output = nn.Linear(32, 1)
+            self.output = nn.Linear(32, output_dim)
 
     def forward(self, x):
         # x must be in shape [batch_size, 1, window_size]
@@ -278,7 +279,7 @@ class SimpleGru(BaseModel):
 
 class FFED(nn.Module):
 
-    def __init__(self, hidden_dim=16, dropout=0, lr=None):
+    def __init__(self, hidden_dim=16, dropout=0, lr=None, output_dim: int = 1):
         super(FFED, self).__init__()
 
         self.drop = dropout
@@ -293,7 +294,7 @@ class FFED(nn.Module):
                            bidirectional=True,
                            dropout=self.drop)
         self.dense = LinearDropRelu(128, 64, self.drop)
-        self.output = nn.Linear(64, 1)
+        self.output = nn.Linear(64, output_dim)
 
     def forward(self, x):
         # x must be in shape [batch_size, 1, window_size]
@@ -443,9 +444,10 @@ class ShortFNETBLock(nn.Module):
 
         return x, img
 
+
 class FNET(BaseModel):
 
-    def __init__(self, depth, kernel_size, cnn_dim, dual_cnn=False, **block_args):
+    def __init__(self, depth, kernel_size, cnn_dim, dual_cnn=False, output_dim: int = 1, **block_args):
         super(FNET, self).__init__()
 
         self.drop = block_args['dropout']
@@ -467,7 +469,7 @@ class FNET(BaseModel):
         self.dense1 = LinearDropRelu(self.dense_in, cnn_dim, self.drop)
         self.dense2 = LinearDropRelu(cnn_dim, cnn_dim // 2, self.drop)
 
-        self.output = nn.Linear(cnn_dim // 2, 1)
+        self.output = nn.Linear(cnn_dim // 2, output_dim)
 
     def forward(self, x):
         # x must be in shape [batch_size, 1, window_size]
@@ -587,7 +589,7 @@ class FImag(nn.Module):
 
 
 class ShortNeuralFourier(BaseModel):
-    def __init__(self, window_size):
+    def __init__(self, window_size, output_dim: int = 1,):
         super().__init__()
         self.window_size = window_size
         cnn_dim = 128
@@ -597,7 +599,7 @@ class ShortNeuralFourier(BaseModel):
         self.conv2 = ConvDropRelu(4 * cnn_dim, 2 * cnn_dim, kernel_size=kernel_size, dropout=0)
         self.conv3 = ConvDropRelu(2 * cnn_dim, cnn_dim, kernel_size=kernel_size, dropout=0)
         self.conv4 = ConvDropRelu(cnn_dim, cnn_dim, kernel_size=kernel_size, dropout=0)
-        self.output = nn.Linear(cnn_dim * 5, 1)
+        self.output = nn.Linear(cnn_dim * 5, output_dim)
 
     def forward(self, x):
         # print(f"X shape {x.shape}")
@@ -621,7 +623,7 @@ class ShortNeuralFourier(BaseModel):
 
 class ConvFourier(nn.Module):
 
-    def __init__(self, window_size, dropout=0, lr=None):
+    def __init__(self, window_size, dropout=0, lr=None, output_dim=1,):
         super(ConvFourier, self).__init__()
         self.MODEL_NAME = 'ConvFourier'
         self.drop = dropout
@@ -644,7 +646,7 @@ class ConvFourier(nn.Module):
         )
 
         self.flat = nn.Flatten()
-        self.output = nn.Linear(self.dense_input, 1)
+        self.output = nn.Linear(self.dense_input, output_dim)
 
     def forward(self, x):
         x = x
@@ -697,7 +699,7 @@ class PAFBlock(nn.Module):
 
 class PAFnet(BaseModel):
 
-    def __init__(self, cnn_dim, kernel_size, depth, window_size, hidden_factor, dropout=0):
+    def __init__(self, cnn_dim, kernel_size, depth, window_size, hidden_factor, dropout=0, output_dim=1):
         super(PAFnet, self).__init__()
         self.MODEL_NAME = 'PAF'
         self.dense_input = cnn_dim * window_size
@@ -718,7 +720,7 @@ class PAFnet(BaseModel):
             nn.Linear(4 * self.dense_input, self.dense_input),
             nn.Dropout(dropout),
             nn.GELU(),
-            nn.Linear(self.dense_input, 1),
+            nn.Linear(self.dense_input, output_dim),
         )
 
     def forward(self, x):

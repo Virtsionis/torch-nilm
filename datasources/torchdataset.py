@@ -184,8 +184,6 @@ class BaseElectricityDataset(ABC):
 
         if self.shuffle:
             mainchunk, meterchunk = mainchunk.sample(frac=1), meterchunk.sample(frac=1)
-        print('mainchunk shape: ', mainchunk.shape)
-        print('meterchunk shape: ', meterchunk.shape)
         return mainchunk, meterchunk
 
     def _standardize_chunks(self, mainchunk, meterchunk):

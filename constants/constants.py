@@ -3,6 +3,7 @@ BASE_NETWORK = "BASE_NETWORK"
 EPOCHS = 'epochs'
 FIXED_WINDOW = 'fixed_window'
 SUBSEQ_WINDOW = 'subseq_window'
+OUTPUT_DIM = 'output_dim'
 WINDOW_SIZE = 'window_size'
 INPUT_DIM = 'input_dim'
 ITERATIONS = 'iterations'

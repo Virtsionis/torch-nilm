@@ -268,7 +268,7 @@ class BayesFNETBLock(BAYESNet):
 
 class BayesFNET(BaseModel):
 
-    def __init__(self, depth, kernel_size, cnn_dim, **block_args):
+    def __init__(self, depth, kernel_size, cnn_dim, output_dim=1, **block_args):
         super(BayesFNET, self).__init__()
 
         self.drop = block_args['dropout']
@@ -284,7 +284,7 @@ class BayesFNET(BaseModel):
         self.dense1 = LinearDropRelu(self.dense_in, cnn_dim, self.drop)
         self.dense2 = LinearDropRelu(cnn_dim, cnn_dim // 2, self.drop)
 
-        self.output = nn.Linear(cnn_dim // 2, 1)
+        self.output = nn.Linear(cnn_dim // 2, output_dim)
 
     def forward(self, x):
         # x must be in shape [batch_size, 1, window_size]
@@ -307,7 +307,7 @@ class BayesFNET(BaseModel):
 class BayesSAED(BAYESNet):
 
     def __init__(self, window_size, mode='dot', hidden_dim=16,
-                 num_heads=4, dropout=0, lr=None):
+                 num_heads=4, dropout=0, lr=None, output_dim=1):
         super(BayesSAED, self).__init__()
 
         '''
@@ -354,7 +354,7 @@ class BayesSAED(BAYESNet):
                             nn.Dropout(dropout),
                             nn.ReLU(inplace=True),
                         )
-        self.output = nn.Linear(64, 1)
+        self.output = nn.Linear(64, output_dim)
 
     def forward(self, x):
         x = x

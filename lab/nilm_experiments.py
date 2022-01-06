@@ -50,6 +50,12 @@ class BaseModelParameters:
                 if param[MODEL_NAME] == model_name:
                     return param[COLUMN_HPARAMS]
 
+    def _set_model_output_dim(self, model_name: str = None, output_dim: int = 1):
+        if output_dim and output_dim > 1 and model_name and model_name in self.get_model_names():
+            for param in self.params:
+                if param[MODEL_NAME] == model_name:
+                    param[COLUMN_HPARAMS][OUTPUT_DIM] = output_dim
+
 
 class HyperParameterTuning(BaseModelParameters):
     """
@@ -575,6 +581,48 @@ class NILMExperiments:
                                root_dir=root_dir,
                                stat_measures=stat_measures)
 
+    def _set_model_output_dim(self, model_hparams: dict = None, output_dim: int = 1):
+        if self.preprocessing_method == SupportedPreprocessingMethods.ROLLING_WINDOW:
+            model_hparams[OUTPUT_DIM] = 1
+        elif self.preprocessing_method == SupportedPreprocessingMethods.MIDPOINT_WINDOW:
+            model_hparams[OUTPUT_DIM] = 1
+        elif self.preprocessing_method == SupportedPreprocessingMethods.SEQ_T0_SEQ:
+            model_hparams[OUTPUT_DIM] = output_dim
+        elif self.preprocessing_method == SupportedPreprocessingMethods.SEQ_T0_SUBSEQ:
+            if self.subseq_window and self.subseq_window < output_dim:
+                model_hparams[OUTPUT_DIM] = self.subseq_window
+            else:
+                warnings.warn('Sequence window is smaller than subsequence window and SEQ_TO_SEQ preprocessing ' +
+                              'was applied instead of SEQ_T0_SUBSEQ')
+                model_hparams[OUTPUT_DIM] = output_dim
+                self.subseq_window = output_dim
+                self.preprocessing_method = SupportedPreprocessingMethods.SEQ_T0_SEQ
+
+        return model_hparams
+
+    def _calculate_model_window(self, model_hparams: dict = None, model_name: str = None, device: str = None,):
+        if WINDOW_SIZE in model_hparams and model_hparams[WINDOW_SIZE]:
+            window = model_hparams[WINDOW_SIZE]
+        elif INPUT_DIM in model_hparams and model_hparams[WINDOW_SIZE]:
+            window = model_hparams[INPUT_DIM]
+        else:
+            if self.fixed_window:
+                window = self.fixed_window
+            else:
+                if model_name in WINDOWS:
+                    window = WINDOWS[model_name][device]
+                else:
+                    raise Exception('Model with name {} has not window specified'.format(model_name))
+            if WINDOW_SIZE in model_hparams:
+                model_hparams[WINDOW_SIZE] = window
+            elif INPUT_DIM in model_hparams:
+                model_hparams[INPUT_DIM] = window
+            if WINDOW_SIZE in model_hparams:
+                model_hparams[WINDOW_SIZE] = window
+            elif INPUT_DIM in model_hparams:
+                model_hparams[INPUT_DIM] = window
+        return model_hparams, window
+
     def run_benchmark(self, devices: list = None, experiment_parameters: list = None, data_dir: str = None,
                       train_file_dir: str = None, test_file_dir: str = None, model_hparams: ModelHyperModelParameters = None,
                       experiment_volume: SupportedExperimentVolumes = None, experiment_categories: list = None,
@@ -596,22 +644,9 @@ class NILMExperiments:
             for model_name in self.models:
                 model_hparams = self.model_hparams.get_model_params(model_name)
                 for device in self.devices:
-                    if WINDOW_SIZE in model_hparams and model_hparams[WINDOW_SIZE]:
-                        window = model_hparams[WINDOW_SIZE]
-                    elif INPUT_DIM in model_hparams and model_hparams[WINDOW_SIZE]:
-                        window = model_hparams[INPUT_DIM]
-                    else:
-                        if self.fixed_window:
-                            window = self.fixed_window
-                        else:
-                            if model_name in WINDOWS:
-                                window = WINDOWS[model_name][device]
-                            else:
-                                raise Exception('Model with name {} has not window specified'.format(model_name))
-                        if WINDOW_SIZE in model_hparams:
-                            model_hparams[WINDOW_SIZE] = window
-                        elif INPUT_DIM in model_hparams:
-                            model_hparams[INPUT_DIM] = window
+                    model_hparams, window = self._calculate_model_window(model_hparams=model_hparams,
+                                                                         model_name=model_name, device=device)
+                    model_hparams = self._set_model_output_dim(model_hparams, output_dim=window)
 
                     for iteration in range(1, self.iterations + 1):
                         print('#' * 20)
@@ -650,20 +685,9 @@ class NILMExperiments:
             for model_name in self.models:
                 model_hparams = self.model_hparams.get_model_params(model_name)
                 for device in self.devices:
-                    if WINDOW_SIZE in model_hparams and model_hparams[WINDOW_SIZE]:
-                        window = model_hparams[WINDOW_SIZE]
-                    else:
-                        if self.fixed_window:
-                            window = self.fixed_window
-                        else:
-                            if model_name in WINDOWS:
-                                window = WINDOWS[model_name][device]
-                            else:
-                                raise Exception('Model with name {} has not window specified'.format(model_name))
-                        if WINDOW_SIZE in model_hparams:
-                            model_hparams[WINDOW_SIZE] = window
-                        elif INPUT_DIM in model_hparams:
-                            model_hparams[INPUT_DIM] = window
+                    model_hparams, window = self._calculate_model_window(model_hparams=model_hparams,
+                                                                         model_name=model_name, device=device)
+                    model_hparams = self._set_model_output_dim(model_hparams, output_dim=window)
 
                     for fold in range(self.cv_folds):
                         print('#' * 20)
@@ -706,22 +730,9 @@ class NILMExperiments:
                 model_hparams_list = self.hparam_tuning.get_model_params(model_name)
                 for model_hparams in model_hparams_list:
                     for device in self.devices:
-                        if WINDOW_SIZE in model_hparams and model_hparams[WINDOW_SIZE]:
-                            window = model_hparams[WINDOW_SIZE]
-                        elif INPUT_DIM in model_hparams and model_hparams[INPUT_DIM]:
-                            window = model_hparams[INPUT_DIM]
-                        else:
-                            if self.fixed_window:
-                                window = self.fixed_window
-                            else:
-                                if model_name in WINDOWS:
-                                    window = WINDOWS[model_name][device]
-                                else:
-                                    raise Exception('Model with name {} has not window specified'.format(model_name))
-                            if WINDOW_SIZE in model_hparams:
-                                model_hparams[WINDOW_SIZE] = window
-                            elif INPUT_DIM in model_hparams:
-                                model_hparams[INPUT_DIM] = window
+                        model_hparams, window = self._calculate_model_window(model_hparams=model_hparams,
+                                                                             model_name=model_name, device=device)
+                        model_hparams = self._set_model_output_dim(model_hparams, output_dim=window)
 
                         for fold in range(self.cv_folds):
                             print('#' * 20)

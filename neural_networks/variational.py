@@ -139,9 +139,9 @@ class VIBShortNeuralFourier(ShortNeuralFourier, VIBNet):
 
 class VIB_SAED(SAED, VIBNet):
     def __init__(self, window_size, mode='dot', hidden_dim=16,
-                 num_heads=1, dropout=0, bidirectional=True, lr=None, K=32, max_noise=0.1):
+                 num_heads=1, dropout=0, bidirectional=True, lr=None, K=32, max_noise=0.1, output_dim=1):
         super(VIB_SAED, self).__init__(window_size, mode, hidden_dim, num_heads,\
-                                       dropout, bidirectional, lr)
+                                       dropout, bidirectional, lr, output_dim=1)
         self.max_noise = max_noise
         self.K = K
         if bidirectional:
@@ -172,8 +172,8 @@ class VIB_SAED(SAED, VIBNet):
 
 
 class VIB_SimpleGru(SimpleGru, VIBNet):
-    def __init__(self, hidden_dim=16, dropout=0, bidirectional=True, lr=None, K=32, max_noise=0.1):
-        super(VIB_SimpleGru, self).__init__(hidden_dim, dropout, bidirectional, lr)
+    def __init__(self, hidden_dim=16, dropout=0, bidirectional=True, lr=None, K=32, max_noise=0.1, output_dim=1):
+        super(VIB_SimpleGru, self).__init__(hidden_dim, dropout, bidirectional, lr, output_dim=1)
         self.max_noise = max_noise
         self.K = K
         if bidirectional:
@@ -200,8 +200,8 @@ class VIB_SimpleGru(SimpleGru, VIBNet):
 
 
 class VIBWGRU(WGRU, VIBNet):
-    def __init__(self, dropout=0, lr=None, K=32, max_noise=0.1):
-        super(VIBWGRU, self).__init__(dropout, lr)
+    def __init__(self, dropout=0, lr=None, K=32, max_noise=0.1, output_dim=1):
+        super(VIBWGRU, self).__init__(dropout, lr, output_dim=1)
         self.max_noise = max_noise
         self.K = K
         self.dense2 = LinearDropRelu(128, 2 * K, self.drop)
@@ -225,8 +225,8 @@ class VIBWGRU(WGRU, VIBNet):
 
 
 class VIBSeq2Point(Seq2Point, VIBNet):
-    def __init__(self, window_size, dropout=0, lr=None, K=256, max_noise=0.1):
-        super(VIBSeq2Point, self).__init__(window_size, dropout, lr)
+    def __init__(self, window_size, dropout=0, lr=None, K=256, max_noise=0.1, output_dim=1):
+        super(VIBSeq2Point, self).__init__(window_size, dropout, lr, output_dim=1)
         self.max_noise = max_noise
         self.K = K
         self.dense = LinearDropRelu(self.dense_input, 2 * K, self.drop)
@@ -248,8 +248,8 @@ class VIBSeq2Point(Seq2Point, VIBNet):
 
 
 class VIBFnet(FNET, VIBNet):
-    def __init__(self, depth, kernel_size, cnn_dim, K=256, max_noise=0.1, beta=1e-3,**block_args):
-        super(VIBFnet, self).__init__(depth, kernel_size, cnn_dim, **block_args)
+    def __init__(self, depth, kernel_size, cnn_dim, K=256, max_noise=0.1, beta=1e-3, output_dim=1, **block_args):
+        super(VIBFnet, self).__init__(depth, kernel_size, cnn_dim, output_dim=1, **block_args)
         self.max_noise = max_noise
         self.K = cnn_dim // 2
         self.dense2 = LinearDropRelu(cnn_dim, 2 * self.K, self.drop)
@@ -284,8 +284,8 @@ class VIBFnet(FNET, VIBNet):
 
 
 class VIBShortFnet(ShortFNET, VIBNet):
-    def __init__(self, depth, kernel_size, cnn_dim, K=256, max_noise=0.1, **block_args):
-        super(VIBShortFnet, self).__init__(depth, kernel_size, cnn_dim, **block_args)
+    def __init__(self, depth, kernel_size, cnn_dim, K=256, max_noise=0.1, output_dim=1, **block_args):
+        super(VIBShortFnet, self).__init__(depth, kernel_size, cnn_dim, output_dim=1, **block_args)
         # self.K = K
         self.max_noise = max_noise
         self.K = cnn_dim // 2
@@ -317,7 +317,7 @@ class VIBShortFnet(ShortFNET, VIBNet):
 
 class ToyNet(VIBNet):
 
-    def __init__(self, window_size, dropout=0, lr=None, K=256, max_noise=0.1):
+    def __init__(self, window_size, dropout=0, lr=None, K=256, max_noise=0.1, output_dim=1,):
         super(ToyNet, self).__init__()
         self.max_noise = max_noise
         self.K = K
@@ -333,7 +333,7 @@ class ToyNet(VIBNet):
             nn.Linear(1024, 2 * self.K))
 
         self.decode = nn.Sequential(
-            nn.Linear(self.K, 1))
+            nn.Linear(self.K, output_dim))
 
     def forward(self, x, current_epoch, num_sample=1):
         x = x.unsqueeze(1)
