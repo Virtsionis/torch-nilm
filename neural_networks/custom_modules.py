@@ -15,7 +15,7 @@ class LinearDropRelu(nn.Module):
 
 
 class ConvDropRelu(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, dropout, groups=1):
+    def __init__(self, in_channels, out_channels, kernel_size, dropout=0, groups=1, relu=True):
         super(ConvDropRelu, self).__init__()
 
         left, right = kernel_size // 2, kernel_size // 2
@@ -23,12 +23,19 @@ class ConvDropRelu(nn.Module):
             right -= 1
         padding = (left, right, 0, 0)
 
-        self.conv = nn.Sequential(
-            nn.ZeroPad2d(padding),
-            nn.Conv1d(in_channels, out_channels, kernel_size, groups=groups),
-            nn.Dropout(dropout),
-            nn.ReLU(inplace=True),
-        )
+        if relu:
+            self.conv = nn.Sequential(
+                nn.ZeroPad2d(padding),
+                nn.Conv1d(in_channels, out_channels, kernel_size, groups=groups),
+                nn.Dropout(dropout),
+                nn.ReLU(inplace=True),
+            )
+        else:
+            self.conv = nn.Sequential(
+                nn.ZeroPad2d(padding),
+                nn.Conv1d(in_channels, out_channels, kernel_size, groups=groups),
+                nn.Dropout(dropout),
+            )
 
     def forward(self, x):
         return self.conv(x)
