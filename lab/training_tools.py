@@ -133,7 +133,7 @@ class ClassicTrainingTools(pl.LightningModule):
         x, y = batch
         # Forward pass
         outputs = self(x)
-        loss = F.mse_loss(outputs.squeeze(1), y)
+        loss = F.mse_loss(outputs.squeeze(), y)
 
         tensorboard_logs = {'train_loss': loss}
         return {'loss': loss, 'log': tensorboard_logs}
@@ -150,7 +150,7 @@ class ClassicTrainingTools(pl.LightningModule):
 
     def _forward_step(self, batch: Tensor) -> Tuple[Tensor, Tensor]:
         inputs, labels = batch
-        outputs = self.forward(inputs).squeeze(1)
+        outputs = self.forward(inputs).squeeze()
         loss = self.calculate_loss(outputs, labels)
         mae = F.l1_loss(outputs, labels)
 
@@ -174,7 +174,6 @@ class ClassicTrainingTools(pl.LightningModule):
     def test_epoch_end(self, outputs):
         # outputs is a list of whatever you returned in `test_step`
         avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
-        tensorboard_logs = {'test_avg_loss': avg_loss}
         if self.model_name == 'DAE':
             self.final_preds = np.reshape(self.final_preds, (-1))
         res = self._metrics()
@@ -251,9 +250,7 @@ class VIBTrainingTools(ClassicTrainingTools):
 
         info_loss = -0.5 * (1 + 2 * std.log() - mu.pow(2) - std.pow(2)).sum(1).mean().div(math.log(2))
         total_loss = class_loss + self.beta * info_loss
-        # total_loss = class_loss
 
-        # loss = F.mse_loss(outputs.squeeze(1), y)
         tensorboard_logs = {'train_loss': total_loss}
         return {'loss': total_loss, 'log': tensorboard_logs}
 
@@ -266,7 +263,6 @@ class VIBTrainingTools(ClassicTrainingTools):
         preds_batch = outputs.squeeze().cpu().numpy()
         self.final_preds = np.append(self.final_preds, preds_batch)
         return {'test_loss': loss}
-        # return {'test_loss': loss, 'metrics': self._metrics(test=True)}
 
     def _forward_step(self, batch: Tensor) -> Tuple[Tensor, Tensor]:
         inputs, labels = batch
@@ -279,7 +275,6 @@ class VIBTrainingTools(ClassicTrainingTools):
     def test_epoch_end(self, outputs):
         # outputs is a list of whatever you returned in `test_step`
         avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
-        tensorboard_logs = {'test_avg_loss': avg_loss}
         if self.model_name == 'VAE':
             self.final_preds = np.reshape(self.final_preds, (-1))
         res = self._metrics()
