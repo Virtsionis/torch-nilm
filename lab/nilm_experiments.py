@@ -603,7 +603,7 @@ class NILMExperiments:
     def _calculate_model_window(self, model_hparams: dict = None, model_name: str = None, device: str = None,):
         if WINDOW_SIZE in model_hparams and model_hparams[WINDOW_SIZE]:
             window = model_hparams[WINDOW_SIZE]
-        elif INPUT_DIM in model_hparams and model_hparams[WINDOW_SIZE]:
+        elif INPUT_DIM in model_hparams and model_hparams[INPUT_DIM]:
             window = model_hparams[INPUT_DIM]
         else:
             if self.fixed_window:
