@@ -148,7 +148,7 @@ class VIB_SAED(SAED, VIBNet):
             self.dense = LinearDropRelu(128, 2 * K, self.drop)
         else:
             self.dense = LinearDropRelu(64, 2 * K, self.drop)
-        self.decoder = VIBDecoder(self.K)
+        self.decoder = VIBDecoder(self.K, output_dim=output_dim)
 
     def forward(self, x, current_epoch, num_sample=1):
         x = x.unsqueeze(1)
@@ -180,8 +180,7 @@ class VIB_SimpleGru(SimpleGru, VIBNet):
             self.dense = LinearDropRelu(128, 2 * K, self.drop)
         else:
             self.dense = LinearDropRelu(64, 2 * K, self.drop)
-        self.decoder = VIBDecoder(self.K)
-        self.decoder = VIBDecoder(self.K)
+        self.decoder = VIBDecoder(self.K, output_dim=output_dim)
 
     def forward(self, x, current_epoch, num_sample=1):
         x = x.unsqueeze(1)
@@ -205,7 +204,7 @@ class VIBWGRU(WGRU, VIBNet):
         self.max_noise = max_noise
         self.K = K
         self.dense2 = LinearDropRelu(128, 2 * K, self.drop)
-        self.decoder = VIBDecoder(self.K)
+        self.decoder = VIBDecoder(self.K, output_dim=output_dim)
 
     def forward(self, x, current_epoch, num_sample=1):
         x = x.unsqueeze(1)
@@ -230,7 +229,7 @@ class VIBSeq2Point(Seq2Point, VIBNet):
         self.max_noise = max_noise
         self.K = K
         self.dense = LinearDropRelu(self.dense_input, 2 * K, self.drop)
-        self.decoder = VIBDecoder(self.K)
+        self.decoder = VIBDecoder(self.K, output_dim=output_dim)
 
     def forward(self, x, current_epoch, num_sample=1):
         x = x.unsqueeze(1)
@@ -253,7 +252,7 @@ class VIBFnet(FNET, VIBNet):
         self.max_noise = max_noise
         self.K = cnn_dim // 2
         self.dense2 = LinearDropRelu(cnn_dim, 2 * self.K, self.drop)
-        self.decoder = VIBDecoder(self.K)
+        self.decoder = VIBDecoder(self.K, output_dim=output_dim)
         self.lin_in = LinearDropRelu(self.input_dim, self.K, self.drop)
         print('MAX NOISE: ', max_noise)
 
@@ -290,7 +289,7 @@ class VIBShortFnet(ShortFNET, VIBNet):
         self.max_noise = max_noise
         self.K = cnn_dim // 2
         self.dense2 = LinearDropRelu(cnn_dim, 2 * self.K, self.drop)
-        self.decoder = VIBDecoder(self.K)
+        self.decoder = VIBDecoder(self.K, output_dim=output_dim)
 
         self.dense3 = LinearDropRelu(self.dense_in, cnn_dim, self.drop)
         self.dense4 = LinearDropRelu(cnn_dim, cnn_dim // 2, self.drop)

@@ -6,12 +6,12 @@ experiment_parameters = {
     EPOCHS: 1,
     ITERATIONS: 1,
     INFERENCE_CPU: False,
-    SAMPLE_PERIOD: 20,
+    SAMPLE_PERIOD: 50,
     BATCH_SIZE: 1024,
     ITERABLE_DATASET: False,
-    PREPROCESSING_METHOD: SupportedPreprocessingMethods.SEQ_T0_SUBSEQ,
-    FIXED_WINDOW: 50,
-    SUBSEQ_WINDOW: 5,
+    PREPROCESSING_METHOD: SupportedPreprocessingMethods.SEQ_T0_SEQ,
+    FIXED_WINDOW: 100,
+    SUBSEQ_WINDOW: 10,
     TRAIN_TEST_SPLIT: 0.8,
     CV_FOLDS: 2,
 }
@@ -25,16 +25,30 @@ devices = [
 
 experiment_categories = [
     SupportedExperimentCategories.SINGLE_CATEGORY,
-    SupportedExperimentCategories.MULTI_CATEGORY
+    # SupportedExperimentCategories.MULTI_CATEGORY
 ]
 
 model_hparams = [
+    # {
+    #     'model_name': 'FNET',
+    #     'hparams': {'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'dual_cnn': False,
+    #                 'input_dim': None, 'hidden_dim': 256, 'dropout': 0.0},
+    # },
+    # {
+    #     'model_name': 'VIBFNET',
+    #     'hparams': {'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'dual_cnn': False,
+    #                 'input_dim': None, 'hidden_dim': 256, 'dropout': 0.0},
+    # },
+    # {
+    #     'model_name': 'DAE',
+    #     'hparams': {'input_dim': None},
+    # },
+    # {
+    #     'model_name': 'SimpleGru',
+    #     'hparams': {},
+    # },
     {
-        'model_name': 'SimpleGru',
-        'hparams': {},
-    },
-    {
-        'model_name': 'SAED',
+        'model_name': 'VIB_SAED',
         'hparams': {'window_size': None},
     },
     # {
@@ -57,13 +71,13 @@ hparam_tuning = [
              'input_dim': None, 'hidden_dim': 256, 'dropout': 0.0},
         ]
     },
-    # {
-    #     'model_name': 'SAED',
-    #     'hparams': [
-    #         {'window_size': None, 'bidirectional': False, 'hidden_dim': 128},
-    #         {'window_size': None, 'bidirectional': False, 'hidden_dim': 128, 'num_heads': 4},
-    #     ]
-    # },
+    {
+        'model_name': 'SAED',
+        'hparams': [
+            {'window_size': None, 'bidirectional': False, 'hidden_dim': 128},
+            {'window_size': None, 'bidirectional': False, 'hidden_dim': 128, 'num_heads': 4},
+        ]
+    },
 ]
 
 model_hparams = ModelHyperModelParameters(model_hparams)
@@ -75,6 +89,6 @@ experiment = NILMExperiments(project_name='TEST_PREPRO_METHODS', clean_project=F
                              experiment_parameters=experiment_parameters, )
 #
 experiment.run_benchmark(model_hparams=model_hparams)
-experiment.run_cross_validation(model_hparams=model_hparams)
-experiment.run_hyperparameter_tuning_cross_validation(hparam_tuning=hparam_tuning)
+# experiment.run_cross_validation(model_hparams=model_hparams)
+# experiment.run_hyperparameter_tuning_cross_validation(hparam_tuning=hparam_tuning)
 # experiment.export_report(hparam_tuning=hparam_tuning, experiment_type=SupportedNilmExperiments.HYPERPARAM_TUNE_CV)

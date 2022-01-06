@@ -42,14 +42,14 @@ class ConvDropRelu(nn.Module):
 
 
 class VIBDecoder(nn.Module):
-    def __init__(self, k, drop=0):
+    def __init__(self, k, drop=0, output_dim=1):
         super().__init__()
         self.conv = ConvDropRelu(1, 3, kernel_size=5, dropout=drop)
         self.flatten = nn.Flatten()
         self.feedforward = nn.Sequential(
             LinearDropRelu(k * 3, 2 * k, drop),
             LinearDropRelu(2 * k, k, drop),
-            nn.Linear(k, 1)
+            nn.Linear(k, output_dim)
         )
 
     def forward(self, x):
