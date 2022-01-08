@@ -20,6 +20,7 @@ from neural_networks.variational import VIBSeq2Point, VIBFnet, VIB_SAED, VIBShor
     VIBWGRU, VIBShortFnet, VIBSeq2Point, VAE, VIB_SimpleGru
 
 from neural_networks.bayesian import BayesSimpleGru, BayesSeq2Point, BayesWGRU, BayesFNET
+from neural_networks.bert import BERT4NILM, CUT_OFF, MIN_OFF_DUR, MIN_ON_DUR, POWER_ON_THRESHOLD, LAMBDA
 
 # Setting the seed
 # pl.seed_everything(42)
@@ -69,6 +70,7 @@ def create_model(model_name, model_hparams):
 
                   'VAE': VAE,
                   'DAE': DAE,
+                  'BERT': BERT4NILM,
                   }
 
     if model_name in model_dict:
@@ -153,7 +155,6 @@ class ClassicTrainingTools(pl.LightningModule):
         outputs = self.forward(inputs).squeeze()
         loss = self.calculate_loss(outputs, labels)
         mae = F.l1_loss(outputs, labels)
-
         return loss, mae
 
     def train_epoch_end(self, outputs):
@@ -169,7 +170,6 @@ class ClassicTrainingTools(pl.LightningModule):
         preds_batch = outputs.squeeze().cpu().numpy()
         self.final_preds = np.append(self.final_preds, preds_batch)
         return {'test_loss': loss}
-        # return {'test_loss': loss, 'metrics': self._metrics(test=True)}
 
     def test_epoch_end(self, outputs):
         # outputs is a list of whatever you returned in `test_step`
@@ -275,8 +275,6 @@ class VIBTrainingTools(ClassicTrainingTools):
     def test_epoch_end(self, outputs):
         # outputs is a list of whatever you returned in `test_step`
         avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
-        if self.model_name == 'VAE':
-            self.final_preds = np.reshape(self.final_preds, (-1))
         res = self._metrics()
         print('#### model name: {} ####'.format(res['model']))
         print('metrics: {}'.format(res['metrics']))
@@ -329,5 +327,145 @@ class BertTrainingTools(ClassicTrainingTools):
         self.mse = nn.MSELoss()
         self.margin = nn.SoftMarginLoss()
         self.l1_on = nn.L1Loss(reduction='sum')
+        self.temperature = 0.1
+        self.dev = self.eval_params[COLUMN_DEVICE]
+        self.C0 = torch.tensor(LAMBDA[self.dev])
+        self.cutoff = torch.tensor(CUT_OFF[self.dev])
+        self.threshold = torch.tensor(POWER_ON_THRESHOLD[self.dev])
+        self.min_on = torch.tensor(MIN_ON_DUR[self.dev])
+        self.min_off = torch.tensor(MIN_OFF_DUR[self.dev])
 
-    pass
+    def training_step(self, batch, batch_idx):
+        total_loss = self._bert_loss(batch)
+        tensorboard_logs = {'train_loss': total_loss}
+        return {'loss': total_loss, 'log': tensorboard_logs}
+
+    def test_step(self, batch, batch_idx):
+        # Forward pass
+        x, y = batch
+        outputs = self(x)
+        loss = self._bert_loss((outputs.squeeze(), y))
+        preds_batch = outputs.squeeze().cpu().numpy()
+        self.final_preds = np.append(self.final_preds, preds_batch)
+        return {'test_loss': loss}
+
+    def validation_step(self, val_batch: Tensor, batch_idx: int) -> Dict:
+        loss, mae = self._forward_step(val_batch)
+        self.log(VAL_LOSS, mae, prog_bar=True)
+        return {"vloss": loss, "val_loss": mae}
+
+    def _forward_step(self, batch: Tensor) -> Tuple[Tensor, Tensor]:
+        inputs, labels = batch
+        outputs = self.forward(inputs)
+        # loss = self.calculate_loss(outputs.squeeze(), labels)
+        loss = self._bert_loss((outputs.squeeze(), labels))
+        mae = F.l1_loss(outputs, labels)
+        return loss, mae
+
+    def test_epoch_end(self, outputs):
+        # outputs is a list of whatever you returned in `test_step`
+        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
+        res = self._metrics()
+        print('#### model name: {} ####'.format(res['model']))
+        print('metrics: {}'.format(res['metrics']))
+
+        self.log("test_test_avg_loss", avg_loss)
+        return res
+
+    def _bert_loss(self, batch):
+        x, y = batch
+        status = self._get_appliance_status(y)
+        logits = self.model(x)
+        labels = y / self.cutoff
+        logits_energy = self.cutoff_energy(logits * self.cutoff)
+        logits_status = self.compute_status(logits_energy)
+
+        kl_loss = self.kl(torch.log(F.softmax(logits.squeeze() / self.temperature, dim=-1) + 1e-9),
+                          F.softmax(labels.squeeze() / self.temperature, dim=-1))
+        mse_loss = self.mse(logits.contiguous().view(-1).double(),
+                            labels.contiguous().view(-1).double())
+        margin_loss = self.margin((logits_status * 2 - 1).contiguous().view(-1).double(),
+                                  (status * 2 - 1).contiguous().view(-1).double())
+        total_loss = kl_loss + mse_loss + margin_loss
+
+        on_mask = ((status == 1) + (status != logits_status.reshape(status.shape))) >= 1
+        if on_mask.sum() > 0:
+            total_size = torch.tensor(on_mask.shape).prod()
+            logits_on = torch.masked_select(logits.reshape(on_mask.shape), on_mask)
+            labels_on = torch.masked_select(labels.reshape(on_mask.shape), on_mask)
+            loss_l1_on = self.l1_on(logits_on.contiguous().view(-1),
+                                    labels_on.contiguous().view(-1))
+            total_loss += self.C0 * loss_l1_on / total_size
+        return total_loss
+
+    def cutoff_energy(self, data):
+        columns = data.squeeze().shape[-1]
+        if self.cutoff == 0:
+            self.cutoff = torch.tensor(
+                [3100 for i in range(columns)]).to(self.device)
+
+        data[data < 5] = 0
+        data = torch.min(data, self.cutoff.double())
+        return data
+
+    def _get_appliance_status(self, data):
+        status = np.zeros(data.shape)
+        if len(data.squeeze().shape) == 1:
+            columns = 1
+        else:
+            columns = data.squeeze().shape[-1]
+
+        if not self.threshold:
+            self.threshold = [10 for i in range(columns)]
+        if not self.min_on:
+            self.min_on = [1 for i in range(columns)]
+        if not self.min_off:
+            self.min_off = [1 for i in range(columns)]
+
+        initial_status = data >= self.threshold
+        status_diff = np.diff(initial_status.cpu())
+        events_idx = status_diff.nonzero()
+
+        events_idx = np.array(events_idx).squeeze()
+        events_idx += 1
+
+        if all(initial_status[0]):
+            events_idx = np.insert(events_idx, 0, 0)
+
+        if all(initial_status[-1]):
+            events_idx = np.insert(
+                events_idx, events_idx.size, initial_status.size)
+
+        events_idx = events_idx.reshape((-1, 2))
+        on_events = events_idx[:, 0].copy()
+        off_events = events_idx[:, 1].copy()
+        assert len(on_events) == len(off_events)
+
+        if len(on_events) > 0:
+            off_duration = on_events[1:] - off_events[:-1]
+            off_duration = np.insert(off_duration, 0, 1000)
+            on_events = on_events[off_duration > self.min_off[i]]
+            off_events = off_events[np.roll(
+                off_duration, -1) > self.min_off[i]]
+
+            on_duration = off_events - on_events
+            on_events = on_events[on_duration >= self.min_on[i]]
+            off_events = off_events[on_duration >= self.min_on[i]]
+            assert len(on_events) == len(off_events)
+
+        temp_status = data.clone()
+        temp_status[:] = 0
+        for on, off in zip(on_events, off_events):
+            temp_status[on: off] = 1
+        status = temp_status
+        return status
+
+    def compute_status(self, data):
+        columns = data.squeeze().shape[-1]
+
+        if self.threshold == 0:
+            self.threshold = torch.tensor(
+                [10 for i in range(columns)]).to(self.device)
+
+        status = (data >= self.threshold) * 1
+        return status
