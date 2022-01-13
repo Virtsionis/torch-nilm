@@ -12,12 +12,12 @@ from constants.constants import*
 from modules.nilm_metrics import NILMmetrics
 from modules.helpers import denormalize, destandardize
 from neural_networks.base_models import BaseModel
-from neural_networks.bert import BERT4NILM
+from neural_networks.vae_nilm import VAE
 from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, FNET, ShortNeuralFourier, \
     ShortFNET, ShortPosFNET, PosFNET, DAE, PAFnet
 
-from neural_networks.variational import VIBSeq2Point, VIBFnet, VIB_SAED, VIBShortNeuralFourier, \
-    VIBWGRU, VIBShortFnet, VIBSeq2Point, VAE, VIB_SimpleGru
+from neural_networks.variational import VIBFnet, VIB_SAED, VIBShortNeuralFourier, \
+    VIBWGRU, VIBShortFnet, VIBSeq2Point, VIB_SimpleGru
 
 from neural_networks.bayesian import BayesSimpleGru, BayesSeq2Point, BayesWGRU, BayesFNET
 from neural_networks.bert import BERT4NILM, CUT_OFF, MIN_OFF_DUR, MIN_ON_DUR, POWER_ON_THRESHOLD, LAMBDA
@@ -67,7 +67,6 @@ def create_model(model_name, model_hparams):
                   'BayesWGRU': BayesWGRU,
                   'BayesSeq2Point': BayesSeq2Point,
                   'BayesFNET': BayesFNET,
-
                   'VAE': VAE,
                   'DAE': DAE,
                   'BERT': BERT4NILM,
@@ -357,8 +356,8 @@ class BertTrainingTools(ClassicTrainingTools):
     def _forward_step(self, batch: Tensor) -> Tuple[Tensor, Tensor]:
         inputs, labels = batch
         outputs = self.forward(inputs)
-        # loss = self.calculate_loss(outputs.squeeze(), labels)
-        loss = self._bert_loss((outputs.squeeze(), labels))
+        loss = self.calculate_loss(outputs.squeeze(), labels)
+        # loss = self._bert_loss((outputs.squeeze(), labels))
         mae = F.l1_loss(outputs, labels)
         return loss, mae
 
@@ -386,6 +385,7 @@ class BertTrainingTools(ClassicTrainingTools):
                             labels.contiguous().view(-1).double())
         margin_loss = self.margin((logits_status * 2 - 1).contiguous().view(-1).double(),
                                   (status * 2 - 1).contiguous().view(-1).double())
+        # margin_loss = 0
         total_loss = kl_loss + mse_loss + margin_loss
 
         on_mask = ((status == 1) + (status != logits_status.reshape(status.shape))) >= 1
