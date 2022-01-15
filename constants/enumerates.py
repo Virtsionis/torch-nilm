@@ -48,4 +48,4 @@ class SupportedPreprocessingMethods(Enum):
     ROLLING_WINDOW = 'rolling_window'
     MIDPOINT_WINDOW = 'midpoint_window'
     SEQ_T0_SEQ = 'sequence-to-sequence'
-    SEQ_T0_SUBSEQ = 'sequence-to-sequence'
+    SEQ_T0_SUBSEQ = 'sequence-to-sub-sequence'

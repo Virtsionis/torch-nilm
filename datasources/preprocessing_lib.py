@@ -35,7 +35,7 @@ def apply_sequence_to_subsequence(mainchunk: np.array, meterchunk: np.array, seq
     sequence_indexer = np.arange(sequence_window)[None, :] + np.arange(len(mainchunk) - sequence_window + 1)[:, None]
     mainchunk = mainchunk[sequence_indexer]
 
-    subsequence_indexer = np.arange(sequence_window)[lower_limit: upper_limit + 1] + np.arange(len(mainchunk))[:, None]
+    subsequence_indexer = np.arange(sequence_window)[lower_limit: upper_limit] + np.arange(len(mainchunk))[:, None]
     meterchunk = meterchunk[subsequence_indexer]
     return mainchunk, meterchunk
 
