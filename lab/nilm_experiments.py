@@ -21,6 +21,49 @@ with torch.no_grad():
     torch.cuda.empty_cache()
 
 
+class ExperimentParameters:
+    """
+    A class in order to standardize the general experiment parameters.
+
+    Args:
+        epochs (int): the number of training epochs
+        iterations (int):  execution iterations of each experiment
+        inference_cpu (bool): controls whether the inference should be executed on cpu or on gpu
+        sample_period (int): the sample period of the data
+        batch_size (int): the batch size
+        iterable_dataset (bool):  whether the train dataset should be iterable or not (check: datasources/torchdataset)
+        preprocessing_method (SupportedPreprocessingMethods): the desired preprocessing method
+        fixed_window (int): (check: datasources/torchdataset)
+        subseq_window (int): (check: datasources/torchdataset)
+        train_test_split (float):  for train / validation split
+        cv_folds (int): the number of cross validation folds
+    """
+    def __init__(self, epochs: int = 100, iterations: int = 5, inference_cpu: bool = False,
+                 sample_period: int = 6, batch_size: int = 256, iterable_dataset: bool = False,
+                 preprocessing_method: SupportedPreprocessingMethods = SupportedPreprocessingMethods.ROLLING_WINDOW,
+                 fixed_window: int = None, subseq_window: int = None, train_test_split: float = 0.8, cv_folds: int = 3):
+
+        self.params = {
+            EPOCHS: epochs,
+            ITERATIONS: iterations,
+            INFERENCE_CPU: inference_cpu,
+            SAMPLE_PERIOD: sample_period,
+            BATCH_SIZE: batch_size,
+            ITERABLE_DATASET: iterable_dataset,
+            PREPROCESSING_METHOD: preprocessing_method,
+            FIXED_WINDOW: fixed_window,
+            SUBSEQ_WINDOW: subseq_window,
+            TRAIN_TEST_SPLIT: train_test_split,
+            CV_FOLDS: cv_folds,
+        }
+
+    def get_params(self):
+        return self.params
+
+    def get_param_names(self):
+        return self.params.keys()
+
+
 class BaseModelParameters:
     """
     A base class in order to standardize the model parameters for each experiment type.
@@ -133,7 +176,7 @@ class NILMExperiments:
     """
     The purpose of this class is to organise the NILM experiments/projects in an API-like way. Thus, each type of
     experiment could be executed easily with the minimum number of commands from the user side. Furthermore, each NILM
-    project is  organised in separate folders under the main folder 'output'. The class could be easily extended in to
+    project is  organised in separate folders under the main folder 'output'. The class could be easily extended to
     support a wider range of experiments. Currently, three main types of experiments are supported; BENCHMARK,
     CROSS_VALIDATION, HYPERPARAM_TUNE_CV. A description of each experiment is presented below:
         - BENCHMARK :
@@ -141,7 +184,31 @@ class NILMExperiments:
         - HYPERPARAM_TUNE_CV :
 
     Args:
+        project_name(str): The name of the project
+        clean_project(bool): This flag controls whether the files & folders under the same project_name should be
+            deleted or not. If value is False, user can add experiments under the same project_name asynchronously
+            Default: False
+        experiment_categories(list): This list contains the desired experiment_categories to be executed. The available
+            categories can be found in constants/enumerates/SupportedExperimentCategories. When empty list is given,
+            experiments are executed for all available categories.
+        devices(list): This list contains the desired devices to be investigated. The available devices can be found in
+            constants/enumerates/ElectricalAppliances.
+        save_timeseries_results(bool): The flag controls whether the model output time series should be exported or not.
+            It is useful to export the timeseries to visually inspect the output of the models in respect to the ground-
+            truth data. Mind that this file is saved in a csv format and could be a handful of MBs in size.
+            Default: True
+        experiment_volume(SupportedExperimentVolumes): The list of the desired experiment_volume to be used.
+            The supported volumes can be found in constants/enumerates/SupportedExperimentVolumes.
+            Default: SupportedExperimentVolumes.LARGE_VOLUME
+        experiment_type(SupportedNilmExperiments): The list of the desired nilm experiments to be executed.
+            The supported nilm experiments can be found in constants/enumerates/SupportedNilmExperiments.
+        experiment_parameters(ExperimentParameters): The general experiment parameters-settings to be used.
 
+        model_hparams(ModelHyperModelParameters): None
+        hparam_tuning(HyperParameterTuning): None
+        data_dir(str): The directory of the data. If None is given, the path in datasources/paths_manager.py is used.
+        train_file_dir(str): The directory of the date files. If None is given, the files in benchmark dir are used.
+        test_file_dir(str): The directory of the date files. If None is given, the files in benchmark dir are used.
     Functionality in a nut-shell:
 
     Example of use:
@@ -151,7 +218,7 @@ class NILMExperiments:
     def __init__(self, project_name: str = None, clean_project: bool = False, experiment_categories: list = None,
                  devices: list = None, save_timeseries_results: bool = True,
                  experiment_volume: SupportedExperimentVolumes = SupportedExperimentVolumes.LARGE_VOLUME,
-                 experiment_type: SupportedNilmExperiments = None, experiment_parameters: dict = None,
+                 experiment_type: SupportedNilmExperiments = None, experiment_parameters: ExperimentParameters = None,
                  model_hparams: ModelHyperModelParameters = None, hparam_tuning: HyperParameterTuning = None,
                  data_dir: str = None, train_file_dir: str = None, test_file_dir: str = None,
                  ):
@@ -170,10 +237,11 @@ class NILMExperiments:
         self.train_file_dir = train_file_dir
         self.test_file_dir = test_file_dir
 
-    def _prepare_project_properties(self, devices: list = None, experiment_parameters: dict = None, data_dir: str = None,
-                                    train_file_dir: str = None, test_file_dir: str = None,
-                                    experiment_volume: SupportedExperimentVolumes = None, hparam_tuning: dict = None,
-                                    experiment_categories: list = None, model_hparams: dict = None,
+    def _prepare_project_properties(self, devices: list = None, experiment_parameters: ExperimentParameters = None,
+                                    data_dir: str = None, train_file_dir: str = None, test_file_dir: str = None,
+                                    experiment_volume: SupportedExperimentVolumes = None,
+                                    hparam_tuning: HyperParameterTuning = None,
+                                    experiment_categories: list = None, model_hparams: ModelHyperModelParameters = None,
                                     experiment_type: SupportedNilmExperiments = None):
 
         self.model_hparams = model_hparams
@@ -249,29 +317,30 @@ class NILMExperiments:
     def _set_default_experiment_parameters(self):
         self.epochs = 100
         self.iterations = 5
+        self.inference_cpu = False
         self.sample_period = 6
         self.batch_size = 256
         self.iterable_dataset = False
-        self.preprocessing_method = SupportedPreprocessingMethods.ROLLING_WINDOW.value
+        self._set_preprocessing_method(SupportedPreprocessingMethods.ROLLING_WINDOW)
         self.fixed_window = 100
         self.subseq_window = None
         self.train_test_split = 0.8
         self.cv_folds = 3
 
-    def _set_experiment_parameters(self, experiment_parameters: dict = None):
+    def _set_experiment_parameters(self, experiment_parameters: ExperimentParameters = None):
         if experiment_parameters:
-            self.epochs = self.experiment_parameters[EPOCHS]
-            self.iterations = self.experiment_parameters[ITERATIONS]
-            self.inference_cpu = self.experiment_parameters[INFERENCE_CPU]
-            self.preprocessing_method = self.experiment_parameters[PREPROCESSING_METHOD]
+            experiment_parameters = experiment_parameters.get_params()
+            self.epochs = experiment_parameters[EPOCHS]
+            self.iterations = experiment_parameters[ITERATIONS]
+            self.inference_cpu = experiment_parameters[INFERENCE_CPU]
             self._set_preprocessing_method(experiment_parameters[PREPROCESSING_METHOD])
-            self.sample_period = self.experiment_parameters[SAMPLE_PERIOD]
-            self.batch_size = self.experiment_parameters[BATCH_SIZE]
-            self.iterable_dataset = self.experiment_parameters[ITERABLE_DATASET]
-            self.fixed_window = self.experiment_parameters[FIXED_WINDOW]
-            self.subseq_window = self.experiment_parameters[SUBSEQ_WINDOW]
-            self.train_test_split = self.experiment_parameters[TRAIN_TEST_SPLIT]
-            self.cv_folds = self.experiment_parameters[CV_FOLDS]
+            self.sample_period = experiment_parameters[SAMPLE_PERIOD]
+            self.batch_size = experiment_parameters[BATCH_SIZE]
+            self.iterable_dataset = experiment_parameters[ITERABLE_DATASET]
+            self.fixed_window = experiment_parameters[FIXED_WINDOW]
+            self.subseq_window = experiment_parameters[SUBSEQ_WINDOW]
+            self.train_test_split = experiment_parameters[TRAIN_TEST_SPLIT]
+            self.cv_folds = experiment_parameters[CV_FOLDS]
         else:
             warnings.warn('No experiment parameters are defined. So, default parameters will be used.')
             self._set_default_experiment_parameters()
@@ -308,11 +377,11 @@ class NILMExperiments:
             self.experiment_volume = SupportedExperimentVolumes.LARGE_VOLUME.value
 
     def _set_preprocessing_method(self, preprocessing_method: SupportedPreprocessingMethods = None):
-        if preprocessing_method and isinstance(self.preprocessing_method, SupportedPreprocessingMethods):
+        if preprocessing_method and isinstance(preprocessing_method, SupportedPreprocessingMethods):
             self.preprocessing_method = preprocessing_method
         else:
             warnings.warn('Preprocessing method was not properly defined. So, ROLLING_WINDOW is used by default.')
-            self.preprocessing_method = preprocessing_method.ROLLING_WINDOW
+            self.preprocessing_method = SupportedPreprocessingMethods.ROLLING_WINDOW
 
     def _set_train_test_file_dir(self, train_file_dir: str = None, test_file_dir: str = None):
         if train_file_dir and os.path.isdir(train_file_dir):
@@ -614,7 +683,7 @@ class NILMExperiments:
                 window = self.fixed_window
             else:
                 if model_name in WINDOWS:
-                    dev = ElectricalAppliances(device).name
+                    dev = ElectricalAppliances(device)
                     window = WINDOWS[model_name][dev]
                 else:
                     raise Exception('Model with name {} has not window specified'.format(model_name))
@@ -670,8 +739,9 @@ class NILMExperiments:
                                prepare_project_properties=False,
                                )
 
-    def run_cross_validation(self, devices: list = None, experiment_parameters: list = None, data_dir: str = None,
-                             train_file_dir: str = None, test_file_dir: str = None, model_hparams: ModelHyperModelParameters = None,
+    def run_cross_validation(self, devices: list = None, experiment_parameters: ExperimentParameters = None,
+                             data_dir: str = None, train_file_dir: str = None, test_file_dir: str = None,
+                             model_hparams: ModelHyperModelParameters = None,
                              experiment_volume: SupportedExperimentVolumes = None, experiment_categories: list = None,
                              export_report: bool = True, stat_measures: list = None, ):
 
