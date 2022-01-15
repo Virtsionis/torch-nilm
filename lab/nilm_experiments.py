@@ -273,6 +273,7 @@ class NILMExperiments:
             self.train_test_split = self.experiment_parameters[TRAIN_TEST_SPLIT]
             self.cv_folds = self.experiment_parameters[CV_FOLDS]
         else:
+            warnings.warn('No experiment parameters are defined. So, default parameters will be used.')
             self._set_default_experiment_parameters()
 
     def _set_experiment_categories(self, experiment_categories: list = None):
@@ -285,8 +286,10 @@ class NILMExperiments:
                     temp.append(experiment_category)
             self.experiment_categories = temp
         else:
-            self.experiment_categories = [SupportedExperimentCategories.SINGLE_CATEGORY,
-                                          SupportedExperimentCategories.MULTI_CATEGORY]
+            warnings.warn('No experiment categories are defined. So, both available categories will be executed.')
+            self.experiment_categories = [SupportedExperimentCategories.SINGLE_CATEGORY.value,
+                                          SupportedExperimentCategories.MULTI_CATEGORY.value
+                                          ]
 
     def _set_data_dir(self, data_dir: str = None,):
         if data_dir:
@@ -301,13 +304,14 @@ class NILMExperiments:
             else:
                 self.experiment_volume = experiment_volume
         else:
+            warnings.warn('No experiment volume is defined. So, large volume of experiments will be used.')
             self.experiment_volume = SupportedExperimentVolumes.LARGE_VOLUME.value
 
     def _set_preprocessing_method(self, preprocessing_method: SupportedPreprocessingMethods = None):
         if preprocessing_method and isinstance(self.preprocessing_method, SupportedPreprocessingMethods):
             self.preprocessing_method = preprocessing_method
         else:
-            warnings.warn('Preprocessing method was not properly defined. Used ROLLING_WINDOW instead by default.')
+            warnings.warn('Preprocessing method was not properly defined. So, ROLLING_WINDOW is used by default.')
             self.preprocessing_method = preprocessing_method.ROLLING_WINDOW
 
     def _set_train_test_file_dir(self, train_file_dir: str = None, test_file_dir: str = None):
@@ -592,7 +596,7 @@ class NILMExperiments:
             if self.subseq_window and self.subseq_window < output_dim:
                 model_hparams[OUTPUT_DIM] = self.subseq_window
             else:
-                warnings.warn('Sequence window is smaller than subsequence window and SEQ_TO_SEQ preprocessing ' +
+                warnings.warn('Sequence window is smaller than subsequence window. So, SEQ_TO_SEQ preprocessing ' +
                               'was applied instead of SEQ_T0_SUBSEQ')
                 model_hparams[OUTPUT_DIM] = output_dim
                 self.subseq_window = output_dim
@@ -610,7 +614,8 @@ class NILMExperiments:
                 window = self.fixed_window
             else:
                 if model_name in WINDOWS:
-                    window = WINDOWS[model_name][device]
+                    dev = ElectricalAppliances(device).name
+                    window = WINDOWS[model_name][dev]
                 else:
                     raise Exception('Model with name {} has not window specified'.format(model_name))
             if WINDOW_SIZE in model_hparams:
@@ -627,7 +632,7 @@ class NILMExperiments:
                       train_file_dir: str = None, test_file_dir: str = None, model_hparams: ModelHyperModelParameters = None,
                       experiment_volume: SupportedExperimentVolumes = None, experiment_categories: list = None,
                       export_report: bool = True, stat_measures: list = None, ):
-
+        print('>>>BENCHMARK EXPERIMENT<<<')
         self._prepare_project_properties(devices=devices,
                                          experiment_parameters=experiment_parameters,
                                          data_dir=data_dir,
@@ -641,6 +646,7 @@ class NILMExperiments:
                                          )
 
         for experiment_category in self.experiment_categories:
+            print('EXPERIMENT CATEGORY: ', experiment_category)
             for model_name in self.models:
                 model_hparams = self.model_hparams.get_model_params(model_name)
                 for device in self.devices:
@@ -669,6 +675,7 @@ class NILMExperiments:
                              experiment_volume: SupportedExperimentVolumes = None, experiment_categories: list = None,
                              export_report: bool = True, stat_measures: list = None, ):
 
+        print('>>>CROSS VALIDATION EXPERIMENT<<<')
         self._prepare_project_properties(devices=devices,
                                          experiment_parameters=experiment_parameters,
                                          data_dir=data_dir,
@@ -680,8 +687,8 @@ class NILMExperiments:
                                          experiment_categories=experiment_categories,
                                          experiment_type=SupportedNilmExperiments.CROSS_VALIDATION,
                                          )
-
         for experiment_category in self.experiment_categories:
+            print('EXPERIMENT CATEGORY: ', experiment_category)
             for model_name in self.models:
                 model_hparams = self.model_hparams.get_model_params(model_name)
                 for device in self.devices:
@@ -712,7 +719,7 @@ class NILMExperiments:
                                                    hparam_tuning: HyperParameterTuning = None,
                                                    experiment_categories: list = None,
                                                    export_report: bool = True, stat_measures: list = None, ):
-
+        print('>>>HYPERPARAMETER TUNING EXPERIMENT<<<')
         self._prepare_project_properties(devices=devices,
                                          experiment_parameters=experiment_parameters,
                                          data_dir=data_dir,
@@ -726,6 +733,7 @@ class NILMExperiments:
                                          )
 
         for experiment_category in self.experiment_categories:
+            print('EXPERIMENT CATEGORY: ', experiment_category)
             for model_name in self.models:
                 model_hparams_list = self.hparam_tuning.get_model_params(model_name)
                 for model_hparams in model_hparams_list:
