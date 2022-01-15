@@ -37,6 +37,23 @@ class ExperimentParameters:
         subseq_window (int): (check: datasources/torchdataset)
         train_test_split (float):  for train / validation split
         cv_folds (int): the number of cross validation folds
+
+    Example of use:
+        experiment_parameters = {
+            EPOCHS: 1,
+            ITERATIONS: 1,
+            INFERENCE_CPU: False,
+            SAMPLE_PERIOD: 6,
+            BATCH_SIZE: 1024,
+            ITERABLE_DATASET: False,
+            PREPROCESSING_METHOD: SupportedPreprocessingMethods.MIDPOINT_WINDOW,
+            FIXED_WINDOW: 128,
+            SUBSEQ_WINDOW: 50,
+            TRAIN_TEST_SPLIT: 0.8,
+            CV_FOLDS: 2,
+        }
+        experiment_parameters = ExperimentParameters(**experiment_parameters)
+
     """
     def __init__(self, epochs: int = 100, iterations: int = 5, inference_cpu: bool = False,
                  sample_period: int = 6, batch_size: int = 256, iterable_dataset: bool = False,
@@ -103,7 +120,8 @@ class BaseModelParameters:
 class HyperParameterTuning(BaseModelParameters):
     """
     A class in order to standardize the model parameters for HYPERPARAM_TUNE_CV experiment.
-    The list of parameters is given in a json-like format.
+    The list of parameters is given in a json-like format. These objects can be used to run the 'export_report' process
+    of a project with the same parameters, if the files & folders exist.
 
     Args:
         params(list): list containing the parameters of every desired model.
@@ -129,7 +147,9 @@ class HyperParameterTuning(BaseModelParameters):
         ]
 
         hparam_tuning = HyperParameterTuning(hparam_tuning)
+        experiment = NILMExperiments(**args)
         experiment.run_hyperparameter_tuning_cross_validation(hparam_tuning=hparam_tuning)
+        experiment.export_report(hparam_tuning=hparam_tuning, experiment_type=SupportedNilmExperiments.HYPERPARAM_TUNE_CV)
     """
     def __init__(self, hparam_tuning: list = None):
         super().__init__(params=hparam_tuning)
@@ -138,7 +158,9 @@ class HyperParameterTuning(BaseModelParameters):
 class ModelHyperModelParameters(BaseModelParameters):
     """
     A class in order to standardize the model parameters for BENCHMARK and CROSS_VALIDATION experiments.
-    The list of parameters is given in a json-like format.
+    The list of parameters is given in a json-like format. These objects can be used to run the 'export_report' process
+    of a project with the same parameters, if the files & folders exist.
+
     Args:
         params(list): list containing the parameters of every desired model.
 
@@ -163,9 +185,13 @@ class ModelHyperModelParameters(BaseModelParameters):
     ]
 
     model_hparams = ModelHyperModelParameters(model_hparams)
-    experiment = NILMExperiments(***)
+    experiment = NILMExperiments(**args)
+
     experiment.run_benchmark(model_hparams=model_hparams)
+    experiment.export_report(model_hparams=model_hparams, experiment_type=SupportedNilmExperiments.BENCHMARK)
+                                    -   and/or   -
     experiment.run_cross_validation(model_hparams=model_hparams)
+    experiment.export_report(model_hparams=model_hparams, experiment_type=SupportedNilmExperiments.CROSS_VALIDATION)
     
     """
     def __init__(self, model_hparams: list = None):
@@ -203,16 +229,81 @@ class NILMExperiments:
         experiment_type(SupportedNilmExperiments): The list of the desired nilm experiments to be executed.
             The supported nilm experiments can be found in constants/enumerates/SupportedNilmExperiments.
         experiment_parameters(ExperimentParameters): The general experiment parameters-settings to be used.
-
-        model_hparams(ModelHyperModelParameters): None
-        hparam_tuning(HyperParameterTuning): None
+        model_hparams(ModelHyperModelParameters): the model parameters for BENCHMARK and CROSS_VALIDATION experiments
+        hparam_tuning(HyperParameterTuning): the model parameters for HYPERPARAM_TUNE_CV experiment
         data_dir(str): The directory of the data. If None is given, the path in datasources/paths_manager.py is used.
         train_file_dir(str): The directory of the date files. If None is given, the files in benchmark dir are used.
         test_file_dir(str): The directory of the date files. If None is given, the files in benchmark dir are used.
+
     Functionality in a nut-shell:
+        After input arguments are initialized, the experiment properties can be used as APIs.
+        The main properties that could be used for NILM-research are:
+            'run_benchmark': this method executes the benchmarking process described in:
+                Symeonidis et al. “A Benchmark Framework to Evaluate Energy Disaggregation Solutions.” EANN (2019).
+                DOI:10.1007/978-3-030-20257-6_2
+            'run_cross_validation': this method executes a Cross Validation process
+            'run_hyperparameter_tuning_cross_validation': this method executes a hyperparameter tuning/search using
+                Cross Validation.
+            'export_report': this method gathers all the experiment reports in a final report in a xlsx type format.
+                Basic inputs are the same experiment settings and the experiment_type.
+
+        Every experiment has three main steps in order to be set and executed:
+            - Firstly, the hyperparameters of each model are received.
+            - Secondly, the input / output of each model is calculated with the use of the '_calculate_model_window' and
+                '_set_model_output_dim' methods. It should be noted that the model input & output are highly dependant
+                of the preprocessing method that is chosen.
+            - Thirdly, the method '_prepare_train_eval_input' prepares the training & evaluation parameters for each
+                experiment.
+
+        After an experiment is concluded, a report (xlsx) can be exported either as an API call or internally with
+            the flag 'export_report'.
 
     Example of use:
+        experiment_parameters = {
+            EPOCHS: 1,
+            ITERATIONS: 1,
+            INFERENCE_CPU: False,
+            SAMPLE_PERIOD: 6,
+            BATCH_SIZE: 1024,
+            ITERABLE_DATASET: False,
+            PREPROCESSING_METHOD: SupportedPreprocessingMethods.MIDPOINT_WINDOW,
+            FIXED_WINDOW: None,
+            SUBSEQ_WINDOW: None,
+            TRAIN_TEST_SPLIT: 0.8,
+            CV_FOLDS: 2,
+        }
 
+        devices = [
+            ElectricalAppliances.KETTLE,
+            ElectricalAppliances.MICROWAVE,
+        ]
+
+        experiment_categories = [
+            SupportedExperimentCategories.SINGLE_CATEGORY,
+            SupportedExperimentCategories.MULTI_CATEGORY,
+        ]
+
+        model_hparams = [
+            {
+                'model_name': 'SAED',
+                'hparams': {'window_size': None},
+            },
+            {
+                'model_name': 'WGRU',
+                'hparams': {'dropout': 0},
+            },
+        ]
+
+        model_hparams = ModelHyperModelParameters(model_hparams)
+        experiment_parameters = ExperimentParameters(**experiment_parameters)
+
+        experiment = NILMExperiments(project_name='NILM_EXPERIMENTS', clean_project=False,
+                                     devices=devices, save_timeseries_results=False, experiment_categories=experiment_categories,
+                                     experiment_volume=SupportedExperimentVolumes.LARGE_VOLUME,
+                                     experiment_parameters=experiment_parameters,
+                                     )
+        experiment.run_benchmark(model_hparams=model_hparams)
+        experiment.export_report(model_hparams=model_hparams, experiment_type=SupportedNilmExperiments.BENCHMARK)
 
     """
     def __init__(self, project_name: str = None, clean_project: bool = False, experiment_categories: list = None,
@@ -574,32 +665,32 @@ class NILMExperiments:
         experiment_name = '_'.join([device, experiment_category, TRAIN_NAME, train_set_name, '', ])
 
         train_eval_args = {
-            'model_name': model_name,
-            'device': device,
-            'window_size': window,
-            'subseq_window': self.subseq_window,
-            'experiment_category': experiment_category,
-            'experiment_type': self.experiment_type.value,
-            'sample_period': self.sample_period,
-            'batch_size': self.batch_size,
-            'iteration': iteration,
-            'preprocessing_method': self.preprocessing_method,
-            'inference_cpu': self.inference_cpu,
-            'root_dir': self.project_name,
-            'model_hparams': model_hparams,
-            'save_timeseries': self.save_timeseries,
-            'epochs': self.epochs,
-            'callbacks': [TrainerCallbacksFactory.create_earlystopping()],
-            'train_loader': train_loader,
-            'val_loader': val_loader,
-            'mmax': mmax,
-            'means': means,
-            'stds': stds,
-            'meter_means': meter_means,
-            'meter_stds': meter_stds,
-            'tests_params': tests_params,
-            'eval_params': eval_params,
-            'experiment_name': experiment_name,
+            MODEL_NAME: model_name,
+            COLUMN_DEVICE: device,
+            WINDOW_SIZE: window,
+            SUBSEQ_WINDOW: self.subseq_window,
+            EXPERIMENT_CATEGORY: experiment_category,
+            EXPERIMENT_TYPE: self.experiment_type.value,
+            SAMPLE_PERIOD: self.sample_period,
+            BATCH_SIZE: self.batch_size,
+            ITERATION: iteration,
+            PREPROCESSING_METHOD: self.preprocessing_method,
+            INFERENCE_CPU: self.inference_cpu,
+            ROOT_DIR: self.project_name,
+            MODE_HPARAMS: model_hparams,
+            SAVE_TIMESERIES: self.save_timeseries,
+            EPOCHS: self.epochs,
+            CALLBACKS: [TrainerCallbacksFactory.create_earlystopping()],
+            TRAIN_LOADER: train_loader,
+            VAL_LOADER: val_loader,
+            COLUMN_MMAX: mmax,
+            COLUMN_MEANS: means,
+            COLUMN_STDS: stds,
+            METER_MEANS: meter_means,
+            METER_STDS: meter_stds,
+            TESTS_PARAMS: tests_params,
+            EVAL_PARAMS: eval_params,
+            EXPERIMENT_NAME: experiment_name,
         }
 
         return train_eval_args
@@ -655,6 +746,10 @@ class NILMExperiments:
                                stat_measures=stat_measures)
 
     def _set_model_output_dim(self, model_hparams: dict = None, output_dim: int = 1):
+        """
+        A method that sets the output dimension of each model automatically, based on the preprocessing method that was
+            determined by the user.
+        """
         if self.preprocessing_method == SupportedPreprocessingMethods.ROLLING_WINDOW:
             model_hparams[OUTPUT_DIM] = 1
         elif self.preprocessing_method == SupportedPreprocessingMethods.MIDPOINT_WINDOW:
@@ -674,6 +769,16 @@ class NILMExperiments:
         return model_hparams
 
     def _calculate_model_window(self, model_hparams: dict = None, model_name: str = None, device: str = None,):
+        """
+        A method that sets the input window / input dimension of each model automatically, based on the preprocessing
+            method that was determined by the user. Bellow, some use-case scenarios are explored:
+            - If user chose FIXED_WINDOW, the input of the models are set to that value.
+            - If user chose FIXED_WINDOW=None, the input of the models are set based on the predefined windows that can
+                be found in constants/device_windows.py.
+            - If user chose FIXED_WINDOW=None and specifically set window_size/input_dim to a value, that value is taken
+                into account.
+        """
+
         if WINDOW_SIZE in model_hparams and model_hparams[WINDOW_SIZE]:
             window = model_hparams[WINDOW_SIZE]
         elif INPUT_DIM in model_hparams and model_hparams[INPUT_DIM]:
@@ -701,6 +806,48 @@ class NILMExperiments:
                       train_file_dir: str = None, test_file_dir: str = None, model_hparams: ModelHyperModelParameters = None,
                       experiment_volume: SupportedExperimentVolumes = None, experiment_categories: list = None,
                       export_report: bool = True, stat_measures: list = None, ):
+        """
+        A method to execute the benchmark methodology described in:
+            Symeonidis et al. “A Benchmark Framework to Evaluate Energy Disaggregation Solutions.” EANN (2019).
+            DOI:10.1007/978-3-030-20257-6_2
+
+        Args:
+            devices(list): This list contains the desired devices to be investigated. The available devices can be found in
+                constants/enumerates/ElectricalAppliances.
+            experiment_parameters(list): The general experiment parameters-settings to be used.
+            data_dir(str): The directory of the data. If None is given, the path in datasources/paths_manager.py is used
+            train_file_dir(str): The directory of the date files. If None is given, the files in benchmark dir are used.
+            test_file_dir(str): The directory of the date files. If None is given, the files in benchmark dir are used.
+            model_hparams(ModelHyperModelParameters): The hyperparameters for all the models under investigation.
+            experiment_volume(SupportedExperimentVolumes): The list of the desired experiment_volume to be used.
+            experiment_categories(list): This list contains the desired experiment_categories to be executed.
+                The available categories can be found in constants/enumerates/SupportedExperimentCategories.
+            export_report(bool): Whether to export the final report (xlsx) or not.
+            stat_measures(list): user can define the appropriate statistical measures to be included to the report
+                supported measures: [ MEAN, MEDIAN, STANDARD_DEVIATION, MINIMUM, MAXIMUM, PERCENTILE_25TH,
+                PERCENTILE_75TH]
+        Example of use:
+            model_hparams = [
+                {
+                    'model_name': 'SAED',
+                    'hparams': {'window_size': None},
+                },
+                {
+                    'model_name': 'WGRU',
+                    'hparams': {'dropout': 0},
+                },
+            ]
+            model_hparams = ModelHyperModelParameters(model_hparams)
+            experiment_parameters = ExperimentParameters(**experiment_parameters)
+
+            experiment = NILMExperiments(project_name='NILM_EXPERIMENTS', clean_project=False,
+                                         devices=devices, save_timeseries_results=False,
+                                         experiment_categories=experiment_categories,
+                                         experiment_volume=SupportedExperimentVolumes.LARGE_VOLUME,
+                                         experiment_parameters=experiment_parameters,
+                                         )
+            experiment.run_benchmark(model_hparams=model_hparams)
+        """
         print('>>>BENCHMARK EXPERIMENT<<<')
         self._prepare_project_properties(devices=devices,
                                          experiment_parameters=experiment_parameters,
@@ -744,7 +891,46 @@ class NILMExperiments:
                              model_hparams: ModelHyperModelParameters = None,
                              experiment_volume: SupportedExperimentVolumes = None, experiment_categories: list = None,
                              export_report: bool = True, stat_measures: list = None, ):
+        """
+         A method to execute a cross validation method.
 
+         Args:
+             devices(list): This list contains the desired devices to be investigated. The available devices can be found in
+                 constants/enumerates/ElectricalAppliances.
+             experiment_parameters(list): The general experiment parameters-settings to be used.
+             data_dir(str): The directory of the data. If None is given, the path in datasources/paths_manager.py is used
+             train_file_dir(str): The directory of the date files. If None is given, the files in benchmark dir are used.
+             test_file_dir(str): The directory of the date files. If None is given, the files in benchmark dir are used.
+             model_hparams(ModelHyperModelParameters): The hyperparameters for all the models under investigation.
+             experiment_volume(SupportedExperimentVolumes): The list of the desired experiment_volume to be used.
+             experiment_categories(list): This list contains the desired experiment_categories to be executed.
+                 The available categories can be found in constants/enumerates/SupportedExperimentCategories.
+             export_report(bool): Whether to export the final report (xlsx) or not.
+             stat_measures(list): user can define the appropriate statistical measures to be included to the report
+                 supported measures: [ MEAN, MEDIAN, STANDARD_DEVIATION, MINIMUM, MAXIMUM, PERCENTILE_25TH,
+                 PERCENTILE_75TH]
+         Example of use:
+             model_hparams = [
+                 {
+                     'model_name': 'SAED',
+                     'hparams': {'window_size': None},
+                 },
+                 {
+                     'model_name': 'WGRU',
+                     'hparams': {'dropout': 0},
+                 },
+             ]
+             model_hparams = ModelHyperModelParameters(model_hparams)
+             experiment_parameters = ExperimentParameters(**experiment_parameters)
+
+             experiment = NILMExperiments(project_name='NILM_EXPERIMENTS', clean_project=False,
+                                          devices=devices, save_timeseries_results=False,
+                                          experiment_categories=experiment_categories,
+                                          experiment_volume=SupportedExperimentVolumes.LARGE_VOLUME,
+                                          experiment_parameters=experiment_parameters,
+                                          )
+             experiment.run_cross_validation(model_hparams=model_hparams)
+        """
         print('>>>CROSS VALIDATION EXPERIMENT<<<')
         self._prepare_project_properties(devices=devices,
                                          experiment_parameters=experiment_parameters,
@@ -789,6 +975,54 @@ class NILMExperiments:
                                                    hparam_tuning: HyperParameterTuning = None,
                                                    experiment_categories: list = None,
                                                    export_report: bool = True, stat_measures: list = None, ):
+        """
+         A method to execute hyperparameter tuning using a cross validation method.
+
+         Args:
+             devices(list): This list contains the desired devices to be investigated. The available devices can be found in
+                 constants/enumerates/ElectricalAppliances.
+             experiment_parameters(list): The general experiment parameters-settings to be used.
+             data_dir(str): The directory of the data. If None is given, the path in datasources/paths_manager.py is used
+             train_file_dir(str): The directory of the date files. If None is given, the files in benchmark dir are used.
+             test_file_dir(str): The directory of the date files. If None is given, the files in benchmark dir are used.
+             hparam_tuning(HyperParameterTuning): The hyperparameters for all the models under investigation.
+             experiment_volume(SupportedExperimentVolumes): The list of the desired experiment_volume to be used.
+             experiment_categories(list): This list contains the desired experiment_categories to be executed.
+                 The available categories can be found in constants/enumerates/SupportedExperimentCategories.
+             export_report(bool): Whether to export the final report (xlsx) or not.
+             stat_measures(list): user can define the appropriate statistical measures to be included to the report
+                 supported measures: [ MEAN, MEDIAN, STANDARD_DEVIATION, MINIMUM, MAXIMUM, PERCENTILE_25TH,
+                 PERCENTILE_75TH]
+         Example of use:
+             hparam_tuning = [
+                {
+                    'model_name': 'FNET',
+                    'hparams': [
+                        {'depth': 5, 'kernel_size': 5, 'cnn_dim': 128, 'dual_cnn': False,
+                         'input_dim': None, 'hidden_dim': 256, 'dropout': 0.0},
+                        {'depth': 3, 'kernel_size': 5, 'cnn_dim': 128, 'dual_cnn': False,
+                         'input_dim': None, 'hidden_dim': 256, 'dropout': 0.0},
+                    ]
+                },
+                {
+                    'model_name': 'SAED',
+                    'hparams': [
+                        {'window_size': None, 'bidirectional': False, 'hidden_dim': 128},
+                        {'window_size': None, 'bidirectional': False, 'hidden_dim': 128, 'num_heads': 4},
+                    ]
+                },
+            ]
+             hparam_tuning = HyperParameterTuning(hparam_tuning)
+             experiment_parameters = ExperimentParameters(**experiment_parameters)
+
+             experiment = NILMExperiments(project_name='NILM_EXPERIMENTS', clean_project=False,
+                                          devices=devices, save_timeseries_results=False,
+                                          experiment_categories=experiment_categories,
+                                          experiment_volume=SupportedExperimentVolumes.LARGE_VOLUME,
+                                          experiment_parameters=experiment_parameters,
+                                          )
+             experiment.run_hyperparameter_tuning_cross_validation(hparam_tuning=hparam_tuning)
+        """
         print('>>>HYPERPARAMETER TUNING EXPERIMENT<<<')
         self._prepare_project_properties(devices=devices,
                                          experiment_parameters=experiment_parameters,
