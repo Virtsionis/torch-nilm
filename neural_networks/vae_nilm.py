@@ -67,7 +67,10 @@ class VAE(VIBNet):
         self.deconv6 = nn.ConvTranspose1d(in_channels=16, out_channels=8, kernel_size=kernel_size-1, stride=2,
                                           padding_mode='zeros')
 
-        self.outputs = ConvDropRelu(in_channels=512, out_channels=1, kernel_size=kernel_size)
+        self.outputs = nn.Sequential(
+            ConvDropRelu(in_channels=512, out_channels=1, kernel_size=kernel_size),
+            nn.Linear(self.window, output_dim)
+        )
 
     def forward(self, x, current_epoch=1, num_sample=1):
         x = x.unsqueeze(1)
@@ -113,6 +116,6 @@ class VAE(VIBNet):
 
         dconv_seq10, _ = self.dconv_seq10(deconv6)
         dconc17 = torch.cat((dconv_seq10, conv_seq1), 1)
-        outputs = self.outputs(dconc17)
+        outputs = self.outputs(dconc17).squeeze(1)
 
-        return (mu, std), outputs.squeeze()
+        return (mu, std), outputs
