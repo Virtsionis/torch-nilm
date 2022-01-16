@@ -223,6 +223,9 @@ class NILMExperiments:
             It is useful to export the timeseries to visually inspect the output of the models in respect to the ground-
             truth data. Mind that this file is saved in a csv format and could be a handful of MBs in size.
             Default: True
+        save_model(bool): The flag controls whether the model weights should be exported or not.
+            Mind that this file is saved in a cpkt format and could be a handful of MBs in size.
+            Default: False
         experiment_volume(SupportedExperimentVolumes): The list of the desired experiment_volume to be used.
             The supported volumes can be found in constants/enumerates/SupportedExperimentVolumes.
             Default: SupportedExperimentVolumes.LARGE_VOLUME
@@ -311,12 +314,13 @@ class NILMExperiments:
                  experiment_volume: SupportedExperimentVolumes = SupportedExperimentVolumes.LARGE_VOLUME,
                  experiment_type: SupportedNilmExperiments = None, experiment_parameters: ExperimentParameters = None,
                  model_hparams: ModelHyperModelParameters = None, hparam_tuning: HyperParameterTuning = None,
-                 data_dir: str = None, train_file_dir: str = None, test_file_dir: str = None,
+                 data_dir: str = None, train_file_dir: str = None, test_file_dir: str = None, save_model: bool = False,
                  ):
 
         self.project_name = project_name
         self.clean_project = clean_project
         self.save_timeseries = save_timeseries_results
+        self.save_model = save_model
         self.model_hparams = model_hparams
         self.hparam_tuning = hparam_tuning
         self.experiment_type = experiment_type
@@ -494,12 +498,17 @@ class NILMExperiments:
             experiment_type = self.experiment_type.value
         else:
             experiment_type = self.experiment_type
+        if self.save_model:
+            level_1 = [DIR_RESULTS_NAME, DIR_SAVED_MODELS_NAME]
+        else:
+            level_1 = [DIR_RESULTS_NAME]
         tree_levels = {ROOT_LEVEL: project_name,
                        EXPERIMENTS_LEVEL: [experiment_type],
-                       LEVEL_1_NAME: [DIR_RESULTS_NAME],
+                       LEVEL_1_NAME: level_1,
                        LEVEL_2_NAME: devices,
                        LEVEL_3_NAME: self.models,
-                       EXPERIMENTS_NAME: experiment_categories}
+                       EXPERIMENTS_NAME: experiment_categories,
+                       }
         create_tree_dir(tree_levels=tree_levels, clean=clean_project)
         self.tree_levels = tree_levels
         self.clean_project = False
@@ -679,6 +688,7 @@ class NILMExperiments:
             ROOT_DIR: self.project_name,
             MODE_HPARAMS: model_hparams,
             SAVE_TIMESERIES: self.save_timeseries,
+            SAVE_MODEL: self.save_model,
             EPOCHS: self.epochs,
             CALLBACKS: [TrainerCallbacksFactory.create_earlystopping()],
             TRAIN_LOADER: train_loader,

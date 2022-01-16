@@ -1,13 +1,15 @@
+import os
 import numpy as np
 import pandas as pd
+from datetime import datetime
 import pytorch_lightning as pl
 from constants.constants import*
-from constants.enumerates import SupportedPreprocessingMethods
 from torch.utils.data import DataLoader
 from lab.training_tools import TrainingToolsFactory
 from modules.reporting import save_appliance_report
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import  ElectricityDataset
+from constants.enumerates import SupportedPreprocessingMethods
 
 
 def train_eval(model_name: str, train_loader: DataLoader, tests_params: pd.DataFrame, sample_period: int,
@@ -16,13 +18,14 @@ def train_eval(model_name: str, train_loader: DataLoader, tests_params: pd.DataF
                model_hparams: dict, eval_params: dict, save_timeseries: bool = True, epochs: int = 5, callbacks=None,
                val_loader: DataLoader = None, preprocessing_method: str = SupportedPreprocessingMethods.ROLLING_WINDOW,
                inference_cpu: bool = False, experiment_type: str = None, experiment_category: str = None,
-               subseq_window: int = None):
+               subseq_window: int = None, save_model: bool = False, saved_models_dir: str = DIR_SAVED_MODELS_NAME,
+               output_dir: str = DIR_OUTPUT_NAME, progress_bar: bool = True):
     """
     Inputs:
         model_name - Name of the model you want to run.
             It's used to look up the class in "model_dict"
     """
-    progress_bar = True
+
     if progress_bar:
         trainer = pl.Trainer(gpus=1, max_epochs=epochs, auto_lr_find=True, callbacks=callbacks)
     else:
@@ -37,6 +40,18 @@ def train_eval(model_name: str, train_loader: DataLoader, tests_params: pd.DataF
     else:
         trainer.fit(model, train_loader)
     epochs = trainer.early_stopping_callback.stopped_epoch
+
+    if save_model:
+        if output_dir:
+            save_dir = '/'.join([os.getcwd(), output_dir, root_dir])
+        else:
+            save_dir = '/'.join([os.getcwd(), root_dir])
+
+        model_path = '/'.join([save_dir, experiment_type, saved_models_dir, device, model_name,
+                               experiment_category, experiment_name, ''])
+        date = str(datetime.now().strftime("%d-%b-%Y-%H:%M:%S"))
+        filename = model_path + ITERATION_NAME + '_' + str(iteration) + '_' + date + CKPT_EXTENSION
+        trainer.save_checkpoint(filename)
 
     for i in range(len(tests_params)):
         building = tests_params[TEST_HOUSE][i]
