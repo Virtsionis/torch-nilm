@@ -10,7 +10,7 @@ class VAE(VIBNet):
     Architecture introduced in: ENERGY DISAGGREGATION USING VARIATIONAL AUTOENCODERS
     https://arxiv.org/pdf/2103.12177.pdf
     '''
-    def __init__(self, window_size, cnn_dim=256, kernel_size=3, latent_dim=16, max_noise=0.1, output_dim=1, dropout=0):
+    def __init__(self, window_size=256, cnn_dim=256, kernel_size=3, latent_dim=16, max_noise=0.1, output_dim=1, dropout=0):
         super().__init__()
         self.K = latent_dim
         self.max_noise = max_noise
@@ -41,7 +41,7 @@ class VAE(VIBNet):
         '''
         self.flatten1 = nn.Flatten()
         self.dense = LinearDropRelu(self.dense_input, 2 * latent_dim, self.drop)
-        self.decoder = VIBDecoder(self.K, output_dim=self.window // 64)
+        self.reshape1 = nn.Linear(self.K, self.window // 64)
 
         '''
         DECODER
@@ -88,8 +88,7 @@ class VAE(VIBNet):
         mu = statistics[:, :self.K]
         std = F.softplus(statistics[:, self.K:], beta=1)
         z = self.reparametrize_n(mu, std, current_epoch, num_sample, self.max_noise)
-        reshape1 = self.decoder(z).unsqueeze(1)
-
+        reshape1 = self.reshape1(z).unsqueeze(1)
         dconv_seq4, _ = self.dconv_seq4(reshape1)
         dconc5 = torch.cat((dconv_seq4, conv_seq7), 1)
         deconv1 = self.deconv1(dconc5)
