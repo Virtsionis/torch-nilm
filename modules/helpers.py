@@ -1,24 +1,31 @@
 import os
 import shutil
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from constants.constants import*
 from constants.enumerates import DataTypes
 
 
-def create_tree_dir(tree_levels: dict = None, clean: bool = False, plots: bool = True):
+def create_tree_dir(tree_levels: dict = None, clean: bool = False, plots: bool = False,
+                    output_dir: str = DIR_OUTPUT_NAME):
     tree_gen = (level for level in tree_levels)
     level = next(tree_gen)
     end = False
+    if output_dir:
+        output_path = '/'.join([os.getcwd(), output_dir])
+        if not os.path.exists(output_path):
+            os.mkdir(output_path)
+    else:
+        output_path = os.getcwd()
     if level == ROOT_LEVEL:
-        root_path = os.getcwd() + '/' + tree_levels[level]
+        root_path = '/'.join([output_path, tree_levels[level]])
         if clean and os.path.exists(root_path):
             shutil.rmtree(root_path)
             print('all clean')
         if not os.path.exists(root_path):
             os.mkdir(root_path)
 
-    # print(root_path)
     base_paths = [root_path]
     if plots:
         plot_path = root_path + '/' + DIR_PLOTS_NAME
@@ -40,7 +47,6 @@ def create_tree_dir(tree_levels: dict = None, clean: bool = False, plots: bool =
             base_paths = paths
         except:
             end = True
-    print(1)
 
 
 def display_res(root_dir=None, model_name=None, device=None,
@@ -87,11 +93,13 @@ def display_res(root_dir=None, model_name=None, device=None,
         del ax
 
 
-def get_tree_paths(tree_levels: dict = None):
+def get_tree_paths(tree_levels: dict = None, output_dir: str = None):
     tree_gen = (level for level in tree_levels)
     level = next(tree_gen)
     end = False
-    if level == ROOT_LEVEL:
+    if level == ROOT_LEVEL and output_dir:
+        root_path = os.getcwd() + '/' + output_dir + '/' + tree_levels[level]
+    elif level == ROOT_LEVEL:
         root_path = os.getcwd() + '/' + tree_levels[level]
     base_paths = [root_path]
     while not end:
@@ -255,3 +263,11 @@ def quantile_25(data: pd.DataFrame, reset_index: bool = True):
 
 def quantile_75(data: pd.DataFrame, reset_index: bool = True):
     return pd_quantile(data, q=.75, reset_index=reset_index)
+
+
+def destandardize(data: np.array, means: float, stds: float):
+    return (data*stds)+means
+
+
+def denormalize(data: np.array, mmax: float):
+    return data*mmax

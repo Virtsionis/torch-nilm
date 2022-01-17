@@ -1,9 +1,5 @@
 import warnings
-import numpy as np
 from functools import reduce
-
-import pandas as pd
-
 from modules.helpers import*
 from constants.enumerates import StatMeasures
 
@@ -25,8 +21,8 @@ def get_supported_stat_measures():
     return [measure.name for measure in STATISTIC_MEASURES.keys()]
 
 
-def get_statistical_report(save_name: object = None, data: pd.DataFrame = None, data_filename: object = None,
-                           root_dir: object = None, stat_measures: list = []):
+def get_statistical_report(save_name: str = None, data: pd.DataFrame = None, data_filename: str = None,
+                           root_dir: str = None, output_dir: str = DIR_OUTPUT_NAME, stat_measures: list = []):
     """
     Method that re-formats the report from get_final_report to an excel-type report with statistical calculations.
     The data can either be loaded from disk or given as pandas DataFrame.
@@ -36,6 +32,7 @@ def get_statistical_report(save_name: object = None, data: pd.DataFrame = None, 
         data(pandas DataFrame): the data generated from the 'generate report' method
         data_filename(str): the name of the report data generated from the 'generate report' method,
             if user wants to load from disk
+        output_dir(str): the OUTPUT of where torch-nilm projects are put
         root_dir(str): the root folder of the project
         stat_measures(list of strings): user can define the appropriate statistical measures to be included to the report
             supported measures: ['mean', 'median', 'std', 'min', 'max', '25th_percentile', '75th_percentile']
@@ -51,10 +48,10 @@ def get_statistical_report(save_name: object = None, data: pd.DataFrame = None, 
                                root_dir=ROOT, stat_measures=['min', '75th_percentile'])
     """
 
-    if root_dir:
-        data_path = '/'.join([root_dir, DIR_RESULTS_NAME, ''])
+    if output_dir:
+        data_path = '/'.join([output_dir, root_dir, DIR_RESULTS_NAME, ''])
     else:
-        data_path = ''
+        data_path = '/'.join([root_dir, DIR_RESULTS_NAME, ''])
 
     try:
         if data_filename and data is None:
@@ -104,8 +101,8 @@ def get_statistical_report(save_name: object = None, data: pd.DataFrame = None, 
                               )
 
 
-def get_final_report(tree_levels: dict, save: bool = True, root_dir: object = None,
-                     save_name: object = None, metrics: list = []):
+def get_final_report(tree_levels: dict, save: bool = True, root_dir: str = None, output_dir: str = DIR_OUTPUT_NAME,
+                     save_name: str = None, metrics: list = []):
     """
     This method merges all produced reports in one csv file. To generate the
     report file, the tree structure of the resulted reports should be given.
@@ -113,6 +110,7 @@ def get_final_report(tree_levels: dict, save: bool = True, root_dir: object = No
         tree_levels(dict): the tree structure of the project
         save(bool): variable that controls if the resulted file should be saved
             Default value is True
+        output_dir(str): the OUTPUT of where torch-nilm projects are put
         root_dir(str): the ROOT of the project
         save_name(str): the name of the resulted file
         metrics(list of str): the metrics to be included in the report
@@ -139,12 +137,14 @@ def get_final_report(tree_levels: dict, save: bool = True, root_dir: object = No
                    COLUMN_RECALL, COLUMN_F1, COLUMN_PRECISION, COLUMN_ACCURACY, COLUMN_MAE,
                    COLUMN_RETE, COLUMN_EPOCHS, COLUMN_HPARAMS]
 
-    path = '/'.join([root_dir, DIR_RESULTS_NAME, ''])
+    if output_dir:
+        path = '/'.join([output_dir, root_dir, DIR_RESULTS_NAME, ''])
+    else:
+        path = '/'.join([root_dir, DIR_RESULTS_NAME, ''])
     data = pd.DataFrame(columns=columns)
 
-    cat_paths = get_tree_paths(tree_levels=tree_levels)
+    cat_paths = get_tree_paths(tree_levels=tree_levels, output_dir=output_dir)
     exp_paths = get_exp_paths(cat_paths)
-
     for exp_path in exp_paths:
         for item in os.listdir(exp_path):
             if REPORT in item:
@@ -167,15 +167,17 @@ def get_final_report(tree_levels: dict, save: bool = True, root_dir: object = No
     return data
 
 
-def save_appliance_report(root_dir: object = None, model_name: object = None, device: object = None,
-                          exp_type: object = None, save_timeseries: bool = True, experiment_name: object = None,
-                          exp_volume: object = LARGE, iteration: int = None, results: dict = None,
-                          preds: np.array = None, ground: np.array = None, model_hparams: dict = None,
-                          epochs: int = None, plots: bool = True):
+def save_appliance_report(root_dir: str = None, model_name: str = None, device: str = None,
+                          experiment_type: str = None, experiment_category: str = None, save_timeseries: bool = True,
+                          experiment_name: str = None, iteration: int = None, model_results: dict = None,
+                          model_hparams: dict = None, epochs: int = None, output_dir: str = DIR_OUTPUT_NAME,):
+    if output_dir:
+        root_dir = '/'.join([os.getcwd(), output_dir, root_dir])
+    else:
+        root_dir = '/'.join([os.getcwd(), root_dir])
 
-    root_dir = os.getcwd() + '/' + root_dir
-    path = '/'.join([root_dir, DIR_RESULTS_NAME, device, model_name,
-                     exp_type, experiment_name, ''])
+    path = '/'.join([root_dir, experiment_type, DIR_RESULTS_NAME, device, model_name,
+                     experiment_category, experiment_name, ''])
     report_filename = REPORT_PREFIX + experiment_name + CSV_EXTENSION
     data_filename = experiment_name + ITERATION_ID + str(iteration) + CSV_EXTENSION
 
@@ -189,6 +191,14 @@ def save_appliance_report(root_dir: object = None, model_name: object = None, de
                 COLUMN_MAE, COLUMN_RETE, COLUMN_EPOCHS, COLUMN_HPARAMS]
         report = pd.DataFrame(columns=cols)
     hparams = {COLUMN_HPARAMS: model_hparams, COLUMN_EPOCHS: int(epochs) + 1}
+
+    try:
+        results = model_results[COLUMN_METRICS]
+        preds = model_results[COLUMN_PREDICTIONS]
+        ground = model_results[COLUMN_GROUNDTRUTH]
+    except Exception as exception:
+        raise exception
+
     report = report.append({**results, **hparams}, ignore_index=True)
     report.fillna(np.nan, inplace=True)
     report.to_csv(path + report_filename, index=False)
@@ -199,21 +209,3 @@ def save_appliance_report(root_dir: object = None, model_name: object = None, de
                                 columns=cols)
         res_data.to_csv(path + data_filename, index=False)
         print('Time series saved at: ', path + data_filename)
-
-    if plots:
-        exp_list = experiment_name.split('_')
-        device = exp_list[0]
-        bounds = os.getcwd()+'/modules/plot_bounds/{}/{}_bounds_{}.csv'.format(exp_volume,exp_list[0],exp_list[1])
-        bounds = pd.read_csv(str(bounds))
-        bounds = bounds[(bounds['test_set'] == exp_list[6])&(bounds['test_house'] == int(exp_list[5]))]
-
-        if not bounds.empty:
-            low_lim = bounds['low_lim'].values[0]
-            upper_lim = bounds['upper_lim'].values[0]
-
-            display_res(root_dir, model_name, device, exp_type, experiment_name,
-                        iteration, low_lim=low_lim, upper_lim=upper_lim,
-                        plt_show=True, save_fig=True, save_dir=DIR_PLOTS_NAME
-                        )
-        else:
-            raise Exception('Can"t plot, no experiment with name: {}'.format(experiment_name))

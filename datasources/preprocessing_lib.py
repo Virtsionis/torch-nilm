@@ -1,11 +1,51 @@
+import warnings
+
 import numpy as np
 from skimage.restoration import denoise_wavelet
 
 
 def apply_rolling_window(mainchunk: np.array, meterchunk: np.array, window_size: int):
+    if not window_size:
+        raise Warning('Window size is not defined.')
     indexer = np.arange(window_size)[None, :] + np.arange(len(mainchunk) - window_size + 1)[:, None]
     mainchunk = mainchunk[indexer]
     meterchunk = meterchunk[window_size - 1:]
+    return mainchunk, meterchunk
+
+
+def apply_midpoint_window(mainchunk: np.array, meterchunk: np.array, window_size: int):
+    if not window_size:
+        raise Warning('Window size is not defined.')
+    indexer = np.arange(window_size)[None, :] + np.arange(len(mainchunk) - window_size + 1)[:, None]
+    mainchunk = mainchunk[indexer]
+    midpoint = window_size // 2
+    meterchunk = meterchunk[midpoint: len(mainchunk) + midpoint]
+    return mainchunk, meterchunk
+
+
+def apply_sequence_to_subsequence(mainchunk: np.array, meterchunk: np.array, sequence_window: int,
+                                  subsequence_window: int):
+    if not sequence_window:
+        raise Warning('Sequence window is not defined.')
+    if not subsequence_window:
+        warnings.warn('Sub sequence window is not defined. So the 20% of sequence window was used.')
+        subsequence_window = int(sequence_window * 0.2)
+    upper_limit = (sequence_window + subsequence_window) // 2
+    lower_limit = (sequence_window - subsequence_window) // 2
+    sequence_indexer = np.arange(sequence_window)[None, :] + np.arange(len(mainchunk) - sequence_window + 1)[:, None]
+    mainchunk = mainchunk[sequence_indexer]
+
+    subsequence_indexer = np.arange(sequence_window)[lower_limit: upper_limit] + np.arange(len(mainchunk))[:, None]
+    meterchunk = meterchunk[subsequence_indexer]
+    return mainchunk, meterchunk
+
+
+def apply_sequence_to_sequence(mainchunk: np.array, meterchunk: np.array, sequence_window: int):
+    if not sequence_window:
+        raise Warning('Sequence window is not defined.')
+    sequence_indexer = np.arange(sequence_window)[None, :] + np.arange(len(mainchunk) - sequence_window + 1)[:, None]
+    mainchunk = mainchunk[sequence_indexer]
+    meterchunk = meterchunk[sequence_indexer]
     return mainchunk, meterchunk
 
 

@@ -4,6 +4,37 @@ from torch import nn
 import torch.nn.functional as F
 from neural_networks.base_models import BaseModel
 
+CUT_OFF = {'dish washer': 2500,
+           'fridge': 300,
+           'kettle': 2000,
+           'microwave': 3000,
+           'washing machine': 2500}
+
+MIN_OFF_DUR = {'dish washer': 1800,
+               'fridge': 12,
+               'kettle': 0,
+               'microwave': 30,
+               'washing machine': 160}
+
+MIN_ON_DUR = {'dish washer': 1800,
+              'fridge': 60,
+              'kettle': 12,
+              'microwave': 12,
+              'washing machine': 1800}
+
+POWER_ON_THRESHOLD = {'dish washer': 10,
+                      'fridge': 50,
+                      'kettle': 2000,
+                      'microwave': 200,
+                      'washing machine': 20}
+
+LAMBDA = {'dish washer': 1,
+          'fridge': 10**(-6),
+          'kettle': 1,
+          'microwave': 1,
+          'washing machine': 10**(-2)}
+
+
 class GELU(nn.Module):
     def forward(self, x):
         return 0.5 * x * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
@@ -117,15 +148,10 @@ class BERTNet(BaseModel):
     def supports_bert(self) -> bool:
         return True
 
+
 class BERT4NILM(BERTNet):
-    # def __init__(self, args):
-    def __init__(self, window_size,hidden=256,heads=2,
-                 n_layers = 2,drop_out=0.0,output_size=1):
+    def __init__(self, window_size, hidden=256, heads=2, n_layers=2, drop_out=0, output_dim=1):
         super().__init__()
-        # self.args = args
-        # self.dropout_rate = args.drop_out
-        # self.original_len = args.window_size
-        # self.output_size = args.output_size
         self.original_len = window_size
         self.latent_len = int(self.original_len / 2)
         self.dropout_rate = drop_out
@@ -133,10 +159,10 @@ class BERT4NILM(BERTNet):
         self.hidden = hidden
         self.heads = heads
         self.n_layers = n_layers
-        self.output_size = output_size
+        self.output_dim = output_dim
 
         self.conv = nn.Conv1d(in_channels=1, out_channels=self.hidden,
-                               kernel_size=5, stride=1, padding=2, padding_mode='replicate')
+                              kernel_size=5, stride=1, padding=2, padding_mode='replicate')
         self.pool = nn.LPPool1d(norm_type=2, kernel_size=2, stride=2)
 
         self.position = PositionalEmbedding(
@@ -147,12 +173,12 @@ class BERT4NILM(BERTNet):
         self.transformer_blocks = nn.ModuleList([TransformerBlock(
             self.hidden, self.heads, self.hidden * 4, self.dropout_rate) for _ in range(self.n_layers)])
 
-        self.deconv = nn.ConvTranspose1d(
-            in_channels=self.hidden, out_channels=self.hidden, kernel_size=4, stride=2, padding=1)
+        self.deconv = nn.ConvTranspose1d(in_channels=self.hidden, out_channels=self.hidden,
+                                         kernel_size=4, stride=2, padding=1)
         self.linear1 = nn.Linear(self.hidden, 128)
         self.flat = nn.Flatten()
         self.linear2 = nn.Linear(128*window_size, 128)
-        self.out = nn.Linear(128, self.output_size)
+        self.out = nn.Linear(128, self.output_dim)
 
         self.truncated_normal_init()
 
