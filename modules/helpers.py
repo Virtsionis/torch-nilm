@@ -3,7 +3,7 @@ import shutil
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from constants.constants import*
+from constants.constants import *
 from constants.enumerates import DataTypes
 
 
@@ -27,10 +27,6 @@ def create_tree_dir(tree_levels: dict = None, clean: bool = False, plots: bool =
             os.mkdir(root_path)
 
     base_paths = [root_path]
-    if plots:
-        plot_path = root_path + '/' + DIR_PLOTS_NAME
-        if not os.path.exists(plot_path):
-            os.mkdir(plot_path)
 
     while not end:
         try:
@@ -47,6 +43,11 @@ def create_tree_dir(tree_levels: dict = None, clean: bool = False, plots: bool =
             base_paths = paths
         except:
             end = True
+
+        if plots:
+            plot_path = '/'.join([root_path, tree_levels[EXPERIMENTS_LEVEL][0], DIR_PLOTS_NAME])
+            if not os.path.exists(plot_path):
+                os.mkdir(plot_path)
 
 
 def display_res(root_dir=None, model_name=None, device=None,
@@ -74,8 +75,8 @@ def display_res(root_dir=None, model_name=None, device=None,
 
         data = pd.read_csv(path + data_filename)
         data[COLUMN_GROUNDTRUTH][low_lim:upper_lim].plot.line(legend=False,
-                                                    # linestyle='dashed',
-                                                   )
+                                                              # linestyle='dashed',
+                                                              )
         data[COLUMN_PREDICTIONS][low_lim:upper_lim].plot.line(legend=False)
         ax = plt.gca()
         ax.axes.xaxis.set_ticklabels([])
@@ -85,10 +86,10 @@ def display_res(root_dir=None, model_name=None, device=None,
 
         if save_fig:
             if save_dir:
-                plt.savefig(root_dir+'/'+save_dir+'/'+snapshot_name,
+                plt.savefig(root_dir + '/' + save_dir + '/' + snapshot_name,
                             )
             else:
-                plt.savefig(path+snapshot_name)
+                plt.savefig(path + snapshot_name)
         plt.clf()
         del ax
 
@@ -158,8 +159,8 @@ def create_time_folds(start_date: str, end_date: str, folds: int, drop_last: boo
     date_list = create_timeframes(start=start_date, end=end_date, freq='D')
 
     fold_len = len(date_list) // folds
-    rest = len(date_list)-fold_len*folds
-    print('#'*40)
+    rest = len(date_list) - fold_len * folds
+    print('#' * 40)
     print('Folding for dates from {} to {}'.format(start_date, end_date))
     print('Total Number of days: ', len(date_list))
     print('Number of folds: ', folds)
@@ -168,17 +169,17 @@ def create_time_folds(start_date: str, end_date: str, folds: int, drop_last: boo
         print('The last {} dates are dropped'.format(rest))
     else:
         print('Last fold has {} dates more'.format(rest))
-    print('#'*40)
+    print('#' * 40)
 
     date_folds = []
     for j in range(0, folds):
         if drop_last:
-            date_folds.append(date_list[fold_len*(j):fold_len*(j+1)])
+            date_folds.append(date_list[fold_len * (j):fold_len * (j + 1)])
         else:
-            if j<folds-1:
-                date_folds.append(date_list[fold_len*(j):fold_len*(j+1)])
+            if j < folds - 1:
+                date_folds.append(date_list[fold_len * (j):fold_len * (j + 1)])
             else:
-                date_folds.append(date_list[fold_len*(j):])
+                date_folds.append(date_list[fold_len * (j):])
 
     date_bounds = [[day[0], day[-1]] for day in date_folds]
 
@@ -186,11 +187,11 @@ def create_time_folds(start_date: str, end_date: str, folds: int, drop_last: boo
     for fold in range(0, folds):
         test_dates = date_bounds[fold]
         train_1 = date_bounds[:fold]
-        train_2 = date_bounds[fold+1:]
+        train_2 = date_bounds[fold + 1:]
         if len(train_1):
-            train_1 = [train_1[0][0], train_1[len(train_1)-1][-1]]
+            train_1 = [train_1[0][0], train_1[len(train_1) - 1][-1]]
         if len(train_2):
-            train_2 = [train_2[0][0], train_2[len(train_2)-1][-1]]
+            train_2 = [train_2[0][0], train_2[len(train_2) - 1][-1]]
 
         final_folds[fold] = {TEST_DATES: test_dates, TRAIN_DATES: [train_1, train_2]}
 
@@ -266,8 +267,22 @@ def quantile_75(data: pd.DataFrame, reset_index: bool = True):
 
 
 def destandardize(data: np.array, means: float, stds: float):
-    return (data*stds)+means
+    return (data * stds) + means
 
 
 def denormalize(data: np.array, mmax: float):
-    return data*mmax
+    return data * mmax
+
+
+def experiment_name_format(x):
+    x = x.split('_')[1:]
+    return ' '.join(x)
+
+
+def list_intersection(l1, l2):
+    if not l2 and len(l1):
+        return l1
+    if not l1 and len(l2):
+        return l2
+    if l1 and l2:
+        return list(set(l1) & set(l2))

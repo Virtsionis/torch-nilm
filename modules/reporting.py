@@ -1,6 +1,7 @@
 import warnings
 from functools import reduce
 from modules.helpers import*
+from modules.plotting import plot_dataframe
 from constants.enumerates import StatMeasures
 
 STATISTIC_MEASURES = {
@@ -22,7 +23,8 @@ def get_supported_stat_measures():
 
 
 def get_statistical_report(save_name: str = None, data: pd.DataFrame = None, data_filename: str = None,
-                           root_dir: str = None, output_dir: str = DIR_OUTPUT_NAME, stat_measures: list = []):
+                           root_dir: str = None, output_dir: str = DIR_OUTPUT_NAME, stat_measures: list = None,
+                           save_plots: bool = True, **plot_args):
     """
     Method that re-formats the report from get_final_report to an excel-type report with statistical calculations.
     The data can either be loaded from disk or given as pandas DataFrame.
@@ -36,6 +38,8 @@ def get_statistical_report(save_name: str = None, data: pd.DataFrame = None, dat
         root_dir(str): the root folder of the project
         stat_measures(list of strings): user can define the appropriate statistical measures to be included to the report
             supported measures: ['mean', 'median', 'std', 'min', 'max', '25th_percentile', '75th_percentile']
+        save_plots: whether to save bar plots and/or spider plots from the results
+        plot_args: plot settings
 
     Example of use:
         report = get_final_report(tree_levels, save=True, root_dir=ROOT, save_name='single_building_exp')
@@ -47,11 +51,14 @@ def get_statistical_report(save_name: str = None, data: pd.DataFrame = None, dat
         get_statistical_report(save_name='test', data=report, data_filename=None,
                                root_dir=ROOT, stat_measures=['min', '75th_percentile'])
     """
-
+    if stat_measures is None:
+        stat_measures = []
     if output_dir:
         data_path = '/'.join([output_dir, root_dir, DIR_RESULTS_NAME, ''])
+        plots_path = '/'.join([output_dir, root_dir, DIR_PLOTS_NAME, ''])
     else:
         data_path = '/'.join([root_dir, DIR_RESULTS_NAME, ''])
+        plots_path = '/'.join([root_dir, DIR_PLOTS_NAME, ''])
 
     try:
         if data_filename and data is None:
@@ -99,10 +106,12 @@ def get_statistical_report(save_name: str = None, data: pd.DataFrame = None, dat
                               freeze_panes=(1, 4),
                               index=False,
                               )
+                if save_plots:
+                    plot_dataframe(data=temp, plots_save_path=plots_path, **plot_args)
 
 
 def get_final_report(tree_levels: dict, save: bool = True, root_dir: str = None, output_dir: str = DIR_OUTPUT_NAME,
-                     save_name: str = None, metrics: list = []):
+                     save_name: str = None, metrics: list = None):
     """
     This method merges all produced reports in one csv file. To generate the
     report file, the tree structure of the resulted reports should be given.
