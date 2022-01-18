@@ -113,3 +113,9 @@ def denoise(mainchunk: np.array, meterchunk: np.array):
     mainchunk = denoise_wavelet(mainchunk, wavelet='haar', wavelet_levels=3)
     meterchunk = denoise_wavelet(meterchunk, wavelet='haar', wavelet_levels=3)
     return mainchunk, meterchunk
+
+
+def add_gaussian_noise(mainchunk: np.array, noise_percentage: float = 0.1):
+    noise = np.random.normal(0, noise_percentage, mainchunk.shape)
+    mainchunk = mainchunk + noise
+    return mainchunk

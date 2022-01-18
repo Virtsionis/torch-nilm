@@ -6,14 +6,15 @@ experiment_parameters = {
     EPOCHS: 1,
     ITERATIONS: 1,
     INFERENCE_CPU: False,
-    SAMPLE_PERIOD: 30,
-    BATCH_SIZE: 256,
+    SAMPLE_PERIOD: 10,
+    BATCH_SIZE: 1024,
     ITERABLE_DATASET: False,
-    PREPROCESSING_METHOD: SupportedPreprocessingMethods.MIDPOINT_WINDOW,
+    PREPROCESSING_METHOD: SupportedPreprocessingMethods.ROLLING_WINDOW,
     FIXED_WINDOW: 128,
     SUBSEQ_WINDOW: 50,
     TRAIN_TEST_SPLIT: 0.8,
     CV_FOLDS: 2,
+    NOISE_PERCENTAGE: 0.1,
 }
 
 devices = [
@@ -98,15 +99,15 @@ model_hparams = ModelHyperModelParameters(model_hparams)
 hparam_tuning = HyperParameterTuning(hparam_tuning)
 experiment_parameters = ExperimentParameters(**experiment_parameters)
 
-experiment = NILMExperiments(project_name='test', clean_project=True,
-                             devices=devices, save_timeseries_results=False, experiment_categories=experiment_categories,
-                             experiment_volume=SupportedExperimentVolumes.SMALL_VOLUME,
+experiment = NILMExperiments(project_name='test_plots2', clean_project=False,
+                             devices=devices, save_timeseries_results=True, experiment_categories=experiment_categories,
+                             experiment_volume=SupportedExperimentVolumes.LARGE_VOLUME,
                              experiment_parameters=experiment_parameters,
-                             save_model=True,
+                             save_model=True, export_plots=True,
                              )
 
 # experiment.run_benchmark(model_hparams=model_hparams)
-# experiment.export_report(model_hparams=model_hparams, experiment_type=SupportedNilmExperiments.BENCHMARK)
+experiment.export_report(model_hparams=model_hparams, experiment_type=SupportedNilmExperiments.BENCHMARK)
 # experiment.run_cross_validation(model_hparams=model_hparams)
-experiment.run_hyperparameter_tuning_cross_validation(hparam_tuning=hparam_tuning)
-experiment.export_report(hparam_tuning=hparam_tuning, experiment_type=SupportedNilmExperiments.HYPERPARAM_TUNE_CV)
+# experiment.run_hyperparameter_tuning_cross_validation(hparam_tuning=hparam_tuning)
+# experiment.export_report(hparam_tuning=hparam_tuning, experiment_type=SupportedNilmExperiments.HYPERPARAM_TUNE_CV)

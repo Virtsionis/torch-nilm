@@ -60,6 +60,8 @@ class BaseElectricityDataset(ABC):
             if SEQ_T0_SUBSEQ is given then sequence-to-subsequence schema is applied as described in paper:
                 'Sequence-To-Subsequence Learning With Conditional Gan For Power Disaggregation'
                 doi: 10.1109/ICASSP40776.2020.9053947
+        noise_percentage (float): the sigma of a noise signal to be added to the original timeseries. The noise follows
+            a gaussian distribution (0, noise_percentage)
 
     Functionality in a nut-shell:
         After saving the input arguments as class properties, the NILMTK generators are initialized and
@@ -72,7 +74,8 @@ class BaseElectricityDataset(ABC):
                  end_date: str, window_size: int = 50, mmax: float = None, means: float = None, stds: float = None,
                  meter_means: float = None, meter_stds: float = None, sample_period: int = None, chunksize: int = 10000,
                  shuffle: bool = False, normalization_method: str = STANDARDIZATION,
-                 preprocessing_method: str = SupportedPreprocessingMethods.ROLLING_WINDOW, subseq_window: int = None,):
+                 preprocessing_method: str = SupportedPreprocessingMethods.ROLLING_WINDOW, subseq_window: int = None,
+                 noise_percentage: float = None):
         self.building = building
         self.device = device
         self.mmax = mmax
@@ -94,6 +97,7 @@ class BaseElectricityDataset(ABC):
         self.mainchunk = torch.tensor([])
         self.meterchunk = torch.tensor([])
         self.has_more_data = True
+        self.noise_percentage = noise_percentage
         self._run()
 
     def _run(self):
@@ -181,6 +185,8 @@ class BaseElectricityDataset(ABC):
             mainchunk, meterchunk = apply_sequence_to_subsequence(mainchunk, meterchunk,
                                                                   sequence_window=self.window_size,
                                                                   subsequence_window=self.subseq_window)
+        if self.noise_percentage:
+            mainchunk = add_gaussian_noise(mainchunk, self.noise_percentage)
 
         if self.shuffle:
             mainchunk, meterchunk = mainchunk.sample(frac=1), meterchunk.sample(frac=1)
@@ -247,6 +253,8 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
             if SEQ_T0_SUBSEQ is given then sequence-to-subsequence schema is applied as described in paper:
                 'Sequence-To-Subsequence Learning With Conditional Gan For Power Disaggregation'
                 doi: 10.1109/ICASSP40776.2020.9053947
+        noise_percentage (float): the sigma of a noise signal to be added to the original timeseries. The noise follows
+            a gaussian distribution (0, noise_percentage)
 
     Functionality in a nut-shell:
         After saving the input arguments as class properties, the NILMTK generators are initialized and
@@ -273,13 +281,14 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
     def __init__(self, datasource: Datasource, building: int, device: str, dates: list = None,
                  window_size: int = 50, chunksize: int = 10 ** 10, mmax: float = None, means: float = None,
                  stds: float = None, meter_means: float = None, meter_stds: float = None, sample_period: int = None,
-                 normalization_method: str = STANDARDIZATION,
+                 normalization_method: str = STANDARDIZATION, noise_percentage: float = None,
                  preprocessing_method: str = SupportedPreprocessingMethods.ROLLING_WINDOW, subseq_window: int = None,):
         super().__init__(datasource, building, device,
                          dates[0], dates[1], window_size,
                          mmax, means, stds, meter_means, meter_stds,
                          sample_period, chunksize, normalization_method=normalization_method,
-                         preprocessing_method=preprocessing_method, subseq_window=subseq_window,)
+                         preprocessing_method=preprocessing_method, subseq_window=subseq_window,
+                         noise_percentage=noise_percentage,)
 
 
 class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
@@ -327,6 +336,8 @@ class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
         sample_period(int): the sample period given in seconds
             if sample_period is larger than the sampling of the data, then NILMTK downsamples the measurements.
             Else, upsampling is excecuted
+        noise_percentage (float): the sigma of a noise signal to be added to the original timeseries. The noise follows
+            a gaussian distribution (0, noise_percentage)
 
     Functionality in a nut-shell:
         After saving the input arguments as class properties, the NILMTK generators are initialized and
@@ -486,6 +497,9 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
             if SEQ_T0_SUBSEQ is given then sequence-to-subsequence schema is applied as described in paper:
                 'Sequence-To-Subsequence Learning With Conditional Gan For Power Disaggregation'
                 doi: 10.1109/ICASSP40776.2020.9053947
+        noise_percentage (float): the sigma of a noise signal to be added to the original timeseries. The noise follows
+            a gaussian distribution (0, noise_percentage)
+
     Functionality in a nut-shell:
         After saving the input arguments as class properties, the NILMTK generators are initialized for the
         first time and the length of the dataset is calculated. Then, the generators are re-initialized and
@@ -514,7 +528,7 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
                  window_size: int = 50, mmax: float = None, means: float = None, stds: float = None,
                  meter_means: float = None, meter_stds: float = None, sample_period: int = None,
                  chunksize: int = 10 ** 6, batch_size: int = 32, shuffle: bool = False,
-                 normalization_method: str = STANDARDIZATION,
+                 normalization_method: str = STANDARDIZATION, noise_percentage: float = None,
                  preprocessing_method: str = SupportedPreprocessingMethods.ROLLING_WINDOW, subseq_window: int = None):
         self.batch_size = batch_size
         self.data_len = None
@@ -523,7 +537,8 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
                          window_size, mmax, means, stds,
                          meter_means, meter_stds, sample_period,
                          chunksize, shuffle, normalization_method=normalization_method,
-                         preprocessing_method=preprocessing_method, subseq_window=subseq_window,)
+                         preprocessing_method=preprocessing_method, subseq_window=subseq_window,
+                         noise_percentage=noise_percentage,)
 
     def _run(self):
         self._calc_data_len()

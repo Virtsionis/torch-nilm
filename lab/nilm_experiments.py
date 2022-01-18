@@ -37,6 +37,8 @@ class ExperimentParameters:
         subseq_window (int): (check: datasources/torchdataset)
         train_test_split (float):  for train / validation split
         cv_folds (int): the number of cross validation folds
+        noise_percentage (float): the sigma of a noise signal to be added to the original timeseries. The noise follows
+            a gaussian distribution (0, noise_percentage)
 
     Example of use:
         experiment_parameters = {
@@ -58,7 +60,8 @@ class ExperimentParameters:
     def __init__(self, epochs: int = 100, iterations: int = 5, inference_cpu: bool = False,
                  sample_period: int = 6, batch_size: int = 256, iterable_dataset: bool = False,
                  preprocessing_method: SupportedPreprocessingMethods = SupportedPreprocessingMethods.ROLLING_WINDOW,
-                 fixed_window: int = None, subseq_window: int = None, train_test_split: float = 0.8, cv_folds: int = 3):
+                 fixed_window: int = None, subseq_window: int = None, train_test_split: float = 0.8, cv_folds: int = 3,
+                 noise_percentage: float = None,):
 
         self.params = {
             EPOCHS: epochs,
@@ -72,6 +75,7 @@ class ExperimentParameters:
             SUBSEQ_WINDOW: subseq_window,
             TRAIN_TEST_SPLIT: train_test_split,
             CV_FOLDS: cv_folds,
+            NOISE_PERCENTAGE: noise_percentage,
         }
 
     def get_params(self):
@@ -226,6 +230,9 @@ class NILMExperiments:
         save_model(bool): The flag controls whether the model weights should be exported or not.
             Mind that this file is saved in a cpkt format and could be a handful of MBs in size.
             Default: False
+        export_plots(bool): The flag controls whether result plots should be exported or not. The results come from the
+            final report (xlsx). The plots are saved in a 'png' format
+            Default: False
         experiment_volume(SupportedExperimentVolumes): The list of the desired experiment_volume to be used.
             The supported volumes can be found in constants/enumerates/SupportedExperimentVolumes.
             Default: SupportedExperimentVolumes.LARGE_VOLUME
@@ -310,7 +317,7 @@ class NILMExperiments:
 
     """
     def __init__(self, project_name: str = None, clean_project: bool = False, experiment_categories: list = None,
-                 devices: list = None, save_timeseries_results: bool = True,
+                 devices: list = None, save_timeseries_results: bool = True, export_plots: bool = True,
                  experiment_volume: SupportedExperimentVolumes = SupportedExperimentVolumes.LARGE_VOLUME,
                  experiment_type: SupportedNilmExperiments = None, experiment_parameters: ExperimentParameters = None,
                  model_hparams: ModelHyperModelParameters = None, hparam_tuning: HyperParameterTuning = None,
@@ -320,6 +327,7 @@ class NILMExperiments:
         self.project_name = project_name
         self.clean_project = clean_project
         self.save_timeseries = save_timeseries_results
+        self.export_plots = export_plots
         self.save_model = save_model
         self.model_hparams = model_hparams
         self.hparam_tuning = hparam_tuning
@@ -421,6 +429,7 @@ class NILMExperiments:
         self.subseq_window = None
         self.train_test_split = 0.8
         self.cv_folds = 3
+        self.noise_percentage = None
 
     def _set_experiment_parameters(self, experiment_parameters: ExperimentParameters = None):
         if experiment_parameters:
@@ -436,6 +445,7 @@ class NILMExperiments:
             self.subseq_window = experiment_parameters[SUBSEQ_WINDOW]
             self.train_test_split = experiment_parameters[TRAIN_TEST_SPLIT]
             self.cv_folds = experiment_parameters[CV_FOLDS]
+            self.noise_percentage = experiment_parameters[NOISE_PERCENTAGE]
         else:
             warnings.warn('No experiment parameters are defined. So, default parameters will be used.')
             self._set_default_experiment_parameters()
@@ -509,7 +519,7 @@ class NILMExperiments:
                        LEVEL_3_NAME: self.models,
                        EXPERIMENTS_NAME: experiment_categories,
                        }
-        create_tree_dir(tree_levels=tree_levels, clean=clean_project)
+        create_tree_dir(tree_levels=tree_levels, clean=clean_project, plots=self.export_plots)
         self.tree_levels = tree_levels
         self.clean_project = False
 
@@ -583,7 +593,8 @@ class NILMExperiments:
                                                                    dates=train_dates,
                                                                    sample_period=self.sample_period,
                                                                    preprocessing_method=self.preprocessing_method,
-                                                                   subseq_window=self.subseq_window,)
+                                                                   subseq_window=self.subseq_window,
+                                                                   noise_percentage=self.noise_percentage)
                 else:
                     train_dataset_all = ElectricityDataset(datasource=datasource,
                                                            building=int(train_house),
@@ -592,7 +603,8 @@ class NILMExperiments:
                                                            dates=train_dates,
                                                            sample_period=self.sample_period,
                                                            preprocessing_method=self.preprocessing_method,
-                                                           subseq_window=self.subseq_window,)
+                                                           subseq_window=self.subseq_window,
+                                                           noise_percentage=self.noise_percentage)
 
                 return train_dataset_all
         file.close()
@@ -600,7 +612,8 @@ class NILMExperiments:
                                                              window_size=window,
                                                              sample_period=self.sample_period,
                                                              preprocessing_method=self.preprocessing_method,
-                                                             subseq_window=self.subseq_window,)
+                                                             subseq_window=self.subseq_window,
+                                                             noise_percentage=self.noise_percentage)
         return train_dataset_all
 
     def _prepare_train_val_loaders(self, train_dataset_all: Union[ElectricityDataset,
