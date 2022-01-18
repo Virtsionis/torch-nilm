@@ -1,17 +1,17 @@
 import warnings
 from functools import reduce
-from utils.helpers import*
+from utils.helpers import *
 from utils.plotting import plot_dataframe
 from constants.enumerates import StatMeasures
 
 STATISTIC_MEASURES = {
-        StatMeasures.MEAN: pd_mean,
-        StatMeasures.MEDIAN: pd_median,
-        StatMeasures.STANDARD_DEVIATION: pd_std,
-        StatMeasures.MINIMUM: pd_min,
-        StatMeasures.MAXIMUM: pd_max,
-        StatMeasures.PERCENTILE_25TH: quantile_25,
-        StatMeasures.PERCENTILE_75TH: quantile_75,
+    StatMeasures.MEAN: pd_mean,
+    StatMeasures.MEDIAN: pd_median,
+    StatMeasures.STANDARD_DEVIATION: pd_std,
+    StatMeasures.MINIMUM: pd_min,
+    StatMeasures.MAXIMUM: pd_max,
+    StatMeasures.PERCENTILE_25TH: quantile_25,
+    StatMeasures.PERCENTILE_75TH: quantile_75,
 }
 
 
@@ -111,7 +111,7 @@ def get_statistical_report(save_name: str = None, data: pd.DataFrame = None, dat
 
 
 def get_final_report(tree_levels: dict, save: bool = True, root_dir: str = None, output_dir: str = DIR_OUTPUT_NAME,
-                     save_name: str = None, metrics: list = None):
+                     save_name: str = None, metrics: list = None, model_index: int = None):
     """
     This method merges all produced reports in one csv file. To generate the
     report file, the tree structure of the resulted reports should be given.
@@ -123,6 +123,7 @@ def get_final_report(tree_levels: dict, save: bool = True, root_dir: str = None,
         root_dir(str): the ROOT of the project
         save_name(str): the name of the resulted file
         metrics(list of str): the metrics to be included in the report
+        model_index(int): model versioning
 
     Example of use:
         dev_list = [
@@ -139,12 +140,15 @@ def get_final_report(tree_levels: dict, save: bool = True, root_dir: str = None,
         report = get_final_report(tree_levels, save=True, root_dir=ROOT, save_name='single_building_exp')
     """
     if metrics:
-        columns = [COLUMN_MODEL, COLUMN_APPLIANCE, COLUMN_CATEGORY, COLUMN_EXPERIMENT] + metrics +\
-                   [COLUMN_EPOCHS, COLUMN_HPARAMS]
+        columns = [COLUMN_MODEL, COLUMN_APPLIANCE, COLUMN_CATEGORY, COLUMN_EXPERIMENT] + metrics\
+                  + [COLUMN_EPOCHS, COLUMN_HPARAMS]
     else:
         columns = [COLUMN_MODEL, COLUMN_APPLIANCE, COLUMN_CATEGORY, COLUMN_EXPERIMENT,
                    COLUMN_RECALL, COLUMN_F1, COLUMN_PRECISION, COLUMN_ACCURACY, COLUMN_MAE,
                    COLUMN_RETE, COLUMN_EPOCHS, COLUMN_HPARAMS]
+
+    if model_index:
+        columns.append(COLUMN_MODEL_VERSION)
 
     if output_dir:
         path = '/'.join([output_dir, root_dir, DIR_RESULTS_NAME, ''])
@@ -157,7 +161,7 @@ def get_final_report(tree_levels: dict, save: bool = True, root_dir: str = None,
     for exp_path in exp_paths:
         for item in os.listdir(exp_path):
             if REPORT in item:
-                report = pd.read_csv(exp_path+'/'+item)
+                report = pd.read_csv(exp_path + '/' + item)
                 model = exp_path.split('/')[-3]
                 appliance = exp_path.split('/')[-1].split('_')[0]
                 category = exp_path.split('/')[-2]
@@ -179,7 +183,8 @@ def get_final_report(tree_levels: dict, save: bool = True, root_dir: str = None,
 def save_appliance_report(root_dir: str = None, model_name: str = None, device: str = None,
                           experiment_type: str = None, experiment_category: str = None, save_timeseries: bool = True,
                           experiment_name: str = None, iteration: int = None, model_results: dict = None,
-                          model_hparams: dict = None, epochs: int = None, output_dir: str = DIR_OUTPUT_NAME,):
+                          model_hparams: dict = None, epochs: int = None, output_dir: str = DIR_OUTPUT_NAME,
+                          model_index: int = None):
     if output_dir:
         root_dir = '/'.join([os.getcwd(), output_dir, root_dir])
     else:
@@ -188,7 +193,14 @@ def save_appliance_report(root_dir: str = None, model_name: str = None, device: 
     path = '/'.join([root_dir, experiment_type, DIR_RESULTS_NAME, device, model_name,
                      experiment_category, experiment_name, ''])
     report_filename = REPORT_PREFIX + experiment_name + CSV_EXTENSION
-    data_filename = experiment_name + ITERATION_ID + str(iteration) + CSV_EXTENSION
+
+    hparams = {COLUMN_HPARAMS: model_hparams, COLUMN_EPOCHS: int(epochs) + 1}
+    if model_index:
+        data_filename = experiment_name + '_' + VERSION + '_' + str(model_index) + ITERATION_ID + str(iteration) + \
+                        CSV_EXTENSION
+        hparams[COLUMN_MODEL_VERSION] = VERSION + str(model_index)
+    else:
+        data_filename = experiment_name + ITERATION_ID + str(iteration) + CSV_EXTENSION
 
     if not os.path.exists(path):
         os.makedirs(path)
@@ -199,7 +211,6 @@ def save_appliance_report(root_dir: str = None, model_name: str = None, device: 
         cols = [COLUMN_RECALL, COLUMN_F1, COLUMN_PRECISION, COLUMN_ACCURACY,
                 COLUMN_MAE, COLUMN_RETE, COLUMN_EPOCHS, COLUMN_HPARAMS]
         report = pd.DataFrame(columns=cols)
-    hparams = {COLUMN_HPARAMS: model_hparams, COLUMN_EPOCHS: int(epochs) + 1}
 
     try:
         results = model_results[COLUMN_METRICS]
@@ -211,6 +222,7 @@ def save_appliance_report(root_dir: str = None, model_name: str = None, device: 
     report = report.append({**results, **hparams}, ignore_index=True)
     report.fillna(np.nan, inplace=True)
     report.to_csv(path + report_filename, index=False)
+    print('Report saved at: ', path)
 
     if save_timeseries:
         cols = [COLUMN_GROUNDTRUTH, COLUMN_PREDICTIONS]
