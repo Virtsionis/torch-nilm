@@ -6,7 +6,7 @@ import pytorch_lightning as pl
 from constants.constants import*
 from torch.utils.data import DataLoader
 from lab.training_tools import TrainingToolsFactory
-from modules.reporting import save_appliance_report
+from utils.nilm_reporting import save_appliance_report
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import  ElectricityDataset
 from constants.enumerates import SupportedPreprocessingMethods

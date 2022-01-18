@@ -5,14 +5,14 @@ import torch
 import pandas as pd
 from typing import Union
 from constants.constants import *
-from modules.nilm_trainer import train_eval
-from constants.device_windows import WINDOWS
+from lab.nilm_trainer import train_eval
+from constants.appliance_windows import WINDOWS
 from datasources.datasource import Datasource
 from datasources.datasource import DatasourceFactory
 from torch.utils.data import DataLoader, random_split
-from modules.helpers import create_tree_dir, create_time_folds
+from utils.helpers import create_tree_dir, create_time_folds
 from callbacks.callbacks_factories import TrainerCallbacksFactory
-from modules.reporting import get_final_report, get_statistical_report
+from utils.nilm_reporting import get_final_report, get_statistical_report
 from constants.enumerates import SupportedNilmExperiments, SupportedExperimentCategories, SupportedExperimentVolumes, \
     ElectricalAppliances, SupportedPreprocessingMethods
 from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset, ElectricityIterableDataset
@@ -797,7 +797,7 @@ class NILMExperiments:
             method that was determined by the user. Bellow, some use-case scenarios are explored:
             - If user chose FIXED_WINDOW, the input of the models are set to that value.
             - If user chose FIXED_WINDOW=None, the input of the models are set based on the predefined windows that can
-                be found in constants/device_windows.py.
+                be found in constants/appliance_windows.py.
             - If user chose FIXED_WINDOW=None and specifically set window_size/input_dim to a value, that value is taken
                 into account.
         """

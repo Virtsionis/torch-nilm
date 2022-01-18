@@ -1,26 +1,18 @@
 import math
-from typing import Dict, Tuple
-
 import torch
-import torch.nn as nn
 import numpy as np
+import torch.nn as nn
+from torch import Tensor
+from typing import Dict, Tuple
 import pytorch_lightning as pl
 import torch.nn.functional as F
-from torch import Tensor
-
-from constants.constants import*
-from modules.nilm_metrics import NILMmetrics
-from modules.helpers import denormalize, destandardize
+from constants.constants import *
+from utils.nilm_metrics import NILMmetrics
 from neural_networks.base_models import BaseModel
-from neural_networks.vae_nilm import VAE
-from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, FNET, ShortNeuralFourier, \
-    ShortFNET, ShortPosFNET, PosFNET, DAE, PAFnet
-
-from neural_networks.variational import VIBFnet, VIB_SAED, VIBShortNeuralFourier, \
-    VIBWGRU, VIBShortFnet, VIBSeq2Point, VIB_SimpleGru
-
-from neural_networks.bayesian import BayesSimpleGru, BayesSeq2Point, BayesWGRU, BayesFNET
-from neural_networks.bert import BERT4NILM, CUT_OFF, MIN_OFF_DUR, MIN_ON_DUR, POWER_ON_THRESHOLD, LAMBDA
+from utils.helpers import denormalize, destandardize
+from constants.appliance_thresholds import ON_THRESHOLDS
+from constants.enumerates import ElectricalAppliances
+from lab.active_models import *
 
 # Setting the seed
 # pl.seed_everything(42)
@@ -32,46 +24,14 @@ torch.backends.cudnn.determinstic = True
 device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
 print("Device:", device)
 
-ON_THRESHOLDS = {'dish washer': 10,
-                 'fridge': 50,
-                 'kettle': 2000,
-                 'microwave': 200,
-                 'washing machine': 20}
+
 
 VAL_ACC = "val_acc"
 VAL_LOSS = 'val_loss'
 
 
 def create_model(model_name, model_hparams):
-    model_dict = {'WGRU': WGRU,
-                  'S2P': Seq2Point,
-                  'SAED': SAED,
-                  'SimpleGru': SimpleGru,
-                  # 'FFED'        : FFED,
-                  'FNET': FNET,
-                  'ShortFNET': ShortFNET,
-                  'ShortPosFNET': ShortPosFNET,
-                  'PosFNET': PosFNET,
-                  'PAFNET': PAFnet,
-                  # 'ConvFourier' : ConvFourier,
-                  'BERT4NILM': BERT4NILM,
-                  'VIB_SAED': VIB_SAED,
-                  'VIB_SimpleGru': VIB_SimpleGru,
-                  'VIBFNET': VIBFnet,
-                  'VIBShortFNET': VIBShortFnet,
-                  'VIBWGRU': VIBWGRU,
-                  'VIBSeq2Point': VIBSeq2Point,
-                  'ShortNeuralFourier': ShortNeuralFourier,
-                  'VIBShortNeuralFourier': VIBShortNeuralFourier,
-                  'BayesSimpleGru': BayesSimpleGru,
-                  'BayesWGRU': BayesWGRU,
-                  'BayesSeq2Point': BayesSeq2Point,
-                  'BayesFNET': BayesFNET,
-                  'VAE': VAE,
-                  'DAE': DAE,
-                  'BERT': BERT4NILM,
-                  }
-
+    model_dict = ACTIVE_MODELS
     if model_name in model_dict:
         return model_dict[model_name](**model_hparams)
     else:
@@ -198,7 +158,7 @@ class ClassicTrainingTools(pl.LightningModule):
 
         res = NILMmetrics(pred=preds,
                           ground=ground,
-                          threshold=ON_THRESHOLDS.get(dev, 50)
+                          threshold=ON_THRESHOLDS.get(ElectricalAppliances(dev), 50)
                           )
 
         results = {COLUMN_MODEL: self.model_name,
