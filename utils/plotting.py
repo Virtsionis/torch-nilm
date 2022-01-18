@@ -4,7 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from constants.constants import *
 from constants.enumerates import StatMeasures
-from modules.helpers import list_intersection, experiment_name_format
+from utils.helpers import list_intersection, experiment_name_format
 
 pd.set_option('mode.chained_assignment', None)
 
