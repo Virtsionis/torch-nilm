@@ -662,7 +662,7 @@ class NILMExperiments:
 
     def _prepare_train_eval_input(self, experiment_category: str = None, device: str = None, window: int = None,
                                   model_name: str = None, iteration: int = None, fold: int = None,
-                                  model_hparams: dict = None):
+                                  model_hparams: dict = None, model_index: int = None):
         if self.experiment_type in [SupportedNilmExperiments.CROSS_VALIDATION,
                                     SupportedNilmExperiments.HYPERPARAM_TUNE_CV]:
             datasource, time_folds, train_set, train_house = self._prepare_cv_parameters(experiment_category, device)
@@ -688,6 +688,7 @@ class NILMExperiments:
 
         train_eval_args = {
             MODEL_NAME: model_name,
+            MODEL_INDEX: model_index,
             COLUMN_DEVICE: device,
             WINDOW_SIZE: window,
             SUBSEQ_WINDOW: self.subseq_window,
@@ -741,7 +742,7 @@ class NILMExperiments:
                       test_file_dir: str = None, model_hparams: ModelHyperModelParameters = None,
                       hparam_tuning: HyperParameterTuning = None, experiment_categories: list = None,
                       experiment_volume: SupportedExperimentVolumes = None, experiment_type: SupportedNilmExperiments = None,
-                      prepare_project_properties: bool = True,
+                      prepare_project_properties: bool = True, model_index: int = None,
                       ):
         if prepare_project_properties:
             self._prepare_project_properties(devices=devices,
@@ -762,7 +763,8 @@ class NILMExperiments:
         else:
             root_dir = self.project_name
 
-        report = get_final_report(self.tree_levels, save=True, root_dir=root_dir, save_name=save_name)
+        report = get_final_report(self.tree_levels, save=True, root_dir=root_dir, save_name=save_name,
+                                  model_index=model_index)
         get_statistical_report(save_name=save_name,
                                data=report,
                                root_dir=root_dir,
@@ -1063,7 +1065,7 @@ class NILMExperiments:
             print('EXPERIMENT CATEGORY: ', experiment_category)
             for model_name in self.models:
                 model_hparams_list = self.hparam_tuning.get_model_params(model_name)
-                for model_hparams in model_hparams_list:
+                for model_index, model_hparams in enumerate(model_hparams_list):
                     for device in self.devices:
                         model_hparams, window = self._calculate_model_window(model_hparams=model_hparams,
                                                                              model_name=model_name, device=device)
@@ -1075,6 +1077,7 @@ class NILMExperiments:
                             print('#' * 20)
                             train_eval_args = self._prepare_train_eval_input(experiment_category, device, window,
                                                                              model_name, None, fold,
+                                                                             model_index=model_index + 1,
                                                                              model_hparams=model_hparams)
                             self._call_train_eval(
                                 train_eval_args
@@ -1083,4 +1086,5 @@ class NILMExperiments:
             self.export_report(save_name=STAT_REPORT,
                                stat_measures=stat_measures,
                                prepare_project_properties=False,
+                               model_index=model_index + 1,
                                )

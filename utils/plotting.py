@@ -60,7 +60,7 @@ def plot_dataframe(data: pd.DataFrame = None, metrics: list = None, measures: li
     num_cols = ['_'.join([metric, measure.value]) for metric in metrics for measure in measures]
     num_cols = list_intersection(num_cols, data.columns.tolist())
 
-    cat_cols = [COLUMN_MODEL, COLUMN_CATEGORY, COLUMN_APPLIANCE, COLUMN_EXPERIMENT]
+    cat_cols = [COLUMN_MODEL, COLUMN_MODEL_VERSION, COLUMN_CATEGORY, COLUMN_APPLIANCE, COLUMN_EXPERIMENT]
     cat_cols = list_intersection(cat_cols, data.columns.tolist())
 
     num_cols.sort()
@@ -68,6 +68,9 @@ def plot_dataframe(data: pd.DataFrame = None, metrics: list = None, measures: li
 
     data = data[cat_cols + num_cols]
     data = data[(data[COLUMN_CATEGORY].isin(categories)) & (data[COLUMN_EXPERIMENT].isin(experiments))]
+
+    if COLUMN_MODEL_VERSION in cat_cols:
+        data[COLUMN_MODEL] = data[COLUMN_MODEL] + ' ' + data[COLUMN_MODEL_VERSION]
 
     if not appliances:
         appliances = data[COLUMN_APPLIANCE].unique()

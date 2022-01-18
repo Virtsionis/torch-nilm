@@ -4,13 +4,13 @@ from constants.enumerates import *
 
 experiment_parameters = {
     EPOCHS: 1,
-    ITERATIONS: 1,
+    ITERATIONS: 2,
     INFERENCE_CPU: False,
-    SAMPLE_PERIOD: 10,
+    SAMPLE_PERIOD: 20,
     BATCH_SIZE: 1024,
     ITERABLE_DATASET: False,
     PREPROCESSING_METHOD: SupportedPreprocessingMethods.ROLLING_WINDOW,
-    FIXED_WINDOW: 128,
+    FIXED_WINDOW: 50,
     SUBSEQ_WINDOW: 50,
     TRAIN_TEST_SPLIT: 0.8,
     CV_FOLDS: 2,
@@ -19,7 +19,7 @@ experiment_parameters = {
 
 devices = [
     ElectricalAppliances.KETTLE,
-    # ElectricalAppliances.MICROWAVE,
+    ElectricalAppliances.MICROWAVE,
     # ElectricalAppliances.FRIDGE,
     # ElectricalAppliances.WASHING_MACHINE,
     # ElectricalAppliances.DISH_WASHER,
@@ -62,10 +62,10 @@ model_hparams = [
         'model_name': 'SimpleGru',
         'hparams': {},
     },
-    # {
-    #     'model_name': 'SAED',
-    #     'hparams': {'window_size': None},
-    # },
+    {
+        'model_name': 'SAED',
+        'hparams': {'window_size': None},
+    },
     # {
     #     'model_name': 'WGRU',
     #     'hparams': {'dropout': 0},
@@ -74,23 +74,20 @@ model_hparams = [
 ]
 
 hparam_tuning = [
-    {
-        'model_name': 'FNET',
-        'hparams': [
-            {'depth': 5, 'kernel_size': 5, 'cnn_dim': 128, 'dual_cnn': False,
-             'input_dim': None, 'hidden_dim': 256, 'dropout': 0.0},
-            {'depth': 3, 'kernel_size': 5, 'cnn_dim': 128, 'dual_cnn': False,
-             'input_dim': None, 'hidden_dim': 256, 'dropout': 0.0},
-            {'depth': 6, 'kernel_size': 5, 'cnn_dim': 128, 'dual_cnn': False,
-             'input_dim': None, 'hidden_dim': 256, 'dropout': 0.0},
-        ]
-    },
+    # {
+    #     'model_name': 'FNET',
+    #     'hparams': [
+    #         {'depth': 1, 'kernel_size': 5, 'cnn_dim': 16, 'dual_cnn': False,
+    #          'input_dim': None, 'hidden_dim': 256, 'dropout': 0.0},
+    #         {'depth': 2, 'kernel_size': 5, 'cnn_dim': 32, 'dual_cnn': False,
+    #          'input_dim': None, 'hidden_dim': 64, 'dropout': 0.0},
+    #     ]
+    # },
     {
         'model_name': 'SAED',
         'hparams': [
-            {'window_size': None, 'bidirectional': False, 'hidden_dim': 128},
-            {'window_size': None, 'bidirectional': False, 'hidden_dim': 128, 'num_heads': 2},
-            {'window_size': None, 'bidirectional': False, 'hidden_dim': 128, 'num_heads': 3},
+            {'window_size': None, 'bidirectional': False, 'hidden_dim': 16},
+            {'window_size': None, 'bidirectional': False, 'hidden_dim': 16, 'num_heads': 2},
         ]
     },
 ]
@@ -99,7 +96,7 @@ model_hparams = ModelHyperModelParameters(model_hparams)
 hparam_tuning = HyperParameterTuning(hparam_tuning)
 experiment_parameters = ExperimentParameters(**experiment_parameters)
 
-experiment = NILMExperiments(project_name='test_plots2', clean_project=False,
+experiment = NILMExperiments(project_name='test_plots3', clean_project=False,
                              devices=devices, save_timeseries_results=True, experiment_categories=experiment_categories,
                              experiment_volume=SupportedExperimentVolumes.LARGE_VOLUME,
                              experiment_parameters=experiment_parameters,
@@ -107,7 +104,7 @@ experiment = NILMExperiments(project_name='test_plots2', clean_project=False,
                              )
 
 # experiment.run_benchmark(model_hparams=model_hparams)
-experiment.export_report(model_hparams=model_hparams, experiment_type=SupportedNilmExperiments.BENCHMARK)
-# experiment.run_cross_validation(model_hparams=model_hparams)
+# experiment.export_report(model_hparams=model_hparams, experiment_type=SupportedNilmExperiments.BENCHMARK)
+experiment.run_cross_validation(model_hparams=model_hparams)
 # experiment.run_hyperparameter_tuning_cross_validation(hparam_tuning=hparam_tuning)
 # experiment.export_report(hparam_tuning=hparam_tuning, experiment_type=SupportedNilmExperiments.HYPERPARAM_TUNE_CV)
