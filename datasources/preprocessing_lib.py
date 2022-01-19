@@ -115,7 +115,7 @@ def denoise(mainchunk: np.array, meterchunk: np.array):
     return mainchunk, meterchunk
 
 
-def add_gaussian_noise(mainchunk: np.array, noise_percentage: float = 0.1):
-    noise = np.random.normal(0, noise_percentage, mainchunk.shape)
+def add_gaussian_noise(mainchunk: np.array, noise_factor: float = 0.1):
+    noise = noise_factor * np.random.normal(0, 1, mainchunk.shape)
     mainchunk = mainchunk + noise
     return mainchunk

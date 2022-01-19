@@ -37,8 +37,9 @@ class ExperimentParameters:
         subseq_window (int): (check: datasources/torchdataset)
         train_test_split (float):  for train / validation split
         cv_folds (int): the number of cross validation folds
-        noise_percentage (float): the sigma of a noise signal to be added to the original timeseries. The noise follows
-            a gaussian distribution (0, noise_percentage)
+        noise_factor (float): a factor tο multiply a gaussian noise signal, which will be added to the normalized
+            mains timeseries. The noise follows a gaussian distribution (mu=0, sigma=1).
+            The final signal is given by : mains = mains + noise_factor * np.random(0, 1)
 
     Example of use:
         experiment_parameters = {
@@ -61,7 +62,7 @@ class ExperimentParameters:
                  sample_period: int = 6, batch_size: int = 256, iterable_dataset: bool = False,
                  preprocessing_method: SupportedPreprocessingMethods = SupportedPreprocessingMethods.ROLLING_WINDOW,
                  fixed_window: int = None, subseq_window: int = None, train_test_split: float = 0.8, cv_folds: int = 3,
-                 noise_percentage: float = None,):
+                 noise_factor: float = None, ):
 
         self.params = {
             EPOCHS: epochs,
@@ -75,7 +76,7 @@ class ExperimentParameters:
             SUBSEQ_WINDOW: subseq_window,
             TRAIN_TEST_SPLIT: train_test_split,
             CV_FOLDS: cv_folds,
-            NOISE_PERCENTAGE: noise_percentage,
+            NOISE_FACTOR: noise_factor,
         }
 
     def get_params(self):
@@ -429,7 +430,7 @@ class NILMExperiments:
         self.subseq_window = None
         self.train_test_split = 0.8
         self.cv_folds = 3
-        self.noise_percentage = None
+        self.noise_factor = None
 
     def _set_experiment_parameters(self, experiment_parameters: ExperimentParameters = None):
         if experiment_parameters:
@@ -445,7 +446,7 @@ class NILMExperiments:
             self.subseq_window = experiment_parameters[SUBSEQ_WINDOW]
             self.train_test_split = experiment_parameters[TRAIN_TEST_SPLIT]
             self.cv_folds = experiment_parameters[CV_FOLDS]
-            self.noise_percentage = experiment_parameters[NOISE_PERCENTAGE]
+            self.noise_factor = experiment_parameters[NOISE_FACTOR]
         else:
             warnings.warn('No experiment parameters are defined. So, default parameters will be used.')
             self._set_default_experiment_parameters()
@@ -594,7 +595,7 @@ class NILMExperiments:
                                                                    sample_period=self.sample_period,
                                                                    preprocessing_method=self.preprocessing_method,
                                                                    subseq_window=self.subseq_window,
-                                                                   noise_percentage=self.noise_percentage)
+                                                                   noise_factor=self.noise_factor)
                 else:
                     train_dataset_all = ElectricityDataset(datasource=datasource,
                                                            building=int(train_house),
@@ -604,7 +605,7 @@ class NILMExperiments:
                                                            sample_period=self.sample_period,
                                                            preprocessing_method=self.preprocessing_method,
                                                            subseq_window=self.subseq_window,
-                                                           noise_percentage=self.noise_percentage)
+                                                           noise_factor=self.noise_factor)
 
                 return train_dataset_all
         file.close()
@@ -613,7 +614,7 @@ class NILMExperiments:
                                                              sample_period=self.sample_period,
                                                              preprocessing_method=self.preprocessing_method,
                                                              subseq_window=self.subseq_window,
-                                                             noise_percentage=self.noise_percentage)
+                                                             noise_factor=self.noise_factor)
         return train_dataset_all
 
     def _prepare_train_val_loaders(self, train_dataset_all: Union[ElectricityDataset,
@@ -768,7 +769,8 @@ class NILMExperiments:
         get_statistical_report(save_name=save_name,
                                data=report,
                                root_dir=root_dir,
-                               stat_measures=stat_measures)
+                               stat_measures=stat_measures,
+                               save_plots=self.export_plots)
 
     def _set_model_output_dim(self, model_hparams: dict = None, output_dim: int = 1):
         """
@@ -1066,6 +1068,7 @@ class NILMExperiments:
             for model_name in self.models:
                 model_hparams_list = self.hparam_tuning.get_model_params(model_name)
                 for model_index, model_hparams in enumerate(model_hparams_list):
+                    print(model_hparams, model_index)
                     for device in self.devices:
                         model_hparams, window = self._calculate_model_window(model_hparams=model_hparams,
                                                                              model_name=model_name, device=device)
