@@ -96,7 +96,7 @@ model_hparams = ModelHyperModelParameters(model_hparams)
 hparam_tuning = HyperParameterTuning(hparam_tuning)
 experiment_parameters = ExperimentParameters(**experiment_parameters)
 
-experiment = NILMExperiments(project_name='test', clean_project=True,
+experiment = NILMExperiments(project_name='test2', clean_project=True,
                              devices=devices, save_timeseries_results=False, experiment_categories=experiment_categories,
                              experiment_volume=SupportedExperimentVolumes.LARGE_VOLUME,
                              experiment_parameters=experiment_parameters,
