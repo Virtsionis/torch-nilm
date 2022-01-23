@@ -50,50 +50,6 @@ def create_tree_dir(tree_levels: dict = None, clean: bool = False, plots: bool =
                 os.mkdir(plot_path)
 
 
-def display_res(root_dir=None, model_name=None, device=None,
-                exp_type=None, experiment_name=None, iteration=None,
-                low_lim=None, upper_lim=None, save_fig=True, plt_show=True, save_dir=DIR_PLOTS_NAME):
-    if low_lim > upper_lim:
-        low_lim, upper_lim = upper_lim, low_lim
-
-    root_dir = root_dir
-    path = '/'.join([root_dir, DIR_RESULTS_NAME, device, model_name,
-                     exp_type, experiment_name, ''])
-
-    if os.path.exists(path):
-        report_filename = REPORT_PREFIX + experiment_name + CSV_EXTENSION
-        snapshot_name = model_name + '_' + experiment_name + ITERATION_ID + str(iteration) + PNG_EXTENSION
-        data_filename = experiment_name + ITERATION_ID + str(iteration) + CSV_EXTENSION
-
-        report = pd.read_csv(path + report_filename)
-
-        # uncomment if wanna see the report
-        # if int(iteration) > 0:
-        #     print(report.iloc[int(iteration) - 1:int(iteration)])
-        # else:
-        #     print(report.iloc[int(iteration)])
-
-        data = pd.read_csv(path + data_filename)
-        data[COLUMN_GROUNDTRUTH][low_lim:upper_lim].plot.line(legend=False,
-                                                              # linestyle='dashed',
-                                                              )
-        data[COLUMN_PREDICTIONS][low_lim:upper_lim].plot.line(legend=False)
-        ax = plt.gca()
-        ax.axes.xaxis.set_ticklabels([])
-        ax.axes.yaxis.set_ticklabels([])
-        plt.rcParams["figure.figsize"] = (8, 10)
-        plt.legend([LEGEND_GROUNDTRUTH, model_name])
-
-        if save_fig:
-            if save_dir:
-                plt.savefig(root_dir + '/' + save_dir + '/' + snapshot_name,
-                            )
-            else:
-                plt.savefig(path + snapshot_name)
-        plt.clf()
-        del ax
-
-
 def get_tree_paths(tree_levels: dict = None, output_dir: str = None):
     tree_gen = (level for level in tree_levels)
     level = next(tree_gen)
