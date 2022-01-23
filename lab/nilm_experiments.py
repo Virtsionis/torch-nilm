@@ -5,14 +5,14 @@ import torch
 import pandas as pd
 from typing import Union
 from constants.constants import *
-from modules.nilm_trainer import train_eval
-from constants.device_windows import WINDOWS
+from lab.nilm_trainer import train_eval
+from constants.appliance_windows import WINDOWS
 from datasources.datasource import Datasource
 from datasources.datasource import DatasourceFactory
 from torch.utils.data import DataLoader, random_split
-from modules.helpers import create_tree_dir, create_time_folds
+from utils.helpers import create_tree_dir, create_time_folds
 from callbacks.callbacks_factories import TrainerCallbacksFactory
-from modules.reporting import get_final_report, get_statistical_report
+from utils.nilm_reporting import get_final_report, get_statistical_report
 from constants.enumerates import SupportedNilmExperiments, SupportedExperimentCategories, SupportedExperimentVolumes, \
     ElectricalAppliances, SupportedPreprocessingMethods
 from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset, ElectricityIterableDataset
@@ -37,6 +37,9 @@ class ExperimentParameters:
         subseq_window (int): (check: datasources/torchdataset)
         train_test_split (float):  for train / validation split
         cv_folds (int): the number of cross validation folds
+        noise_factor (float): a factor tο multiply a gaussian noise signal, which will be added to the normalized
+            mains timeseries. The noise follows a gaussian distribution (mu=0, sigma=1).
+            The final signal is given by : mains = mains + noise_factor * np.random(0, 1)
 
     Example of use:
         experiment_parameters = {
@@ -58,7 +61,8 @@ class ExperimentParameters:
     def __init__(self, epochs: int = 100, iterations: int = 5, inference_cpu: bool = False,
                  sample_period: int = 6, batch_size: int = 256, iterable_dataset: bool = False,
                  preprocessing_method: SupportedPreprocessingMethods = SupportedPreprocessingMethods.ROLLING_WINDOW,
-                 fixed_window: int = None, subseq_window: int = None, train_test_split: float = 0.8, cv_folds: int = 3):
+                 fixed_window: int = None, subseq_window: int = None, train_test_split: float = 0.8, cv_folds: int = 3,
+                 noise_factor: float = None, ):
 
         self.params = {
             EPOCHS: epochs,
@@ -72,6 +76,7 @@ class ExperimentParameters:
             SUBSEQ_WINDOW: subseq_window,
             TRAIN_TEST_SPLIT: train_test_split,
             CV_FOLDS: cv_folds,
+            NOISE_FACTOR: noise_factor,
         }
 
     def get_params(self):
@@ -226,6 +231,9 @@ class NILMExperiments:
         save_model(bool): The flag controls whether the model weights should be exported or not.
             Mind that this file is saved in a cpkt format and could be a handful of MBs in size.
             Default: False
+        export_plots(bool): The flag controls whether result plots should be exported or not. The results come from the
+            final report (xlsx). The plots are saved in a 'png' format
+            Default: False
         experiment_volume(SupportedExperimentVolumes): The list of the desired experiment_volume to be used.
             The supported volumes can be found in constants/enumerates/SupportedExperimentVolumes.
             Default: SupportedExperimentVolumes.LARGE_VOLUME
@@ -310,7 +318,7 @@ class NILMExperiments:
 
     """
     def __init__(self, project_name: str = None, clean_project: bool = False, experiment_categories: list = None,
-                 devices: list = None, save_timeseries_results: bool = True,
+                 devices: list = None, save_timeseries_results: bool = True, export_plots: bool = True,
                  experiment_volume: SupportedExperimentVolumes = SupportedExperimentVolumes.LARGE_VOLUME,
                  experiment_type: SupportedNilmExperiments = None, experiment_parameters: ExperimentParameters = None,
                  model_hparams: ModelHyperModelParameters = None, hparam_tuning: HyperParameterTuning = None,
@@ -320,6 +328,7 @@ class NILMExperiments:
         self.project_name = project_name
         self.clean_project = clean_project
         self.save_timeseries = save_timeseries_results
+        self.export_plots = export_plots
         self.save_model = save_model
         self.model_hparams = model_hparams
         self.hparam_tuning = hparam_tuning
@@ -421,6 +430,7 @@ class NILMExperiments:
         self.subseq_window = None
         self.train_test_split = 0.8
         self.cv_folds = 3
+        self.noise_factor = None
 
     def _set_experiment_parameters(self, experiment_parameters: ExperimentParameters = None):
         if experiment_parameters:
@@ -436,6 +446,7 @@ class NILMExperiments:
             self.subseq_window = experiment_parameters[SUBSEQ_WINDOW]
             self.train_test_split = experiment_parameters[TRAIN_TEST_SPLIT]
             self.cv_folds = experiment_parameters[CV_FOLDS]
+            self.noise_factor = experiment_parameters[NOISE_FACTOR]
         else:
             warnings.warn('No experiment parameters are defined. So, default parameters will be used.')
             self._set_default_experiment_parameters()
@@ -509,7 +520,7 @@ class NILMExperiments:
                        LEVEL_3_NAME: self.models,
                        EXPERIMENTS_NAME: experiment_categories,
                        }
-        create_tree_dir(tree_levels=tree_levels, clean=clean_project)
+        create_tree_dir(tree_levels=tree_levels, clean=clean_project, plots=self.export_plots)
         self.tree_levels = tree_levels
         self.clean_project = False
 
@@ -583,7 +594,8 @@ class NILMExperiments:
                                                                    dates=train_dates,
                                                                    sample_period=self.sample_period,
                                                                    preprocessing_method=self.preprocessing_method,
-                                                                   subseq_window=self.subseq_window,)
+                                                                   subseq_window=self.subseq_window,
+                                                                   noise_factor=self.noise_factor)
                 else:
                     train_dataset_all = ElectricityDataset(datasource=datasource,
                                                            building=int(train_house),
@@ -592,7 +604,8 @@ class NILMExperiments:
                                                            dates=train_dates,
                                                            sample_period=self.sample_period,
                                                            preprocessing_method=self.preprocessing_method,
-                                                           subseq_window=self.subseq_window,)
+                                                           subseq_window=self.subseq_window,
+                                                           noise_factor=self.noise_factor)
 
                 return train_dataset_all
         file.close()
@@ -600,7 +613,8 @@ class NILMExperiments:
                                                              window_size=window,
                                                              sample_period=self.sample_period,
                                                              preprocessing_method=self.preprocessing_method,
-                                                             subseq_window=self.subseq_window,)
+                                                             subseq_window=self.subseq_window,
+                                                             noise_factor=self.noise_factor)
         return train_dataset_all
 
     def _prepare_train_val_loaders(self, train_dataset_all: Union[ElectricityDataset,
@@ -649,7 +663,7 @@ class NILMExperiments:
 
     def _prepare_train_eval_input(self, experiment_category: str = None, device: str = None, window: int = None,
                                   model_name: str = None, iteration: int = None, fold: int = None,
-                                  model_hparams: dict = None):
+                                  model_hparams: dict = None, model_index: int = None):
         if self.experiment_type in [SupportedNilmExperiments.CROSS_VALIDATION,
                                     SupportedNilmExperiments.HYPERPARAM_TUNE_CV]:
             datasource, time_folds, train_set, train_house = self._prepare_cv_parameters(experiment_category, device)
@@ -675,6 +689,7 @@ class NILMExperiments:
 
         train_eval_args = {
             MODEL_NAME: model_name,
+            MODEL_INDEX: model_index,
             COLUMN_DEVICE: device,
             WINDOW_SIZE: window,
             SUBSEQ_WINDOW: self.subseq_window,
@@ -728,7 +743,7 @@ class NILMExperiments:
                       test_file_dir: str = None, model_hparams: ModelHyperModelParameters = None,
                       hparam_tuning: HyperParameterTuning = None, experiment_categories: list = None,
                       experiment_volume: SupportedExperimentVolumes = None, experiment_type: SupportedNilmExperiments = None,
-                      prepare_project_properties: bool = True,
+                      prepare_project_properties: bool = True, model_index: int = None,
                       ):
         if prepare_project_properties:
             self._prepare_project_properties(devices=devices,
@@ -749,11 +764,13 @@ class NILMExperiments:
         else:
             root_dir = self.project_name
 
-        report = get_final_report(self.tree_levels, save=True, root_dir=root_dir, save_name=save_name)
+        report = get_final_report(self.tree_levels, save=True, root_dir=root_dir, save_name=save_name,
+                                  model_index=model_index)
         get_statistical_report(save_name=save_name,
                                data=report,
                                root_dir=root_dir,
-                               stat_measures=stat_measures)
+                               stat_measures=stat_measures,
+                               save_plots=self.export_plots)
 
     def _set_model_output_dim(self, model_hparams: dict = None, output_dim: int = 1):
         """
@@ -784,7 +801,7 @@ class NILMExperiments:
             method that was determined by the user. Bellow, some use-case scenarios are explored:
             - If user chose FIXED_WINDOW, the input of the models are set to that value.
             - If user chose FIXED_WINDOW=None, the input of the models are set based on the predefined windows that can
-                be found in constants/device_windows.py.
+                be found in constants/appliance_windows.py.
             - If user chose FIXED_WINDOW=None and specifically set window_size/input_dim to a value, that value is taken
                 into account.
         """
@@ -1050,7 +1067,8 @@ class NILMExperiments:
             print('EXPERIMENT CATEGORY: ', experiment_category)
             for model_name in self.models:
                 model_hparams_list = self.hparam_tuning.get_model_params(model_name)
-                for model_hparams in model_hparams_list:
+                for model_index, model_hparams in enumerate(model_hparams_list):
+                    print(model_hparams, model_index)
                     for device in self.devices:
                         model_hparams, window = self._calculate_model_window(model_hparams=model_hparams,
                                                                              model_name=model_name, device=device)
@@ -1062,6 +1080,7 @@ class NILMExperiments:
                             print('#' * 20)
                             train_eval_args = self._prepare_train_eval_input(experiment_category, device, window,
                                                                              model_name, None, fold,
+                                                                             model_index=model_index + 1,
                                                                              model_hparams=model_hparams)
                             self._call_train_eval(
                                 train_eval_args
@@ -1070,4 +1089,5 @@ class NILMExperiments:
             self.export_report(save_name=STAT_REPORT,
                                stat_measures=stat_measures,
                                prepare_project_properties=False,
+                               model_index=model_index + 1,
                                )

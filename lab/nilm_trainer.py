@@ -6,7 +6,7 @@ import pytorch_lightning as pl
 from constants.constants import*
 from torch.utils.data import DataLoader
 from lab.training_tools import TrainingToolsFactory
-from modules.reporting import save_appliance_report
+from utils.nilm_reporting import save_appliance_report
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import  ElectricityDataset
 from constants.enumerates import SupportedPreprocessingMethods
@@ -19,7 +19,7 @@ def train_eval(model_name: str, train_loader: DataLoader, tests_params: pd.DataF
                val_loader: DataLoader = None, preprocessing_method: str = SupportedPreprocessingMethods.ROLLING_WINDOW,
                inference_cpu: bool = False, experiment_type: str = None, experiment_category: str = None,
                subseq_window: int = None, save_model: bool = False, saved_models_dir: str = DIR_SAVED_MODELS_NAME,
-               output_dir: str = DIR_OUTPUT_NAME, progress_bar: bool = True):
+               output_dir: str = DIR_OUTPUT_NAME, progress_bar: bool = True, model_index: int = None):
     """
     Inputs:
         model_name - Name of the model you want to run.
@@ -50,8 +50,14 @@ def train_eval(model_name: str, train_loader: DataLoader, tests_params: pd.DataF
         model_path = '/'.join([save_dir, experiment_type, saved_models_dir, device, model_name,
                                experiment_category, experiment_name, ''])
         date = str(datetime.now().strftime("%d-%b-%Y-%H:%M:%S"))
-        filename = model_path + ITERATION_NAME + '_' + str(iteration) + '_' + date + CKPT_EXTENSION
+        if model_index:
+            filename = model_path + model_name + '_' + VERSION + '_' + str(model_index) + '_' + ITERATION_NAME + '_' + \
+                       str(iteration) + '_' + date + CKPT_EXTENSION
+        else:
+            filename = model_path + model_name + '_' + ITERATION_NAME + '_' + str(iteration) + '_' + date +\
+                       CKPT_EXTENSION
         trainer.save_checkpoint(filename)
+        print('Model saved at: ', filename)
 
     for i in range(len(tests_params)):
         building = tests_params[TEST_HOUSE][i]
@@ -91,5 +97,5 @@ def train_eval(model_name: str, train_loader: DataLoader, tests_params: pd.DataF
                               experiment_type=experiment_type, experiment_category=experiment_category,
                               save_timeseries=save_timeseries, experiment_name=final_experiment_name,
                               iteration=iteration, model_results=model_results, model_hparams=model_hparams,
-                              epochs=epochs)
+                              epochs=epochs, model_index=model_index)
         del test_dataset, test_loader, ground, final_experiment_name
