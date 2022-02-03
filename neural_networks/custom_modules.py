@@ -99,16 +99,12 @@ class IBNNet(nn.Module):
         else:
             x = ibn_out
 
-        if 1 not in x.shape:
-            out = self.out_layer(x)
-            if self.max_pool:
-                pool_out = self.pool(out)
-                return out, pool_out
-            else:
-                return out, None
+        out = self.out_layer(x)
+        if self.max_pool:
+            pool_out = self.pool(out)
+            return out, pool_out
         else:
-            warnings.warn("InstNorm/Pooling can't be applied on tensors with ones in any dimension {}".format(x.shape))
-            return x, None
+            return out, None
 
 
 class VIBDecoder(nn.Module):
