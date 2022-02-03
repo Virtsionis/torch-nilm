@@ -2,7 +2,7 @@ from constants.enumerates import ElectricalAppliances
 
 
 WINDOWS = {
-    'FNET': {
+    'NFED': {
         ElectricalAppliances.MICROWAVE: 50,
         ElectricalAppliances.KETTLE: 50,
         ElectricalAppliances.FRIDGE: 350,
@@ -45,11 +45,11 @@ WINDOWS = {
         ElectricalAppliances.DISH_WASHER: 500,
     },
     'VAE': {
-        ElectricalAppliances.MICROWAVE: 100,
-        ElectricalAppliances.KETTLE: 300,
-        ElectricalAppliances.FRIDGE: 400,
-        ElectricalAppliances.WASHING_MACHINE: 400,
-        ElectricalAppliances.DISH_WASHER: 500,
+        ElectricalAppliances.MICROWAVE: 128,
+        ElectricalAppliances.KETTLE: 256,
+        ElectricalAppliances.FRIDGE: 256,
+        ElectricalAppliances.WASHING_MACHINE: 256,
+        ElectricalAppliances.DISH_WASHER: 512,
     },
     'VIB_SAED': {
         ElectricalAppliances.MICROWAVE: 100,
@@ -58,7 +58,7 @@ WINDOWS = {
         ElectricalAppliances.WASHING_MACHINE: 50,
         ElectricalAppliances.DISH_WASHER: 200,
     },
-    'VIBFNET': {
+    'VIBNFED': {
         ElectricalAppliances.MICROWAVE: 50,
         ElectricalAppliances.KETTLE: 50,
         ElectricalAppliances.FRIDGE: 350,
@@ -73,6 +73,34 @@ WINDOWS = {
         ElectricalAppliances.DISH_WASHER: 500,
     },
     'VIBWGRU': {
+        ElectricalAppliances.MICROWAVE: 100,
+        ElectricalAppliances.KETTLE: 150,
+        ElectricalAppliances.FRIDGE: 450,
+        ElectricalAppliances.WASHING_MACHINE: 150,
+        ElectricalAppliances.DISH_WASHER: 350,
+    },
+    'BayesSAED': {
+        ElectricalAppliances.MICROWAVE: 100,
+        ElectricalAppliances.KETTLE: 50,
+        ElectricalAppliances.FRIDGE: 250,
+        ElectricalAppliances.WASHING_MACHINE: 50,
+        ElectricalAppliances.DISH_WASHER: 200,
+    },
+    'BayesNFED': {
+        ElectricalAppliances.MICROWAVE: 50,
+        ElectricalAppliances.KETTLE: 50,
+        ElectricalAppliances.FRIDGE: 350,
+        ElectricalAppliances.WASHING_MACHINE: 150,
+        ElectricalAppliances.DISH_WASHER: 450,
+    },
+    'BayesSeq2Point': {
+        ElectricalAppliances.MICROWAVE: 100,
+        ElectricalAppliances.KETTLE: 300,
+        ElectricalAppliances.FRIDGE: 400,
+        ElectricalAppliances.WASHING_MACHINE: 400,
+        ElectricalAppliances.DISH_WASHER: 500,
+    },
+    'BayesWGRU': {
         ElectricalAppliances.MICROWAVE: 100,
         ElectricalAppliances.KETTLE: 150,
         ElectricalAppliances.FRIDGE: 450,

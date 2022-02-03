@@ -6,6 +6,7 @@ from torchnlp.nn.attention import Attention
 from neural_networks.base_models import BaseModel
 from neural_networks.custom_modules import ConvDropRelu, LinearDropRelu
 
+
 class GELU(nn.Module):
     def forward(self, x):
         return 0.5 * x * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
@@ -31,6 +32,7 @@ class PositionwiseFeedForward(nn.Module):
     def forward(self, x):
         return self.w_2(self.activation(self.w_1(x)))
 
+
 class LayerNorm(nn.Module):
     def __init__(self, features, eps=1e-6):
         super(LayerNorm, self).__init__()
@@ -42,6 +44,21 @@ class LayerNorm(nn.Module):
         mean = x.mean(-1, keepdim=True)
         std = x.std(-1, keepdim=True)
         return self.weight * (x - mean) / (std + self.eps) + self.bias
+
+
+class FeedForward(nn.Module):
+    def __init__(self, dim, hidden_factor, dropout=0.):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(dim, hidden_factor),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_factor, dim),
+            nn.Dropout(dropout)
+        )
+
+    def forward(self, x):
+        return self.net(x)
 
 
 class Seq2Point(BaseModel):
@@ -73,47 +90,6 @@ class Seq2Point(BaseModel):
         x = self.dense(x)
         out = self.output(x)
         return out
-
-
-class PayAttention2Fourier(nn.Module):
-
-    def __init__(self, window_size, dropout=0, lr=None, output_dim: int = 1):
-
-        super(PayAttention2Fourier, self).__init__()
-        self.MODEL_NAME = 'PAF'
-        self.drop = dropout
-        self.lr = lr
-        cnn_out = 8  # the out_features of last CNN
-        self.dense_input = cnn_out * window_size
-
-        self.conv = nn.Sequential(
-            ConvDropRelu(1, cnn_out, kernel_size=5, dropout=self.drop),
-            # nn.LPPool1d(norm_type=2, kernel_size=2, stride=2)
-        )
-        self.freal = FReal()
-        self.fimag = FImag()
-        self.attention = Attention(window_size, attention_type='dot')
-        self.flat = nn.Flatten()
-        self.mlp = nn.Sequential(
-            nn.Linear(self.dense_input, 4 * self.dense_input),
-            nn.Dropout(self.drop),
-            nn.GELU(),
-            nn.Linear(4 * self.dense_input, self.dense_input),
-            nn.Dropout(self.drop),
-            nn.GELU(),
-            nn.Linear(self.dense_input, output_dim),
-        )
-
-    def forward(self, x):
-        x = x
-        x = x.unsqueeze(1)
-        cnn = self.conv(x)
-        real = self.freal(cnn)
-        imag = self.fimag(cnn)
-        attn, _ = self.attention(real, imag)
-        attn = self.flat(attn)
-        mlp = self.mlp(attn)
-        return mlp
 
 
 class WGRU(BaseModel):
@@ -277,463 +253,6 @@ class SimpleGru(BaseModel):
         return out
 
 
-class FFED(nn.Module):
-
-    def __init__(self, hidden_dim=16, dropout=0, lr=None, output_dim: int = 1):
-        super(FFED, self).__init__()
-
-        self.drop = dropout
-        self.lr = lr
-
-        self.conv = ConvDropRelu(1, hidden_dim,
-                                 kernel_size=4,
-                                 dropout=self.drop)
-
-        self.bgru = nn.GRU(hidden_dim, 64,
-                           batch_first=True,
-                           bidirectional=True,
-                           dropout=self.drop)
-        self.dense = LinearDropRelu(128, 64, self.drop)
-        self.output = nn.Linear(64, output_dim)
-
-    def forward(self, x):
-        # x must be in shape [batch_size, 1, window_size]
-        # eg: [1024, 1, 50]
-        x = x
-        x = x.unsqueeze(1)
-        x = self.conv(x)
-        x = x.permute(0, 2, 1)
-        x = torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2).real
-        x = self.bgru(x)[0]
-        x = x[:, -1, :]
-        x = self.dense(x)
-        out = self.output(x)
-        return out
-
-
-## ENCODER BLOCK
-class FNETBLock(nn.Module):
-
-    def __init__(self, input_dim, hidden_dim, inverse_fft=False, dropout=0.0, mode='fft'):
-        """
-        Inputs:
-            input_dim - Dimensionality of the input (seq_len)
-            hidden_dim - Dimensionality of the hidden layer in the MLP
-            dropout - Dropout probability to use in the dropout layers
-            mode- 'fft' or 'att' or 'plain'
-        """
-        super().__init__()
-        self.mode = mode
-        if self.mode=='att':
-            self.attention = Attention(input_dim, attention_type='dot')
-
-        # self.linear_fftout = nn.Linear(2*input_dim, input_dim)
-
-        self.linear_fftout = nn.Sequential(
-            nn.Linear(2*input_dim, input_dim),
-            # nn.LeakyReLU(inplace=True),
-        )
-
-        # Two-layer MLP
-        self.linear_net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.ReLU(inplace=True),
-            nn.Linear(hidden_dim, input_dim)
-        )
-
-        # Layers to apply in between the main layers
-        self.norm1 = nn.LayerNorm(input_dim)
-        self.norm2 = nn.LayerNorm(input_dim)
-        self.dropout = nn.Dropout(dropout)
-
-    def forward(self, x):
-
-        fft_out = self.norm1(x)
-
-        if self.mode=='fft':
-            fft_out = torch.fft.fft(fft_out, dim=-1)
-            fft_out = torch.cat((fft_out.real, fft_out.imag), dim=-1)
-        elif self.mode=='att':
-            fft_out, _ = self.attention(fft_out, fft_out)
-            fft_out = torch.cat((fft_out, fft_out), dim=-1)
-        elif self.mode=='plain':
-            fft_out = torch.cat((fft_out, fft_out), dim=-1)
-
-        fft_out = self.linear_fftout(fft_out)
-        x = x + self.dropout(fft_out)
-        x = self.norm2(x)
-        linear_out = self.linear_net(x)
-        x = x + self.dropout(linear_out)
-        return x
-
-
-class ShortFNETBLock(nn.Module):
-
-    def __init__(self, input_dim, hidden_dim, inverse_fft=False, dropout=0.0):
-        """
-        Inputs:
-            input_dim - Dimensionality of the input (seq_len)
-            hidden_dim - Dimensionality of the hidden layer in the MLP
-            dropout - Dropout probability to use in the dropout layers
-        """
-        super().__init__()
-
-        # self.linear_real = nn.Linear(16001, 16001)
-        # self.linear_imag = nn.Linear(16001, 16001)
-        self.consider_inverse_fft = inverse_fft
-
-        # Two-layer MLP
-        self.linear_net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.Dropout(dropout),
-            nn.ReLU(inplace=True),
-            nn.Linear(hidden_dim, input_dim)
-        )
-
-        # Layers to apply in between the main layers
-        self.norm1 = nn.LayerNorm(input_dim)
-        self.norm2 = nn.LayerNorm(input_dim)
-        self.dropout = nn.Dropout(dropout)
-
-    def forward(self, x, mask=None):
-        """
-        stft-torch.Size([1024, 17, 201, 2])     torch.stft(xf, n_fft=xdim2)
-             torch.Size([1024, 26, 134, 2])
-             torch.Size([1024, 26, 33, 2])
-        2nd fft-torch.Size([1024, 17, 201, 2])  torch.fft.fft(stft, dim=-2).real
-        1st fft-torch.Size([1024, 32, 50])      torch.fft.fft(x, dim=-1).shape
-        double fft-torch.Size([1024, 32, 50])   torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2).real
-        """
-        # print(f"x shape {x.shape}")  x shape torch.Size([1024, 32, 50])
-        xf = self.norm1(x)
-
-        batch = xf.shape[0]
-        xdim2 = xf.shape[1]
-        xdim3 = xf.shape[2]
-        xf = xf.reshape((batch, xdim2 * xdim3))
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        # windowvalues = torch.hann_window(xdim3, device=device)
-        # windowvalues = torch.blackman_window(xdim3, device=device)
-        wavelet_window = 10  # xdim3
-        windowvalues = torch.kaiser_window(window_length=wavelet_window, periodic=True, beta=5.0, device=device)
-        # windowvalues = torch.bartlett_window(xdim3, device=device)
-        # windowvalues = torch.normal(0, 0.1, size=(1, xdim3), device=device).ravel()
-        fft_out = torch.stft(xf, n_fft=wavelet_window, normalized=False, window=windowvalues, return_complex=True)
-
-        if self.consider_inverse_fft:
-            # TODO: Shapes don't match and mlps are very large.
-            fft_out_real = self.linear_real(fft_out.real).unsqueeze(-1)
-            fft_out_imag = self.linear_imag(fft_out.imag).unsqueeze(-1)
-            x_complex = torch.cat((fft_out_real, fft_out_imag), dim=-1)
-            x_complex = torch.view_as_complex(x_complex)
-            fft_out = torch.istft(x_complex, n_fft=wavelet_window, normalized=False, window=windowvalues,
-                                  length=xdim2 * xdim3)
-
-        fft_out = fft_out.reshape((batch, -1))[:, -xdim2 * xdim3:].reshape((batch, xdim2, xdim3))
-        fft_out = torch.fft.fft(fft_out, dim=-2)
-        img = fft_out.imag
-        fft_out = fft_out.real
-        if self.consider_inverse_fft:
-            fft_out = torch.fft.ifft(fft_out, dim=-2).real
-        x = x + self.dropout(fft_out)
-
-        # MLP part
-        nx = self.norm2(x)
-        linear_out = self.linear_net(nx)
-        x = x + self.dropout(linear_out)
-
-        return x, img
-
-
-class FNET(BaseModel):
-
-    def __init__(self, depth, kernel_size, cnn_dim, dual_cnn=False, output_dim: int = 1, **block_args):
-        super(FNET, self).__init__()
-
-        self.drop = block_args['dropout']
-        self.input_dim = block_args['input_dim']
-        self.dense_in = self.input_dim * cnn_dim // 2
-
-        if dual_cnn:
-            self.conv = nn.Sequential(
-                    ConvDropRelu(1, cnn_dim, kernel_size=kernel_size, dropout=self.drop),
-                    ConvDropRelu(cnn_dim, cnn_dim, kernel_size=kernel_size, dropout=self.drop),
-                )
-        else:
-            self.conv = ConvDropRelu(1, cnn_dim, kernel_size=kernel_size, dropout=self.drop)
-        self.pool = nn.LPPool1d(norm_type=2, kernel_size=2, stride=2)
-
-        self.fnet_layers = nn.ModuleList([FNETBLock(**block_args) for _ in range(depth)])
-
-        self.flat = nn.Flatten()
-        self.dense1 = LinearDropRelu(self.dense_in, cnn_dim, self.drop)
-        self.dense2 = LinearDropRelu(cnn_dim, cnn_dim // 2, self.drop)
-
-        self.output = nn.Linear(cnn_dim // 2, output_dim)
-
-    def forward(self, x):
-        # x must be in shape [batch_size, 1, window_size]
-        # eg: [1024, 1, 50]
-        x = x
-        x = x.unsqueeze(1)
-        x = self.conv(x)
-        x = x.transpose(1, 2).contiguous()
-        x = self.pool(x)
-        x = x.transpose(1, 2).contiguous()
-        for layer in self.fnet_layers:
-            # x, imag = layer(x)
-            x = layer(x)
-        x = self.flat(x)
-        x = self.dense1(x)
-        x = self.dense2(x)
-        out = self.output(x)
-        return out
-
-
-class PosFNET(FNET):
-    def __init__(self, depth, kernel_size, cnn_dim, **block_args):
-        super(PosFNET, self).__init__(depth, kernel_size, cnn_dim, **block_args)
-        self.linear_net = nn.Sequential(
-            nn.Linear(1, cnn_dim//2),
-        )
-        self.fnet_layers = nn.ModuleList([FNETBLock(**block_args) for _ in range(depth)])
-
-        self.position = PositionalEmbedding(
-            max_len=self.input_dim, d_model=cnn_dim//2)
-
-        self.layer_norm = LayerNorm(cnn_dim)
-        self.dropout = nn.Dropout(p=self.drop)
-
-    def forward(self, x):
-        # x must be in shape [batch_size, 1, window_size]
-        # eg: [1024,50, 1]
-        x = x
-        x = x.unsqueeze(2)
-        x = self.linear_net(x)
-        # embedding = self.position(x) + x
-        # embedding = self.layer_norm(embedding)
-        x = self.position(x)
-        # x = self.dropout(embedding)
-        x = x.transpose(1, 2).contiguous()
-        for layer in self.fnet_layers:
-            x, imag = layer(x)
-        x = self.flat(x)
-        x = self.dense1(x)
-        x = self.dense2(x)
-        out = self.output(x)
-        return out
-
-
-
-class ShortFNET(FNET):
-    def __init__(self, depth, kernel_size, cnn_dim, **block_args):
-        super(ShortFNET, self).__init__(depth, kernel_size, cnn_dim, **block_args)
-        self.fnet_layers = nn.ModuleList([ShortFNETBLock(**block_args) for _ in range(depth)])
-
-
-
-class ShortPosFNET(FNET):
-    '''
-    the position encoding is based on Bert4NILM
-    '''
-    def __init__(self, depth, kernel_size, cnn_dim, **block_args):
-        super(ShortPosFNET, self).__init__(depth, kernel_size, cnn_dim, **block_args)
-        self.linear_net = nn.Sequential(
-            nn.Linear(1, cnn_dim//2),
-        )
-        self.fnet_layers = nn.ModuleList([ShortFNETBLock(**block_args) for _ in range(depth)])
-
-        self.position = PositionalEmbedding(
-            max_len=self.input_dim, d_model=cnn_dim//2)
-
-        self.layer_norm = LayerNorm(cnn_dim)
-        self.dropout = nn.Dropout(p=self.drop)
-
-    def forward(self, x):
-        # x must be in shape [batch_size, 1, window_size]
-        # eg: [1024,50, 1]
-        x = x
-        x = x.unsqueeze(2)
-        x = self.linear_net(x)
-        # embedding = self.position(x) + x
-        # embedding = self.layer_norm(embedding)
-        x = self.position(x)
-        # x = self.dropout(embedding)
-        x = x.transpose(1, 2).contiguous()
-        for layer in self.fnet_layers:
-            x, imag = layer(x)
-        x = self.flat(x)
-        x = self.dense1(x)
-        x = self.dense2(x)
-        out = self.output(x)
-        return out
-
-class FReal(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, x):
-        # x = torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2)
-        x = torch.fft.fft(x, dim=-1)
-        return x.real
-
-
-class FImag(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, x):
-        # x = torch.fft.fft(torch.fft.fft(x, dim=-1), dim=-2)
-        x = torch.fft.fft(x, dim=-1)
-        return x.imag
-
-
-class ShortNeuralFourier(BaseModel):
-    def __init__(self, window_size, output_dim: int = 1,):
-        super().__init__()
-        self.window_size = window_size
-        cnn_dim = 128
-        kernel_size = 2
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.conv = ConvDropRelu(1, 4 * cnn_dim, kernel_size=kernel_size, dropout=0)
-        self.conv2 = ConvDropRelu(4 * cnn_dim, 2 * cnn_dim, kernel_size=kernel_size, dropout=0)
-        self.conv3 = ConvDropRelu(2 * cnn_dim, cnn_dim, kernel_size=kernel_size, dropout=0)
-        self.conv4 = ConvDropRelu(cnn_dim, cnn_dim, kernel_size=kernel_size, dropout=0)
-        self.output = nn.Linear(cnn_dim * 5, output_dim)
-
-    def forward(self, x):
-        # print(f"X shape {x.shape}")
-        x = x.unsqueeze(1)
-        x = self.conv(x)
-        x = self.conv2(x)
-        x = self.conv3(x)
-        # x = self.conv4(x)
-        batch = x.shape[0]
-        xdim2 = x.shape[1]
-        xdim3 = x.shape[2]
-        x = x.reshape((batch, xdim2 * xdim3))
-        xdim3 = self.window_size // 10
-        windowvalues = torch.kaiser_window(window_length=xdim3, periodic=True, beta=5.0, device=self.device)
-        fft_out = torch.stft(x, n_fft=xdim3, normalized=False, window=windowvalues)
-        fft_out = fft_out.reshape((batch, -1))[:, -xdim2 * xdim3:].reshape((batch, xdim2, xdim3))
-        fft_out = torch.fft.fft(fft_out, dim=-2).real
-        # print(f"Fourier shape {fft_out.real.reshape((batch, -1)).shape}")
-        return self.output(fft_out.reshape((batch, -1)))
-
-
-class ConvFourier(nn.Module):
-
-    def __init__(self, window_size, dropout=0, lr=None, output_dim=1,):
-        super(ConvFourier, self).__init__()
-        self.MODEL_NAME = 'ConvFourier'
-        self.drop = dropout
-        self.lr = lr
-        cnn_out = 16  # the out_features of last CNN
-        self.dense_input = cnn_out * window_size
-
-        self.conv = nn.Sequential(
-            ConvDropRelu(1, cnn_out, kernel_size=11, dropout=self.drop),
-            nn.LPPool1d(norm_type=2, kernel_size=2, stride=2)
-        )
-        self.freal = FReal()
-        self.fimag = FImag()
-
-        self.mlp = nn.Sequential(
-            nn.Linear(self.dense_input // 2, 2 * self.dense_input),
-            nn.Dropout(self.drop),
-            nn.ReLU(inplace=True),
-            nn.Linear(2 * self.dense_input, self.dense_input // 2),
-        )
-
-        self.flat = nn.Flatten()
-        self.output = nn.Linear(self.dense_input, output_dim)
-
-    def forward(self, x):
-        x = x
-        x = x.unsqueeze(1)
-        cnn = self.conv(x)
-        real_x = self.flat(self.freal(cnn))
-        imag_x = self.flat(self.fimag(cnn))
-        mlp1 = self.mlp(real_x)
-        mlp2 = self.mlp(imag_x)
-        x = torch.cat([mlp1, mlp2], dim=-1)
-        x = self.flat(x)
-
-        out = self.output(x)
-        return out
-
-
-class FeedForward(nn.Module):
-    def __init__(self, dim, hidden_factor, dropout=0.):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(dim, hidden_factor),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(hidden_factor, dim),
-            nn.Dropout(dropout)
-        )
-
-    def forward(self, x):
-        return self.net(x)
-
-
-class PAFBlock(nn.Module):
-    def __init__(self, window_size, hidden_factor, dropout=0):
-        super(PAFBlock, self).__init__()
-        self.MODEL_NAME = 'PAFBlock'
-
-        self.freal = FReal()
-        self.fimag = FImag()
-        self.attention = Attention(window_size, attention_type='dot')
-        self.linear = FeedForward(window_size, hidden_factor, dropout=0)
-
-    def forward(self, x):
-        x = x
-        real = self.freal(x)
-        imag = self.fimag(x)
-        attn, _ = self.attention(real, imag)
-        x = self.linear(attn)
-        return x
-
-
-class PAFnet(BaseModel):
-
-    def __init__(self, cnn_dim, kernel_size, depth, window_size, hidden_factor, dropout=0, output_dim=1):
-        super(PAFnet, self).__init__()
-        self.MODEL_NAME = 'PAF'
-        self.dense_input = cnn_dim * window_size
-
-        self.conv = nn.Sequential(
-            ConvDropRelu(1, cnn_dim, kernel_size=kernel_size, dropout=dropout),
-            # nn.LPPool1d(norm_type=2, kernel_size=2, stride=2)
-        )
-
-        self.paf_blocks = nn.ModuleList([PAFBlock(window_size, hidden_factor, dropout) \
-                                         for _ in range(depth)])
-
-        self.flat = nn.Flatten()
-        self.mlp = nn.Sequential(
-            nn.Linear(self.dense_input, 4 * self.dense_input),
-            nn.Dropout(dropout),
-            nn.GELU(),
-            nn.Linear(4 * self.dense_input, self.dense_input),
-            nn.Dropout(dropout),
-            nn.GELU(),
-            nn.Linear(self.dense_input, output_dim),
-        )
-
-    def forward(self, x):
-        x = x
-        x = x.unsqueeze(1)
-        x = self.conv(x)
-        for block in self.paf_blocks:
-            x = block(x)
-        x = self.flat(x)
-        out = self.mlp(x)
-        return out
-
-
 class DAE(BaseModel):
     def __init__(self, input_dim, dropout=0.2, output_dim=1):
         super().__init__()
@@ -766,3 +285,102 @@ class DAE(BaseModel):
         x = self.encoder(x)
         x = self.decoder(x)
         return x
+
+
+class FourierBLock(nn.Module):
+
+    def __init__(self, input_dim, hidden_dim, dropout=0.0, mode='fft', leaky_relu=False):
+        """
+        Input arguments:
+            input_dim - Dimensionality of the input (seq_len)
+            hidden_dim - Dimensionality of the hidden layer in the MLP
+            dropout - Dropout probability to use in the dropout layers
+            mode - The type of mechanism inside the block. Currently, three types are supported; 'fft' for fourier,
+            'att' for dot attention and 'plain' for simple concatenation.
+                default value: 'fft'
+            leaky_relu - A flag that controls whether leaky relu should be applied on the linear layer after the
+            fourier mechanism.
+                default value: False
+        """
+        super().__init__()
+        self.mode = mode
+        if self.mode == 'att':
+            self.attention = Attention(input_dim, attention_type='dot')
+
+        if leaky_relu:
+            self.linear_fftout = nn.Sequential(
+                nn.Linear(2 * input_dim, input_dim),
+                nn.LeakyReLU(inplace=True),
+            )
+        else:
+            self.linear_fftout = nn.Sequential(
+                nn.Linear(2 * input_dim, input_dim),
+            )
+
+        self.linear_net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(inplace=True),
+            nn.Linear(hidden_dim, input_dim)
+        )
+
+        self.norm1 = nn.LayerNorm(input_dim)
+        self.norm2 = nn.LayerNorm(input_dim)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+
+        fft_out = self.norm1(x)
+        if self.mode == 'fft':
+            fft_out = torch.fft.fft(fft_out, dim=-1)
+            fft_out = torch.cat((fft_out.real, fft_out.imag), dim=-1)
+        elif self.mode == 'att':
+            fft_out, _ = self.attention(fft_out, fft_out)
+            fft_out = torch.cat((fft_out, fft_out), dim=-1)
+        elif self.mode == 'plain':
+            fft_out = torch.cat((fft_out, fft_out), dim=-1)
+
+        fft_out = self.linear_fftout(fft_out)
+        x = x + self.dropout(fft_out)
+        x = self.norm2(x)
+        linear_out = self.linear_net(x)
+        x = x + self.dropout(linear_out)
+        return x
+
+
+class NFED(BaseModel):
+    def __init__(self, depth, kernel_size, cnn_dim, output_dim: int = 1, **block_args):
+        """
+        Input arguments:
+            depth - The number of fourier blocks in series
+            kernel_size - The kernel size of the first CNN layer
+            cnn_dim - Dimensionality of the output of the first CNN layer
+        """
+        super(NFED, self).__init__()
+        self.drop = block_args['dropout']
+        self.input_dim = block_args['input_dim']
+        self.dense_in = self.input_dim * cnn_dim // 2
+
+        self.conv = ConvDropRelu(1, cnn_dim, kernel_size=kernel_size, dropout=self.drop)
+        self.pool = nn.LPPool1d(norm_type=2, kernel_size=2, stride=2)
+
+        self.fourier_layers = nn.ModuleList([FourierBLock(**block_args) for _ in range(depth)])
+
+        self.flat = nn.Flatten()
+        self.dense1 = LinearDropRelu(self.dense_in, cnn_dim, self.drop)
+        self.dense2 = LinearDropRelu(cnn_dim, cnn_dim // 2, self.drop)
+
+        self.output = nn.Linear(cnn_dim // 2, output_dim)
+
+    def forward(self, x):
+        x = x.unsqueeze(1)
+        x = self.conv(x)
+        x = x.transpose(1, 2).contiguous()
+        x = self.pool(x)
+        x = x.transpose(1, 2).contiguous()
+        for layer in self.fourier_layers:
+            x = layer(x)
+        x = self.flat(x)
+        x = self.dense1(x)
+        x = self.dense2(x)
+        out = self.output(x)
+        return out

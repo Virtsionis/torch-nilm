@@ -1,22 +1,23 @@
-import math
 import torch
 import torch.nn as nn
+from torchnlp.nn import Attention
+
 from neural_networks.base_models import BaseModel
 from blitz.modules import BayesianLinear
-from blitz.modules.conv_bayesian_layer import BayesianConv1d
-from blitz.modules.gru_bayesian_layer import BayesianGRU
 from neural_networks.custom_modules import ConvDropRelu, LinearDropRelu
 from blitz.utils import variational_estimator
-from torchnlp.nn.attention import Attention
+
 
 @variational_estimator
 class BAYESNet(BaseModel):
     def supports_bayes(self) -> bool:
         return True
 
+
 class BayesWGRU(BAYESNet):
     def supports_bayes(self) -> bool:
         return True
+
     def __init__(self, dropout=0, lr=None):
         super(BayesWGRU, self).__init__()
 
@@ -70,7 +71,6 @@ class BayesWGRU(BAYESNet):
         x = self.dense2(x)
         out = self.output(x)
         return out
-
 
 
 class BayesSimpleGru(BAYESNet):
@@ -155,7 +155,7 @@ class BayesSeq2Point(BAYESNet):
         return out
 
 
-class BayesFNETBLock(BAYESNet):
+class BayesNFEDBLock(BAYESNet):
     
     def __init__(self, input_dim, hidden_dim, inverse_fft=False, dropout=0.0):
         """
@@ -169,9 +169,9 @@ class BayesFNETBLock(BAYESNet):
         s1 = 0.05
         s2 = 0.01
         self.linear_fftout = BayesianLinear(2*input_dim, input_dim,
-                                          prior_sigma_1=s1,
-                                          prior_sigma_2=s2,
-                                         )
+                                            prior_sigma_1=s1,
+                                            prior_sigma_2=s2,
+                                           )
         # Two-layer MLP
         self.linear_net = nn.Sequential(
             BayesianLinear(input_dim, hidden_dim,
@@ -266,10 +266,11 @@ class BayesFNETBLock(BAYESNet):
 
 #         return x, imag
 
-class BayesFNET(BaseModel):
+
+class BayesNFED(BaseModel):
 
     def __init__(self, depth, kernel_size, cnn_dim, output_dim=1, **block_args):
-        super(BayesFNET, self).__init__()
+        super(BayesNFED, self).__init__()
 
         self.drop = block_args['dropout']
         self.input_dim = block_args['input_dim']
@@ -278,7 +279,7 @@ class BayesFNET(BaseModel):
         self.conv = ConvDropRelu(1, cnn_dim, kernel_size=kernel_size, dropout=self.drop)
         self.pool = nn.LPPool1d(norm_type=2, kernel_size=2, stride=2)
 
-        self.fnet_layers = nn.ModuleList([BayesFNETBLock(**block_args) for _ in range(depth)])
+        self.fnet_layers = nn.ModuleList([BayesNFEDBLock(**block_args) for _ in range(depth)])
 
         self.flat = nn.Flatten()
         self.dense1 = LinearDropRelu(self.dense_in, cnn_dim, self.drop)
@@ -304,10 +305,11 @@ class BayesFNET(BaseModel):
         out = self.output(x)
         return out
 
+
 class BayesSAED(BAYESNet):
 
-    def __init__(self, window_size, mode='dot', hidden_dim=16,
-                 num_heads=4, dropout=0, lr=None, output_dim=1):
+    def __init__(self, window_size, mode='dot', hidden_dim=16, num_heads=1, dropout=0,
+                 bidirectional=True, lr=None, output_dim=1):
         super(BayesSAED, self).__init__()
 
         '''
@@ -336,42 +338,45 @@ class BayesSAED(BAYESNet):
                                  kernel_size=4,
                                  dropout=self.drop)
         self.multihead_attn = nn.MultiheadAttention(embed_dim=hidden_dim,
-                                               num_heads=num_heads,
-                                            #    dropout=self.drop,
-                                               )
-        # self.attention = Attention(window_size, attention_type=mode)
+                                                    num_heads=num_heads)
+        if num_heads > 1:
+            self.attention = nn.MultiheadAttention(embed_dim=hidden_dim,
+                                                   num_heads=num_heads,
+                                                   dropout=self.drop)
+        else:
+            self.attention = Attention(window_size, attention_type=mode)
+
         self.bgru = nn.GRU(hidden_dim, 64,
                            batch_first=True,
-                           bidirectional=True,
+                           bidirectional=bidirectional,
                            dropout=self.drop)
-        # self.dense = LinearDropRelu(128, 64, self.drop)
-
-        self.dense = nn.Sequential(
-                            BayesianLinear(128, 64,
-                                           prior_sigma_1=s1,
-                                           prior_sigma_2=s2,
-                                          ),
-                            nn.Dropout(dropout),
-                            nn.ReLU(inplace=True),
-                        )
-        self.output = nn.Linear(64, output_dim)
+        if bidirectional:
+            self.dense = nn.Sequential(
+                BayesianLinear(128, 64,
+                               prior_sigma_1=s1,
+                               prior_sigma_2=s2,
+                               ),
+                nn.Dropout(dropout),
+                nn.ReLU(inplace=True),
+            )
+            self.output = nn.Linear(64, output_dim)
+        else:
+            self.dense = nn.Sequential(
+                BayesianLinear(64, 32,
+                               prior_sigma_1=s1,
+                               prior_sigma_2=s2,
+                               ),
+                nn.Dropout(dropout),
+                nn.ReLU(inplace=True),
+            )
+            self.output = nn.Linear(32, output_dim)
 
     def forward(self, x):
         x = x
         x = x.unsqueeze(1)
         x = self.conv(x)
-
-        # x (aka output of conv1) shape is [batch_size, out_channels=16, window_size-kernel+1]
-        # x must be in shape [batch_size, seq_len, input_size=output_size of prev layer]
-        # so  if we use MHAttention or attention_calc we have to change the order of the dimensions
-
         x = x.permute(0, 2, 1)
-        # attn_output, attn_output_weights = multihead_attn(query, key, value)
         x, _ = self.multihead_attn(query=x, key=x, value=x)
-        # x, _ = attention_calc(q=x, k=x, v=x, mode=self.mode)
-        # x, _ = self.attention(x, x)
-        # x = x.permute(0, 2, 1)
-
         x = self.bgru(x)[0]
         x = x[:, -1, :]
         x = self.dense(x)

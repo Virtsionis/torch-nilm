@@ -4,8 +4,7 @@ from numbers import Number
 import torch.nn.functional as F
 from neural_networks.base_models import BaseModel
 from neural_networks.custom_modules import VIBDecoder
-from neural_networks.models import Seq2Point, LinearDropRelu, ConvDropRelu, FNET, SAED, ShortNeuralFourier, ShortFNET, \
-    WGRU, SimpleGru
+from neural_networks.models import Seq2Point, LinearDropRelu, ConvDropRelu, NFED, SAED, WGRU, SimpleGru
 
 
 def cuda(tensor, is_cuda):
@@ -56,41 +55,6 @@ class VIBNet(BaseModel):
     def weight_init(self):
         for m in self._modules:
             xavier_init(self._modules[m])
-
-
-class VIBShortNeuralFourier(ShortNeuralFourier, VIBNet):
-    def __init__(self, window_size):
-        super().__init__(window_size, max_noise=0.1)
-
-    def forward(self, x, current_epoch=None, num_sample=1):
-        x = x.unsqueeze(1)
-        x = self.conv(x)
-        x = self.conv2(x)
-        x = self.conv3(x)
-        # x = self.conv4(x)
-        batch = x.shape[0]
-        xdim2 = x.shape[1]
-        xdim3 = x.shape[2]
-        x = x.reshape((batch, xdim2 * xdim3))
-        xdim3 = self.window_size // 10
-        windowvalues = torch.kaiser_window(window_length=xdim3, periodic=True, beta=5.0, device=self.device)
-        fft_out = torch.stft(x, n_fft=xdim3, normalized=False, window=windowvalues)
-        fft_out = fft_out.reshape((batch, -1))[:, -xdim2 * xdim3:].reshape((batch, xdim2, xdim3))
-        fft_out = torch.fft.fft(fft_out, dim=-2)
-        mu = fft_out.real.reshape((batch, -1))
-        std = fft_out.imag.reshape((batch, -1))
-        std = F.softplus(std, beta=1)
-        encoding = self.reparametrize_n(mu, std, current_epoch, num_sample, self.max_noise)
-        logit = self.output(encoding)
-
-        if num_sample == 1:
-            pass
-        elif num_sample > 1:
-            logit = F.softmax(logit, dim=2).mean(0)
-
-        return (mu, std), logit
-        # print(f"Fourier shape {fft_out.real.reshape((batch, -1)).shape}")
-        # return self.output(fft_out.reshape((batch, -1)))
 
 
 class VIB_SAED(SAED, VIBNet):
@@ -202,9 +166,9 @@ class VIBSeq2Point(Seq2Point, VIBNet):
         return (mu, std), logit
 
 
-class VIBFnet(FNET, VIBNet):
+class VIBNFED(NFED, VIBNet):
     def __init__(self, depth, kernel_size, cnn_dim, K=256, max_noise=0.1, beta=1e-3, output_dim=1, **block_args):
-        super(VIBFnet, self).__init__(depth, kernel_size, cnn_dim, output_dim=1, **block_args)
+        super(VIBNFED, self).__init__(depth, kernel_size, cnn_dim, output_dim=1, **block_args)
         self.max_noise = max_noise
         self.K = cnn_dim // 2
         self.dense2 = LinearDropRelu(cnn_dim, 2 * self.K, self.drop)
@@ -222,7 +186,7 @@ class VIBFnet(FNET, VIBNet):
         x_res = self.flat(x)
 
         x = x.transpose(1, 2).contiguous()
-        for layer in self.fnet_layers:
+        for layer in self.fourier_layers:
             x = layer(x)
         x = self.flat(x)
         x = self.dense1(x)
@@ -233,38 +197,6 @@ class VIBFnet(FNET, VIBNet):
         # encoding =  torch.cat((x_in, encoding), dim=-1)
         encoding = x_in + encoding
         # print(encoding.shape)
-        logit = self.decoder(encoding)
-
-        return (mu, std), logit
-
-
-class VIBShortFnet(ShortFNET, VIBNet):
-    def __init__(self, depth, kernel_size, cnn_dim, K=256, max_noise=0.1, output_dim=1, **block_args):
-        super(VIBShortFnet, self).__init__(depth, kernel_size, cnn_dim, output_dim=1, **block_args)
-        # self.K = K
-        self.max_noise = max_noise
-        self.K = cnn_dim // 2
-        self.dense2 = LinearDropRelu(cnn_dim, 2 * self.K, self.drop)
-        self.decoder = VIBDecoder(self.K, output_dim=output_dim)
-
-        self.dense3 = LinearDropRelu(self.dense_in, cnn_dim, self.drop)
-        self.dense4 = LinearDropRelu(cnn_dim, cnn_dim // 2, self.drop)
-
-    def forward(self, x, current_epoch=None, num_sample=1):
-        x = x.unsqueeze(1)
-        x = self.conv(x)
-
-        x = x.transpose(1, 2).contiguous()
-        x = self.pool(x)
-        x = x.transpose(1, 2).contiguous()
-        for layer in self.fnet_layers:
-            x, imag = layer(x)
-        x = self.flat(x)
-        x = self.dense1(x)
-        statistics = self.dense2(x)
-        mu = statistics[:, :self.K]
-        std = F.softplus(statistics[:, self.K:], beta=1)
-        encoding = self.reparametrize_n(mu, std, current_epoch, num_sample, self.max_noise)
         logit = self.decoder(encoding)
 
         return (mu, std), logit
