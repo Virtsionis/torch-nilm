@@ -37,3 +37,25 @@ is constructed on end-uses from **REDD**, **REFIT** and **UK DALE**.
 It should be noted that the data have to be downloaded manually.
 In order to load the data, the files _path_manager.py_ and _datasource.py_ insid _datasources/_ directory should be modified accordingly.
 
+## Dependencies
+
+The code has been developed using python3.8 and the dependencies can be found in 
+[requirements.txt](requirements.txt):
+
+- numpy~=1.19.5
+- pandas~=0.25.3
+- torch~=1.9.0+cu111
+- plotly~=5.4.0
+- setuptools~=49.6.0
+- wandb~=0.10.32
+- fuzzywuzzy~=0.18.0
+- nilmtk~=0.4.3
+- loguru~=0.5.3
+- numba~=0.53.1
+- scikit-image~=0.18.2
+- h5py~=3.4.0
+- dash~=2.0.0
+
+## Licence
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details
