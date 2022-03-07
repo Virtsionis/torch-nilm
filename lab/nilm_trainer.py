@@ -9,7 +9,7 @@ from lab.training_tools import TrainingToolsFactory
 from utils.nilm_reporting import save_appliance_report
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import  ElectricityDataset
-from constants.enumerates import SupportedPreprocessingMethods
+from constants.enumerates import SupportedPreprocessingMethods, SupportedFillingMethods
 
 
 def train_eval(model_name: str, train_loader: DataLoader, tests_params: pd.DataFrame, sample_period: int,
@@ -17,8 +17,9 @@ def train_eval(model_name: str, train_loader: DataLoader, tests_params: pd.DataF
                means: float, stds: float, meter_means: float, meter_stds: float, window_size: int, root_dir: str,
                model_hparams: dict, eval_params: dict, save_timeseries: bool = True, epochs: int = 5, callbacks=None,
                val_loader: DataLoader = None, preprocessing_method: str = SupportedPreprocessingMethods.ROLLING_WINDOW,
-               inference_cpu: bool = False, experiment_type: str = None, experiment_category: str = None,
-               subseq_window: int = None, save_model: bool = False, saved_models_dir: str = DIR_SAVED_MODELS_NAME,
+               fillna_method: str = SupportedFillingMethods.FILL_ZEROS, inference_cpu: bool = False,
+               experiment_type: str = None, experiment_category: str = None, subseq_window: int = None,
+               save_model: bool = False, saved_models_dir: str = DIR_SAVED_MODELS_NAME,
                output_dir: str = DIR_OUTPUT_NAME, progress_bar: bool = True, model_index: int = None):
     """
     Inputs:
@@ -73,7 +74,8 @@ def train_eval(model_name: str, train_loader: DataLoader, tests_params: pd.DataF
                                           device=device, dates=dates, mmax=mmax, means=means, stds=stds,
                                           meter_means=meter_means, meter_stds=meter_stds,
                                           sample_period=sample_period,
-                                          preprocessing_method=preprocessing_method,)
+                                          preprocessing_method=preprocessing_method,
+                                          fillna_method=fillna_method,)
 
         test_loader = DataLoader(test_dataset, batch_size=batch_size,
                                  shuffle=False, num_workers=8)

@@ -60,6 +60,7 @@ class BaseElectricityDataset(ABC):
             if SEQ_T0_SUBSEQ is given then sequence-to-subsequence schema is applied as described in paper:
                 'Sequence-To-Subsequence Learning With Conditional Gan For Power Disaggregation'
                 doi: 10.1109/ICASSP40776.2020.9053947
+        fillna_method(str): the filling NA method of the time series
         noise_factor (float): a factor tο multiply a gaussian noise signal, which will be added to the normalized
             mains timeseries. The noise follows a gaussian distribution (mu=0, sigma=1).
             The final signal is given by : mains = mains + noise_factor * np.random(0, 1)
@@ -76,7 +77,7 @@ class BaseElectricityDataset(ABC):
                  meter_means: float = None, meter_stds: float = None, sample_period: int = None, chunksize: int = 10000,
                  shuffle: bool = False, normalization_method: str = STANDARDIZATION,
                  preprocessing_method: str = SupportedPreprocessingMethods.ROLLING_WINDOW, subseq_window: int = None,
-                 noise_factor: float = None):
+                 fillna_method: str = SupportedFillingMethods.FILL_ZEROS, noise_factor: float = None):
         self.building = building
         self.device = device
         self.mmax = mmax
@@ -90,6 +91,7 @@ class BaseElectricityDataset(ABC):
         self.sample_period = sample_period
         self.datasource = datasource
         self.preprocessing_method = preprocessing_method
+        self.fillna_method = fillna_method
         self.window_size = window_size
         self.subseq_window = subseq_window
         self.shuffle = shuffle
@@ -167,6 +169,8 @@ class BaseElectricityDataset(ABC):
             return
 
     def _chunk_preprocessing(self, mainchunk, meterchunk):
+        if self.fillna_method == SupportedFillingMethods.FILL_INTERPOLATION:
+            mainchunk, meterchunk = replace_nans_interpolation(mainchunk, meterchunk)
         mainchunk, meterchunk = replace_nans(mainchunk, meterchunk)
         if self.normalization_method == STANDARDIZATION:
             if None in [self.means, self.meter_means, self.meter_stds, self.stds]:
@@ -254,6 +258,7 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
             if SEQ_T0_SUBSEQ is given then sequence-to-subsequence schema is applied as described in paper:
                 'Sequence-To-Subsequence Learning With Conditional Gan For Power Disaggregation'
                 doi: 10.1109/ICASSP40776.2020.9053947
+        fillna_method(str): the filling NA method of the time series
         noise_factor (float): a factor tο multiply a gaussian noise signal, which will be added to the normalized
             mains timeseries. The noise follows a gaussian distribution (mu=0, sigma=1).
             The final signal is given by : mains = mains + noise_factor * np.random(0, 1)
@@ -284,13 +289,14 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
                  window_size: int = 50, chunksize: int = 10 ** 10, mmax: float = None, means: float = None,
                  stds: float = None, meter_means: float = None, meter_stds: float = None, sample_period: int = None,
                  normalization_method: str = STANDARDIZATION, noise_factor: float = None,
-                 preprocessing_method: str = SupportedPreprocessingMethods.ROLLING_WINDOW, subseq_window: int = None,):
+                 preprocessing_method: str = SupportedPreprocessingMethods.ROLLING_WINDOW, subseq_window: int = None,
+                 fillna_method: str = SupportedFillingMethods.FILL_ZEROS,):
         super().__init__(datasource, building, device,
                          dates[0], dates[1], window_size,
                          mmax, means, stds, meter_means, meter_stds,
                          sample_period, chunksize, normalization_method=normalization_method,
                          preprocessing_method=preprocessing_method, subseq_window=subseq_window,
-                         noise_factor=noise_factor,)
+                         fillna_method=fillna_method, noise_factor=noise_factor,)
 
 
 class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
@@ -500,6 +506,7 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
             if SEQ_T0_SUBSEQ is given then sequence-to-subsequence schema is applied as described in paper:
                 'Sequence-To-Subsequence Learning With Conditional Gan For Power Disaggregation'
                 doi: 10.1109/ICASSP40776.2020.9053947
+        fillna_method(str): the filling NA method of the time series
         noise_factor (float): a factor tο multiply a gaussian noise signal, which will be added to the normalized
             mains timeseries. The noise follows a gaussian distribution (mu=0, sigma=1).
             The final signal is given by : mains = mains + noise_factor * np.random(0, 1)
@@ -533,7 +540,8 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
                  meter_means: float = None, meter_stds: float = None, sample_period: int = None,
                  chunksize: int = 10 ** 6, batch_size: int = 32, shuffle: bool = False,
                  normalization_method: str = STANDARDIZATION, noise_factor: float = None,
-                 preprocessing_method: str = SupportedPreprocessingMethods.ROLLING_WINDOW, subseq_window: int = None):
+                 preprocessing_method: str = SupportedPreprocessingMethods.ROLLING_WINDOW, subseq_window: int = None,
+                 fillna_method: str = SupportedFillingMethods.FILL_ZEROS,):
         self.batch_size = batch_size
         self.data_len = None
         super().__init__(datasource, building, device,
@@ -542,7 +550,7 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
                          meter_means, meter_stds, sample_period,
                          chunksize, shuffle, normalization_method=normalization_method,
                          preprocessing_method=preprocessing_method, subseq_window=subseq_window,
-                         noise_factor=noise_factor,)
+                         fillna_method=fillna_method, noise_factor=noise_factor,)
 
     def _run(self):
         self._calc_data_len()

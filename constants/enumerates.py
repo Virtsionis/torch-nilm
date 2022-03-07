@@ -49,3 +49,9 @@ class SupportedPreprocessingMethods(Enum):
     MIDPOINT_WINDOW = 'midpoint_window'
     SEQ_T0_SEQ = 'sequence-to-sequence'
     SEQ_T0_SUBSEQ = 'sequence-to-sub-sequence'
+
+
+class SupportedFillingMethods(Enum):
+    FILL_ZEROS = 'fill_zeros'
+    FILL_INTERPOLATION = 'fill_interpolation'
+

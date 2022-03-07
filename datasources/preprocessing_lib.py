@@ -67,6 +67,12 @@ def replace_nans(mainchunk: np.array, meterchunk: np.array):
     return mainchunk, meterchunk
 
 
+def replace_nans_interpolation(mainchunk: np.array, meterchunk: np.array):
+    mainchunk.interpolate(method='linear', limit_direction='forward', inplace=True)
+    meterchunk.interpolate(method='linear', limit_direction='forward', inplace=True)
+    return mainchunk, meterchunk
+
+
 def normalize_chunks(mainchunk: np.array, meterchunk: np.array, mmax: float):
     if mmax is None:
         mmax = mainchunk.max()

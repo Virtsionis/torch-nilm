@@ -14,7 +14,7 @@ from utils.helpers import create_tree_dir, create_time_folds
 from callbacks.callbacks_factories import TrainerCallbacksFactory
 from utils.nilm_reporting import get_final_report, get_statistical_report
 from constants.enumerates import SupportedNilmExperiments, SupportedExperimentCategories, SupportedExperimentVolumes, \
-    ElectricalAppliances, SupportedPreprocessingMethods
+    ElectricalAppliances, SupportedPreprocessingMethods, SupportedFillingMethods
 from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset, ElectricityIterableDataset
 
 with torch.no_grad():
@@ -33,6 +33,7 @@ class ExperimentParameters:
         batch_size (int): the batch size
         iterable_dataset (bool):  whether the train dataset should be iterable or not (check: datasources/torchdataset)
         preprocessing_method (SupportedPreprocessingMethods): the desired preprocessing method
+        fillna_method (SupportedFillingMethods): the desired filling NA method
         fixed_window (int): (check: datasources/torchdataset)
         subseq_window (int): (check: datasources/torchdataset)
         train_test_split (float):  for train / validation split
@@ -61,6 +62,7 @@ class ExperimentParameters:
     def __init__(self, epochs: int = 100, iterations: int = 5, inference_cpu: bool = False,
                  sample_period: int = 6, batch_size: int = 256, iterable_dataset: bool = False,
                  preprocessing_method: SupportedPreprocessingMethods = SupportedPreprocessingMethods.ROLLING_WINDOW,
+                 fillna_method: SupportedFillingMethods = SupportedFillingMethods.FILL_ZEROS,
                  fixed_window: int = None, subseq_window: int = None, train_test_split: float = 0.8, cv_folds: int = 3,
                  noise_factor: float = None, ):
 
@@ -72,6 +74,7 @@ class ExperimentParameters:
             BATCH_SIZE: batch_size,
             ITERABLE_DATASET: iterable_dataset,
             PREPROCESSING_METHOD: preprocessing_method,
+            FILLNA_METHOD: fillna_method,
             FIXED_WINDOW: fixed_window,
             SUBSEQ_WINDOW: subseq_window,
             TRAIN_TEST_SPLIT: train_test_split,
@@ -426,6 +429,7 @@ class NILMExperiments:
         self.batch_size = 256
         self.iterable_dataset = False
         self._set_preprocessing_method(SupportedPreprocessingMethods.ROLLING_WINDOW)
+        self._set_fillna_method(SupportedFillingMethods.FILL_ZEROS)
         self.fixed_window = 100
         self.subseq_window = None
         self.train_test_split = 0.8
@@ -439,6 +443,7 @@ class NILMExperiments:
             self.iterations = experiment_parameters[ITERATIONS]
             self.inference_cpu = experiment_parameters[INFERENCE_CPU]
             self._set_preprocessing_method(experiment_parameters[PREPROCESSING_METHOD])
+            self._set_fillna_method(experiment_parameters[FILLNA_METHOD])
             self.sample_period = experiment_parameters[SAMPLE_PERIOD]
             self.batch_size = experiment_parameters[BATCH_SIZE]
             self.iterable_dataset = experiment_parameters[ITERABLE_DATASET]
@@ -488,6 +493,13 @@ class NILMExperiments:
         else:
             warnings.warn('Preprocessing method was not properly defined. So, ROLLING_WINDOW is used by default.')
             self.preprocessing_method = SupportedPreprocessingMethods.ROLLING_WINDOW
+
+    def _set_fillna_method(self, fillna_method: SupportedFillingMethods = None):
+        if fillna_method and isinstance(fillna_method, SupportedFillingMethods):
+            self.fillna_method = fillna_method
+        else:
+            warnings.warn('Filling NA method was not properly defined. So, FILL_ZEROS is used by default.')
+            self.fillna_method = SupportedFillingMethods.FILL_ZEROS
 
     def _set_train_test_file_dir(self, train_file_dir: str = None, test_file_dir: str = None):
         if train_file_dir and os.path.isdir(train_file_dir):
@@ -564,6 +576,7 @@ class NILMExperiments:
                                                              window_size=window,
                                                              sample_period=self.sample_period,
                                                              preprocessing_method=self.preprocessing_method,
+                                                             fillna_method=self.fillna_method,
                                                              subseq_window=self.subseq_window,)
         return train_dataset_all
 
@@ -594,6 +607,7 @@ class NILMExperiments:
                                                                    dates=train_dates,
                                                                    sample_period=self.sample_period,
                                                                    preprocessing_method=self.preprocessing_method,
+                                                                   fillna_method=self.fillna_method,
                                                                    subseq_window=self.subseq_window,
                                                                    noise_factor=self.noise_factor)
                 else:
@@ -604,6 +618,7 @@ class NILMExperiments:
                                                            dates=train_dates,
                                                            sample_period=self.sample_period,
                                                            preprocessing_method=self.preprocessing_method,
+                                                           fillna_method=self.fillna_method,
                                                            subseq_window=self.subseq_window,
                                                            noise_factor=self.noise_factor)
 
@@ -613,6 +628,7 @@ class NILMExperiments:
                                                              window_size=window,
                                                              sample_period=self.sample_period,
                                                              preprocessing_method=self.preprocessing_method,
+                                                             fillna_method=self.fillna_method,
                                                              subseq_window=self.subseq_window,
                                                              noise_factor=self.noise_factor)
         return train_dataset_all
@@ -699,6 +715,7 @@ class NILMExperiments:
             BATCH_SIZE: self.batch_size,
             ITERATION: iteration,
             PREPROCESSING_METHOD: self.preprocessing_method,
+            FILLNA_METHOD: self.fillna_method,
             INFERENCE_CPU: self.inference_cpu,
             ROOT_DIR: self.project_name,
             MODE_HPARAMS: model_hparams,
