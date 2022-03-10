@@ -11,11 +11,11 @@ from utils.nilm_metrics import NILMmetrics
 from neural_networks.base_models import BaseModel
 from utils.helpers import denormalize, destandardize
 from constants.appliance_thresholds import ON_THRESHOLDS
-from constants.enumerates import ElectricalAppliances
+from constants.enumerates import ElectricalAppliances, WaterAppliances
 from lab.active_models import *
 
 # Setting the seed
-# pl.seed_everything(42)
+pl.seed_everything(42)
 
 # Ensure that all operations are deterministic on GPU (if used) for reproducibility
 torch.backends.cudnn.determinstic = True
@@ -23,8 +23,6 @@ torch.backends.cudnn.determinstic = True
 
 device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
 print("Device:", device)
-
-
 
 VAL_ACC = "val_acc"
 VAL_LOSS = 'val_loss'
@@ -156,9 +154,14 @@ class ClassicTrainingTools(pl.LightningModule):
             preds = destandardize(self.final_preds, means, stds)
             ground = destandardize(groundtruth, means, stds)
 
+        if self.eval_params[WATER]:
+            threshold_level = ON_THRESHOLDS.get(WaterAppliances(dev), 2)
+        else:
+            threshold_level = ON_THRESHOLDS.get(ElectricalAppliances(dev), 50)
+
         res = NILMmetrics(pred=preds,
                           ground=ground,
-                          threshold=ON_THRESHOLDS.get(ElectricalAppliances(dev), 50)
+                          threshold=threshold_level
                           )
 
         results = {COLUMN_MODEL: self.model_name,

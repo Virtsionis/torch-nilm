@@ -8,21 +8,24 @@ from fuzzywuzzy import fuzz
 from nilmtk import DataSet, MeterGroup
 from pandas import DataFrame
 
-from datasources.paths_manager import UK_DALE, REDD, REFIT
+from datasources.paths_manager import UK_DALE, REDD, REFIT, WATER, WATER2
 from exceptions.lab_exceptions import LabelNormalizationError
 from utils.logger import timing, TIMING, info, debug
 
 NAME_UK_DALE = 'UKDALE'
 NAME_REDD = 'REDD'
 NAME_REFIT = 'REFIT'
+NAME_WATER = 'WATER'
+NAME_WATER2 = 'WATER2'
 SITE_METER = 'Site meter'
 
 
-class Datasource():
+class Datasource:
 
-    def __init__(self, dataset: DataSet, name: str):
+    def __init__(self, dataset: DataSet, name: str, water: bool = False):
         self.dataset = dataset
         self.name = name
+        self.water = water
 
     def get_dataset(self):
         return self.dataset
@@ -257,6 +260,11 @@ class DatasourceFactory:
             return DatasourceFactory.create_redd_datasource()
         elif dataset_name == NAME_REFIT:
             return DatasourceFactory.create_refit_datasource()
+        elif dataset_name == NAME_WATER:
+            return DatasourceFactory.create_water_datasource()
+        elif dataset_name == NAME_WATER2:
+            return DatasourceFactory.create_water2_datasource()
+
 
     @staticmethod
     def create_uk_dale_datasource():
@@ -281,6 +289,40 @@ class DatasourceFactory:
     @staticmethod
     def get_refit_dataset():
         return DataSet(REFIT)
+
+    @staticmethod
+    def create_water_datasource():
+        return WaterDatasource(DatasourceFactory.get_water_dataset(), NAME_WATER)
+
+    @staticmethod
+    def get_water_dataset():
+        return WATER
+
+    @staticmethod
+    def create_water2_datasource():
+        return WaterDatasource(DatasourceFactory.get_water2_dataset(), NAME_WATER2)
+
+    @staticmethod
+    def get_water2_dataset():
+        return WATER2
+
+
+class WaterDatasource(Datasource):
+
+    def __init__(self, dataset: DataSet, name: str):
+        self.dataset_path = dataset
+        self.name = name
+
+    def get_data(self, start: str, end: str, sample_period: int = 6, chunksize: int = 1000) -> Iterator[pd.DataFrame]:
+        # data_gen = pd.read_csv(self.dataset_path, chunksize=chunksize)
+        data = pd.read_csv(self.dataset_path)
+
+        data['Time'] = pd.to_datetime(data['Time'])
+        mask = (data['Time'] >= start) & (data['Time'] <= end)
+        data = data.loc[mask]
+        data = data.resample("{} s".format(sample_period), on='Time').first()
+        data.reset_index(drop=True, inplace=True)
+        return data
 
 
 def save_and_plot(sequence, plot=False, save_figure=False, filename=None):

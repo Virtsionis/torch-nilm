@@ -2,10 +2,11 @@ import os
 from pathlib import Path
 
 dirname = os.path.dirname(__file__)
-UK_DALE = os.path.join(dirname, '../../Datasets/UKDALE/UKDALE.h5')
-REDD = os.path.join(dirname, '../../Datasets/REDD/redd.h5')
-REFIT = os.path.join(dirname, '../../Datasets/REFIT/REFIT.h5')
-
+UK_DALE = os.path.join(dirname, '../../data/UKDALE/UKDALE.h5')
+REDD = os.path.join(dirname, '../../data/REDD/REDD.h5')
+REFIT = os.path.join(dirname, '../../data/REFIT/REFIT.h5')
+WATER = os.path.join(dirname, '../../data/WATER/WATER.csv')
+WATER2 = os.path.join(dirname, '../../data/WATER2/WATER2.csv')
 
 MODEL_CKPT_PATH = 'model/'
 MODEL_CKPT = 'model/model-{epoch:02d}-{val_loss:.2f}'

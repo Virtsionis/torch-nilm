@@ -14,8 +14,9 @@ from utils.helpers import create_tree_dir, create_time_folds
 from callbacks.callbacks_factories import TrainerCallbacksFactory
 from utils.nilm_reporting import get_final_report, get_statistical_report
 from constants.enumerates import SupportedNilmExperiments, SupportedExperimentCategories, SupportedExperimentVolumes, \
-    ElectricalAppliances, SupportedPreprocessingMethods, SupportedFillingMethods
-from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset, ElectricityIterableDataset
+    ElectricalAppliances, SupportedPreprocessingMethods, SupportedFillingMethods, WaterAppliances
+from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset, ElectricityIterableDataset, \
+    WaterMultiBuildingsDataset
 
 with torch.no_grad():
     torch.cuda.empty_cache()
@@ -347,7 +348,7 @@ class NILMExperiments:
     def _prepare_project_properties(self, devices: list = None, experiment_parameters: ExperimentParameters = None,
                                     data_dir: str = None, train_file_dir: str = None, test_file_dir: str = None,
                                     experiment_volume: SupportedExperimentVolumes = None,
-                                    hparam_tuning: HyperParameterTuning = None,
+                                    hparam_tuning: HyperParameterTuning = None, water: bool = False,
                                     experiment_categories: list = None, model_hparams: ModelHyperModelParameters = None,
                                     experiment_type: SupportedNilmExperiments = None):
 
@@ -355,10 +356,16 @@ class NILMExperiments:
         self.hparam_tuning = hparam_tuning
         self._set_models()
 
-        if devices:
-            self._set_devices(devices)
+        if water:
+            if devices:
+                self._set_water_devices(devices)
+            else:
+                self._set_water_devices(self.devices)
         else:
-            self._set_devices(self.devices)
+            if devices:
+                self._set_devices(devices)
+            else:
+                self._set_devices(self.devices)
 
         if experiment_parameters:
             self._set_experiment_parameters(experiment_parameters)
@@ -397,6 +404,12 @@ class NILMExperiments:
             self.devices = [device.value if isinstance(device, ElectricalAppliances) else device for device in devices]
         else:
             raise Exception('No electrical devices are defined')
+
+    def _set_water_devices(self, devices: list = None):
+        if devices and len(devices):
+            self.devices = [device.value if isinstance(device, WaterAppliances) else device for device in devices]
+        else:
+            raise Exception('No water devices are defined')
 
     def _set_models(self):
         if self.model_hparams and isinstance(self.model_hparams, ModelHyperModelParameters)\
@@ -560,7 +573,7 @@ class NILMExperiments:
             raise Exception('Not a proper train file')
 
     def _prepare_cv_dataset(self, device: str = None, fold: int = None, window: int = None, datasource: Datasource = None,
-                            time_folds: list = None, train_house: int = None):
+                            time_folds: list = None, train_house: int = None, water: bool = False):
 
         train_dates = time_folds[fold][TRAIN_DATES]
         train_info = []
@@ -572,12 +585,20 @@ class NILMExperiments:
                     COLUMN_BUILDING: int(train_house),
                     COLUMN_DATES: train_date,
                 })
-        train_dataset_all = ElectricityMultiBuildingsDataset(train_info=train_info,
-                                                             window_size=window,
-                                                             sample_period=self.sample_period,
-                                                             preprocessing_method=self.preprocessing_method,
-                                                             fillna_method=self.fillna_method,
-                                                             subseq_window=self.subseq_window,)
+        if water:
+            train_dataset_all = WaterMultiBuildingsDataset(train_info=train_info,
+                                                           window_size=window,
+                                                           sample_period=self.sample_period,
+                                                           preprocessing_method=self.preprocessing_method,
+                                                           fillna_method=self.fillna_method,
+                                                           subseq_window=self.subseq_window, )
+        else:
+            train_dataset_all = ElectricityMultiBuildingsDataset(train_info=train_info,
+                                                                 window_size=window,
+                                                                 sample_period=self.sample_period,
+                                                                 preprocessing_method=self.preprocessing_method,
+                                                                 fillna_method=self.fillna_method,
+                                                                 subseq_window=self.subseq_window,)
         return train_dataset_all
 
     def _prepare_train_dataset(self, experiment_category: SupportedExperimentCategories = None, device: str = None,
@@ -679,12 +700,12 @@ class NILMExperiments:
 
     def _prepare_train_eval_input(self, experiment_category: str = None, device: str = None, window: int = None,
                                   model_name: str = None, iteration: int = None, fold: int = None,
-                                  model_hparams: dict = None, model_index: int = None):
+                                  model_hparams: dict = None, model_index: int = None, water: bool = False):
         if self.experiment_type in [SupportedNilmExperiments.CROSS_VALIDATION,
                                     SupportedNilmExperiments.HYPERPARAM_TUNE_CV]:
             datasource, time_folds, train_set, train_house = self._prepare_cv_parameters(experiment_category, device)
             train_dataset_all = self._prepare_cv_dataset(device, fold, window, datasource,
-                                                         time_folds, train_house)
+                                                         time_folds, train_house, water)
             tests_params = self._prepare_test_parameters(experiment_category, device, train_house,
                                                          train_set, time_folds, fold)
             iteration, train_set_name = fold, train_set
@@ -733,6 +754,7 @@ class NILMExperiments:
             TESTS_PARAMS: tests_params,
             EVAL_PARAMS: eval_params,
             EXPERIMENT_NAME: experiment_name,
+            WATER: water,
         }
 
         return train_eval_args
@@ -1107,4 +1129,89 @@ class NILMExperiments:
                                stat_measures=stat_measures,
                                prepare_project_properties=False,
                                model_index=model_index + 1,
+                               )
+
+    def run_water_cross_validation(self, devices: list = None, experiment_parameters: ExperimentParameters = None,
+                                   data_dir: str = None, train_file_dir: str = None, test_file_dir: str = None,
+                                   model_hparams: ModelHyperModelParameters = None,
+                                   experiment_volume: SupportedExperimentVolumes = None,
+                                   experiment_categories: list = None,
+                                   export_report: bool = True, stat_measures: list = None, ):
+        """
+         A method to execute a cross validation method.
+
+         Args:
+             devices(list): This list contains the desired devices to be investigated. The available devices can be found in
+                 constants/enumerates/ElectricalAppliances.
+             experiment_parameters(list): The general experiment parameters-settings to be used.
+             data_dir(str): The directory of the data. If None is given, the path in datasources/paths_manager.py is used
+             train_file_dir(str): The directory of the date files. If None is given, the files in benchmark dir are used.
+             test_file_dir(str): The directory of the date files. If None is given, the files in benchmark dir are used.
+             model_hparams(ModelHyperModelParameters): The hyperparameters for all the models under investigation.
+             experiment_volume(SupportedExperimentVolumes): The list of the desired experiment_volume to be used.
+             experiment_categories(list): This list contains the desired experiment_categories to be executed.
+                 The available categories can be found in constants/enumerates/SupportedExperimentCategories.
+             export_report(bool): Whether to export the final report (xlsx) or not.
+             stat_measures(list): user can define the appropriate statistical measures to be included to the report
+                 supported measures: [ MEAN, MEDIAN, STANDARD_DEVIATION, MINIMUM, MAXIMUM, PERCENTILE_25TH,
+                 PERCENTILE_75TH]
+         Example of use:
+             model_hparams = [
+                 {
+                     'model_name': 'SAED',
+                     'hparams': {'window_size': None},
+                 },
+                 {
+                     'model_name': 'WGRU',
+                     'hparams': {'dropout': 0},
+                 },
+             ]
+             model_hparams = ModelHyperModelParameters(model_hparams)
+             experiment_parameters = ExperimentParameters(**experiment_parameters)
+
+             experiment = NILMExperiments(project_name='NILM_EXPERIMENTS', clean_project=False,
+                                          devices=devices, save_timeseries_results=False,
+                                          experiment_categories=experiment_categories,
+                                          experiment_volume=SupportedExperimentVolumes.LARGE_VOLUME,
+                                          experiment_parameters=experiment_parameters,
+                                          )
+             experiment.run_cross_validation(model_hparams=model_hparams)
+        """
+        print('>>>CROSS VALIDATION EXPERIMENT<<<')
+        self._prepare_project_properties(devices=devices,
+                                         experiment_parameters=experiment_parameters,
+                                         data_dir=data_dir,
+                                         train_file_dir=train_file_dir,
+                                         test_file_dir=test_file_dir,
+                                         experiment_volume=experiment_volume,
+                                         model_hparams=model_hparams,
+                                         hparam_tuning=None,
+                                         experiment_categories=experiment_categories,
+                                         experiment_type=SupportedNilmExperiments.CROSS_VALIDATION,
+                                         water=True,
+                                         )
+        for experiment_category in self.experiment_categories:
+            print('EXPERIMENT CATEGORY: ', experiment_category)
+            for model_name in self.models:
+                model_hparams = self.model_hparams.get_model_params(model_name)
+                for device in self.devices:
+                    model_hparams, window = self._calculate_model_window(model_hparams=model_hparams,
+                                                                         model_name=model_name, device=device)
+                    model_hparams = self._set_model_output_dim(model_hparams, output_dim=window)
+
+                    for fold in range(self.cv_folds):
+                        print('#' * 20)
+                        print(FOLD_NAME, ': ', fold)
+                        print('#' * 20)
+                        train_eval_args = self._prepare_train_eval_input(experiment_category, device, window,
+                                                                         model_name, None, fold,
+                                                                         model_hparams=model_hparams,
+                                                                         water=True)
+                        self._call_train_eval(
+                            train_eval_args
+                        )
+        if export_report:
+            self.export_report(save_name=STAT_REPORT,
+                               stat_measures=stat_measures,
+                               prepare_project_properties=False,
                                )

@@ -38,6 +38,15 @@ class ElectricalAppliances(Enum):
     DISH_WASHER = 'dish washer'
 
 
+class WaterAppliances(Enum):
+    BIDET = 'Bidet'
+    SHOWER = 'Shower'
+    WASHBASIN = 'Washbasin'
+    WASHING_MACHINE_W = 'Washingmachine'
+    KITCHENFAUCET = 'Kitchenfaucet'
+    DISH_WASHER = 'dish washer'
+
+
 class SupportedExperimentVolumes(Enum):
     LARGE_VOLUME = 'large'
     SMALL_VOLUME = 'small'
