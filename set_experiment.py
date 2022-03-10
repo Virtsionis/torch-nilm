@@ -1,7 +1,6 @@
 from lab.nilm_experiments import *
 from constants.constants import *
 from constants.enumerates import *
-
 experiment_parameters = {
     EPOCHS: 1,
     ITERATIONS: 1,
@@ -11,6 +10,7 @@ experiment_parameters = {
     ITERABLE_DATASET: False,
     PREPROCESSING_METHOD: SupportedPreprocessingMethods.ROLLING_WINDOW,
     FIXED_WINDOW: 50,
+    FILLNA_METHOD: SupportedFillingMethods.FILL_INTERPOLATION,
     SUBSEQ_WINDOW: 50,
     TRAIN_TEST_SPLIT: 0.8,
     CV_FOLDS: 3,
@@ -19,67 +19,48 @@ experiment_parameters = {
 
 devices = [
     ElectricalAppliances.KETTLE,
-    # ElectricalAppliances.MICROWAVE,
-    # ElectricalAppliances.FRIDGE,
-    # ElectricalAppliances.WASHING_MACHINE,
-    # ElectricalAppliances.DISH_WASHER,
+    ElectricalAppliances.MICROWAVE,
+    ElectricalAppliances.FRIDGE,
+    ElectricalAppliances.WASHING_MACHINE,
+    ElectricalAppliances.DISH_WASHER,
 ]
 
 experiment_categories = [
     SupportedExperimentCategories.SINGLE_CATEGORY,
-    # SupportedExperimentCategories.MULTI_CATEGORY
+    SupportedExperimentCategories.MULTI_CATEGORY
 ]
 
 model_hparams = [
-    # {
-    #     'model_name': 'BERT',
-    #     'hparams': {'window_size': None, 'n_layers': 1, 'heads': 1,
-    #                 'hidden': 128, 'drop_out': 0.0},
-    # },
-    # {
-    #     'model_name': 'VIBSeq2Point',
-    #     'hparams': {'window_size': None, 'dropout': 0},
-    # },
-    # {
-    #     'model_name': 'VAE',
-    #     'hparams': {'window_size': None, 'cnn_dim': 256, 'kernel_size': 3, 'latent_dim': 16},
-    # },
-    # {
-    #     'model_name': 'FNET',
-    #     'hparams': {'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'dual_cnn': False,
-    #                 'input_dim': None, 'hidden_dim': 256, 'dropout': 0.0},
-    # },
-    # {
-    #     'model_name': 'VIBFNET',
-    #     'hparams': {'depth': 1, 'kernel_size': 5, 'cnn_dim': 128, 'dual_cnn': False,
-    #                 'input_dim': None, 'hidden_dim': 256, 'dropout': 0.0},
-    # },
-    # {
-    #     'model_name': 'DAE',
-    #     'hparams': {'input_dim': None},
-    # },
+    {
+        'model_name': 'VAE',
+        'hparams': {'window_size': None, 'cnn_dim': 256, 'kernel_size': 3, 'latent_dim': 16},
+    },
+    {
+                'model_name': 'NFED',
+                'hparams': {'depth': 1, 'kernel_size': 5, 'cnn_dim': 128,
+                            'input_dim': None, 'hidden_dim': 256, 'dropout': 0.0},
+    },
     {
         'model_name': 'SimpleGru',
         'hparams': {},
     },
-    # {
-    #     'model_name': 'SAED',
-    #     'hparams': {'window_size': None},
-    # },
-    # {
-    #     'model_name': 'WGRU',
-    #     'hparams': {'dropout': 0},
-    # },
-
+    {
+        'model_name': 'SAED',
+        'hparams': {'window_size': None},
+    },
+    {
+        'model_name': 'WGRU',
+        'hparams': {'dropout': 0},
+    },
 ]
 
 hparam_tuning = [
     {
-        'model_name': 'FNET',
+        'model_name': 'NFED',
         'hparams': [
-            {'depth': 1, 'kernel_size': 5, 'cnn_dim': 16, 'dual_cnn': False,
+            {'depth': 1, 'kernel_size': 5, 'cnn_dim': 16,
              'input_dim': None, 'hidden_dim': 256, 'dropout': 0.0},
-            {'depth': 2, 'kernel_size': 5, 'cnn_dim': 32, 'dual_cnn': False,
+            {'depth': 2, 'kernel_size': 5, 'cnn_dim': 32,
              'input_dim': None, 'hidden_dim': 64, 'dropout': 0.0},
         ]
     },
@@ -103,8 +84,8 @@ experiment = NILMExperiments(project_name='test2', clean_project=True,
                              save_model=True, export_plots=True,
                              )
 
-# experiment.run_benchmark(model_hparams=model_hparams)
+experiment.run_benchmark(model_hparams=model_hparams)
 # experiment.export_report(model_hparams=model_hparams, experiment_type=SupportedNilmExperiments.BENCHMARK)
-# experiment.run_cross_validation(model_hparams=model_hparams)
+experiment.run_cross_validation(model_hparams=model_hparams)
 experiment.run_hyperparameter_tuning_cross_validation(hparam_tuning=hparam_tuning)
 # experiment.export_report(hparam_tuning=hparam_tuning, experiment_type=SupportedNilmExperiments.HYPERPARAM_TUNE_CV)
