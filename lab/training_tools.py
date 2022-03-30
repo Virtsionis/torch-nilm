@@ -73,6 +73,7 @@ class ClassicTrainingTools(pl.LightningModule):
         self.model_name = self.model.architecture_name
 
         self.final_preds = np.array([])
+        self.final_mains = np.array([])
         self.results = {}
 
     def forward(self, x):
@@ -125,7 +126,9 @@ class ClassicTrainingTools(pl.LightningModule):
         outputs = self(x)
         loss = F.mse_loss(outputs.squeeze(), y.squeeze())
         preds_batch = outputs.squeeze().cpu().numpy()
+        mains_batch = x.squeeze().cpu().numpy()
         self.final_preds = np.append(self.final_preds, preds_batch)
+        self.final_mains = np.append(self.final_mains, mains_batch)
         return {'test_loss': loss}
 
     def test_epoch_end(self, outputs):
@@ -149,9 +152,11 @@ class ClassicTrainingTools(pl.LightningModule):
 
         if mmax:
             preds = denormalize(self.final_preds, mmax)
+            mains = denormalize(self.final_mains, mmax)
             ground = denormalize(groundtruth, mmax)
         elif means and stds:
             preds = destandardize(self.final_preds, means, stds)
+            mains = destandardize(self.final_mains, means, stds)
             ground = destandardize(groundtruth, means, stds)
 
         if self.eval_params[WATER]:
@@ -167,9 +172,11 @@ class ClassicTrainingTools(pl.LightningModule):
         results = {COLUMN_MODEL: self.model_name,
                    COLUMN_METRICS: res,
                    COLUMN_PREDICTIONS: preds,
-                   COLUMN_GROUNDTRUTH: ground, }
+                   COLUMN_GROUNDTRUTH: ground,
+                   COLUMN_MAINS: mains, }
         self.set_res(results)
         self.final_preds = np.array([])
+        self.final_mains = np.array([])
         return results
 
     def set_ground(self, ground):

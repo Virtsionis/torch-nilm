@@ -216,6 +216,7 @@ def save_appliance_report(root_dir: str = None, model_name: str = None, device: 
         results = model_results[COLUMN_METRICS]
         preds = model_results[COLUMN_PREDICTIONS]
         ground = model_results[COLUMN_GROUNDTRUTH]
+        mains = model_results[COLUMN_MAINS]
     except Exception as exception:
         raise exception
 
@@ -225,8 +226,8 @@ def save_appliance_report(root_dir: str = None, model_name: str = None, device: 
     print('Report saved at: ', path)
 
     if save_timeseries:
-        cols = [COLUMN_GROUNDTRUTH, COLUMN_PREDICTIONS]
-        res_data = pd.DataFrame(list(zip(ground, preds)),
+        cols = [COLUMN_GROUNDTRUTH, COLUMN_PREDICTIONS, COLUMN_MAINS]
+        res_data = pd.DataFrame(list(zip(ground, preds, mains)),
                                 columns=cols)
         res_data.to_csv(path + data_filename, index=False)
         print('Time series saved at: ', path + data_filename)
