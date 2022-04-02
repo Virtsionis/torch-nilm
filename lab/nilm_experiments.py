@@ -326,13 +326,14 @@ class NILMExperiments:
                  experiment_type: SupportedNilmExperiments = None, experiment_parameters: ExperimentParameters = None,
                  model_hparams: ModelHyperModelParameters = None, hparam_tuning: HyperParameterTuning = None,
                  data_dir: str = None, train_file_dir: str = None, test_file_dir: str = None, save_model: bool = False,
-                 ):
+                 save_preprocessing_params: bool = False,):
 
         self.project_name = project_name
         self.clean_project = clean_project
         self.save_timeseries = save_timeseries_results
         self.export_plots = export_plots
         self.save_model = save_model
+        self.save_preprocessing_params = save_preprocessing_params
         self.model_hparams = model_hparams
         self.hparam_tuning = hparam_tuning
         self.experiment_type = experiment_type
@@ -721,6 +722,7 @@ class NILMExperiments:
             MODE_HPARAMS: model_hparams,
             SAVE_TIMESERIES: self.save_timeseries,
             SAVE_MODEL: self.save_model,
+            SAVE_PREPROCESSING_PARAMS: self.save_preprocessing_params,
             EPOCHS: self.epochs,
             CALLBACKS: [TrainerCallbacksFactory.create_earlystopping()],
             TRAIN_LOADER: train_loader,

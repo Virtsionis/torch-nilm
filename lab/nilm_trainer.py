@@ -19,8 +19,8 @@ def train_eval(model_name: str, train_loader: DataLoader, tests_params: pd.DataF
                val_loader: DataLoader = None, preprocessing_method: str = SupportedPreprocessingMethods.ROLLING_WINDOW,
                fillna_method: str = SupportedFillingMethods.FILL_ZEROS, inference_cpu: bool = False,
                experiment_type: str = None, experiment_category: str = None, subseq_window: int = None,
-               save_model: bool = False, saved_models_dir: str = DIR_SAVED_MODELS_NAME,
-               output_dir: str = DIR_OUTPUT_NAME, progress_bar: bool = True, model_index: int = None):
+               save_model: bool = False, saved_models_dir: str = DIR_SAVED_MODELS_NAME, model_index: int = None,
+               save_preprocessing_params: bool = True, output_dir: str = DIR_OUTPUT_NAME, progress_bar: bool = True, ):
     """
     Inputs:
         model_name - Name of the model you want to run.
@@ -59,6 +59,15 @@ def train_eval(model_name: str, train_loader: DataLoader, tests_params: pd.DataF
                        CKPT_EXTENSION
         trainer.save_checkpoint(filename)
         print('Model saved at: ', filename)
+
+        if save_preprocessing_params:
+            prepro_save_path = '/'.join([save_dir, experiment_type, saved_models_dir, device, ''])
+            filename = prepro_save_path + PREPROCESSING_PARAMS_NAME + CSV_EXTENSION
+            preprocessing_params = pd.DataFrame({COLUMN_MMAX: [mmax],
+                                                 COLUMN_MEANS: [means],
+                                                 COLUMN_STDS: [stds], })
+            preprocessing_params.to_csv(filename, index=False)
+            print('Preprocessing parameters saved at: ', filename)
 
     for i in range(len(tests_params)):
         building = tests_params[TEST_HOUSE][i]
