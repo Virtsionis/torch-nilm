@@ -182,7 +182,7 @@ modified accordingly.
 The code has been developed using python3.8 and the dependencies can be found in 
 [requirements.txt](requirements.txt):
 
-- numpy~=1.19.5
+- numpy>=1.21
 - pandas~=0.25.3
 - torch~=1.9.0+cu111
 - plotly~=5.4.0
