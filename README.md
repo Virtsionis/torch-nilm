@@ -14,7 +14,8 @@ to stress test the generalization capabilities of the tested models. In addition
 **Torch-NILM**  provides a set of powerful baseline models to conduct comparisons.
 
 The toolkit is compatible with **NILMTK**.
-The complementary paper can be found [here](https://www.mdpi.com/1996-1073/15/7/2647).
+
+The complementary paper "Torch-NILM: An Effective Deep Learning Toolkit for Non-Intrusive Load Monitoring in Pytorch" can be found [here](https://www.mdpi.com/1996-1073/15/7/2647).
 
 ## Experiment guide
 
