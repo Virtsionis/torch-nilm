@@ -17,6 +17,26 @@ The toolkit is compatible with **[NILMTK](https://nilmtk.github.io)**.
 
 The complementary paper "Torch-NILM: An Effective Deep Learning Toolkit for Non-Intrusive Load Monitoring in Pytorch" can be found [here](https://www.mdpi.com/1996-1073/15/7/2647).
 
+## Citation
+
+In case you use Torch-NILM to conduct research, please consider to cite our paper:
+
+    @Article{en15072647,
+    AUTHOR = {Virtsionis Gkalinikis, Nikolaos and Nalmpantis, Christoforos and Vrakas, Dimitris},
+    TITLE = {Torch-NILM: An Effective Deep Learning Toolkit for Non-Intrusive Load Monitoring in Pytorch},
+    JOURNAL = {Energies},
+    VOLUME = {15},
+    YEAR = {2022},
+    NUMBER = {7},
+    ARTICLE-NUMBER = {2647},
+    URL = {https://www.mdpi.com/1996-1073/15/7/2647},
+    ISSN = {1996-1073},
+    ABSTRACT = {Non-intrusive load monitoring is a blind source separation task that has been attracting significant interest from researchers working in the field of energy informatics. However, despite the considerable progress, there are a very limited number of tools and libraries dedicated to the problem of energy disaggregation. Herein, we report the development of a novel open-source framework named Torch-NILM in order to help researchers and engineers take advantage of the benefits of Pytorch. The aim of this research is to tackle the comparability and reproducibility issues often reported in NILM research by standardising the experimental setup, while providing solid baseline models by writing only a few lines of code. Torch-NILM offers a suite of tools particularly useful for training deep neural networks in the task of energy disaggregation. The basic features include: (i) easy-to-use APIs for running new experiments, (ii) a benchmark framework for evaluation, (iii) the implementation of popular architectures, (iv) custom data loaders for efficient training and (v) automated generation of reports.},
+    DOI = {10.3390/en15072647}
+    }
+    
+For any enquiries, please contact the main authors.
+
 ## Experiment guide
 
 Defining an experiment requires only a few lines of code. A template of setting an experiment
