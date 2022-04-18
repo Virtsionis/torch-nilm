@@ -1,8 +1,8 @@
 # Torch-NILM: An effective deep learning toolkit for Non Intrusive Load Monitoring in Pytorch
 
 ## Description
-**Torch-NILM** (https://doi.org/10.3390/en15072647) is the first NILM-specific deep learning toolkit build on **Pytorch** and 
-**Python**. The purpose of the toolkit is to help researchers design and execute 
+**[Torch-NILM](https://doi.org/10.3390/en15072647)** is the first NILM-specific deep learning toolkit build on **[Pytorch](https://pytorch.org)** and 
+**[Python](https://www.python.org)**. The purpose of the toolkit is to help researchers design and execute 
 huge amount of experiments and comparisons with ease. It contains **3 APIs** that cover
 various needs that are encountered when creating a new architecture such as benchmarking, 
 hyperparameter tuning and cross validation. Furthermore, **Torch-NILM** comes with a handy
@@ -11,7 +11,7 @@ base plots to visualize the results.
 
 The build-in benchmark methodology contains a series of scenarios with escalating difficulty 
 to stress test the generalization capabilities of the tested models. In addition, 
-**Torch-NILM**  provides a set of powerful baseline models to conduct comparisons.
+**[Torch-NILM](https://doi.org/10.3390/en15072647)**  provides a set of powerful baseline models to conduct comparisons.
 
 The toolkit is compatible with **[NILMTK](https://nilmtk.github.io)**.
 
