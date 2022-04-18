@@ -13,7 +13,7 @@ The build-in benchmark methodology contains a series of scenarios with escalatin
 to stress test the generalization capabilities of the tested models. In addition, 
 **Torch-NILM**  provides a set of powerful baseline models to conduct comparisons.
 
-The toolkit is compatible with **NILMTK**.
+The toolkit is compatible with **[NILMTK](https://nilmtk.github.io)**.
 
 The complementary paper "Torch-NILM: An Effective Deep Learning Toolkit for Non-Intrusive Load Monitoring in Pytorch" can be found [here](https://www.mdpi.com/1996-1073/15/7/2647).
 
