@@ -37,6 +37,19 @@ In case you use Torch-NILM to conduct research, please consider to cite our pape
     
 For any enquiries, please contact the main authors.
 
+## Installation
+
+For the installation users are advised to use [Anaconda](https://www.anaconda.com/products/distribution). Torch-NILM requires 
+Python 3.7+. The provided [torch-nilm.yml](torch-nilm.yml) file contains the necessary dependencies.
+With the following command the appropriate environment is created ([for more details check here](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-from-an-environment-yml-file)).
+ 
+    conda env create -f torch-nilm.yml
+
+Activate the environment:
+
+    conda activate torch-nilm
+
+
 ## Experiment guide
 
 Defining an experiment requires only a few lines of code. A template of setting an experiment
@@ -196,25 +209,6 @@ is constructed on end-uses from **UK DALE**[3], **REDD**[4] and **REFIT**[5].
 It should be noted that the data have to be downloaded manually.
 In order to load the data, the files _path_manager.py_ and _datasource.py_ inside _datasources/_ directory should be 
 modified accordingly.
-
-## Dependencies
-
-The code has been developed using python3.8 and the dependencies can be found in 
-[requirements.txt](requirements.txt):
-
-- numpy>=1.21
-- pandas~=0.25.3
-- torch~=1.9.0+cu111
-- plotly~=5.4.0
-- setuptools~=49.6.0
-- wandb~=0.10.32
-- fuzzywuzzy~=0.18.0
-- nilmtk~=0.4.3
-- loguru~=0.5.3
-- numba~=0.53.1
-- scikit-image~=0.18.2
-- h5py~=3.4.0
-- dash~=2.0.0
 
 ## Licence
 
