@@ -234,10 +234,11 @@ class VIBTrainingTools(ClassicTrainingTools):
     def test_epoch_end(self, outputs):
         # outputs is a list of whatever you returned in `test_step`
         avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
+        if self.model_name == 'MyVAE':
+            self.final_preds = np.reshape(self.final_preds, (-1))
         res = self._metrics()
-        print('#### model name: {} ####'.format(res['model']))
-        print('metrics: {}'.format(res['metrics']))
-
+        print('#### model name: {} ####'.format(res[COLUMN_MODEL]))
+        print('metrics: {}'.format(res[COLUMN_METRICS]))
         self.log("test_test_avg_loss", avg_loss)
         return res
 

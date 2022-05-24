@@ -4,7 +4,7 @@ from numbers import Number
 import torch.nn.functional as F
 from neural_networks.base_models import BaseModel
 from neural_networks.custom_modules import VIBDecoder
-from neural_networks.models import Seq2Point, LinearDropRelu, ConvDropRelu, NFED, SAED, WGRU, SimpleGru
+from neural_networks.models import Seq2Point, LinearDropRelu, ConvDropRelu, NFED, SAED, WGRU, SimpleGru, DAE
 
 
 def cuda(tensor, is_cuda):
@@ -197,6 +197,41 @@ class VIBNFED(NFED, VIBNet):
         # encoding =  torch.cat((x_in, encoding), dim=-1)
         encoding = x_in + encoding
         # print(encoding.shape)
+        logit = self.decoder(encoding)
+
+        return (mu, std), logit
+
+
+class MyVAE(DAE, VIBNet):
+    def __init__(self, input_dim, dropout=0, latent_dim=16, max_noise=0.1, output_dim=1):
+        super(MyVAE, self).__init__(input_dim=input_dim, dropout=dropout, output_dim=output_dim)
+        """
+        :param input_dim:
+        :param K:  the latent dimension
+        :param max_noise:
+        :param dropout:
+        :param output_dim:
+        """
+
+        self.max_noise = max_noise
+        self.latent_dim = latent_dim
+
+        self.bottleneck_layer = LinearDropRelu(input_dim // 2, 2*latent_dim, dropout)
+        # self.reshape = LinearDropRelu(latent_dim, input_dim // 2, dropout)
+        self.reshape = nn.Linear(latent_dim, input_dim // 2)
+
+    def forward(self, x, current_epoch=None, num_sample=1):
+        x = x
+        # x must be in shape [batch_size, 1, window_size]
+        # eg: [1024, 1, 50]
+        x = x
+        x = x.unsqueeze(1)
+        x = self.encoder(x)
+        statistics = self.bottleneck_layer(x)
+        mu = statistics[:, :self.latent_dim]
+        std = F.softplus(statistics[:, self.latent_dim:], beta=1)
+        encoding = self.reparametrize_n(mu, std, current_epoch, num_sample, self.max_noise)
+        encoding = self.reshape(encoding)
         logit = self.decoder(encoding)
 
         return (mu, std), logit
