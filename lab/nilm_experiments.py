@@ -16,7 +16,7 @@ from utils.nilm_reporting import get_final_report, get_statistical_report
 from constants.enumerates import SupportedNilmExperiments, SupportedExperimentCategories, SupportedExperimentVolumes, \
     ElectricalAppliances, SupportedPreprocessingMethods, SupportedFillingMethods, WaterAppliances
 from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset, ElectricityIterableDataset, \
-    WaterMultiBuildingsDataset
+    WaterMultiBuildingsDataset, WaterDataset
 
 with torch.no_grad():
     torch.cuda.empty_cache()
@@ -550,6 +550,8 @@ class NILMExperiments:
         self.clean_project = False
 
     def _prepare_cv_parameters(self, experiment_category: SupportedExperimentVolumes = None, device: str = None):
+        print('####')
+        print(self.train_file_dir)
         if not experiment_category:
             experiment_category = SupportedExperimentCategories.SINGLE_CATEGORY.value
         try:
@@ -602,7 +604,7 @@ class NILMExperiments:
         return train_dataset_all
 
     def _prepare_train_dataset(self, experiment_category: SupportedExperimentCategories = None, device: str = None,
-                               window: int = None):
+                               window: int = None, water: bool = False):
         file = open('{}base{}TrainSetsInfo_{}'.format(self.train_file_dir, experiment_category, device), 'r')
         train_info = []
         for line in file:
@@ -620,28 +622,40 @@ class NILMExperiments:
                 })
             else:
                 file.close()
-                if self.iterable_dataset:
-                    train_dataset_all = ElectricityIterableDataset(datasource=datasource,
-                                                                   building=int(train_house),
-                                                                   window_size=window,
-                                                                   device=device,
-                                                                   dates=train_dates,
-                                                                   sample_period=self.sample_period,
-                                                                   preprocessing_method=self.preprocessing_method,
-                                                                   fillna_method=self.fillna_method,
-                                                                   subseq_window=self.subseq_window,
-                                                                   noise_factor=self.noise_factor)
+                if water:
+                    train_dataset_all = WaterDataset(datasource=datasource,
+                                                     building=int(train_house),
+                                                     window_size=window,
+                                                     device=device,
+                                                     dates=train_dates,
+                                                     sample_period=self.sample_period,
+                                                     preprocessing_method=self.preprocessing_method,
+                                                     fillna_method=self.fillna_method,
+                                                     subseq_window=self.subseq_window,
+                                                     noise_factor=self.noise_factor)
                 else:
-                    train_dataset_all = ElectricityDataset(datasource=datasource,
-                                                           building=int(train_house),
-                                                           window_size=window,
-                                                           device=device,
-                                                           dates=train_dates,
-                                                           sample_period=self.sample_period,
-                                                           preprocessing_method=self.preprocessing_method,
-                                                           fillna_method=self.fillna_method,
-                                                           subseq_window=self.subseq_window,
-                                                           noise_factor=self.noise_factor)
+                    if self.iterable_dataset:
+                        train_dataset_all = ElectricityDataset(datasource=datasource,
+                                                               building=int(train_house),
+                                                               window_size=window,
+                                                               device=device,
+                                                               dates=train_dates,
+                                                               sample_period=self.sample_period,
+                                                               preprocessing_method=self.preprocessing_method,
+                                                               fillna_method=self.fillna_method,
+                                                               subseq_window=self.subseq_window,
+                                                               noise_factor=self.noise_factor)
+                    else:
+                        train_dataset_all = ElectricityDataset(datasource=datasource,
+                                                               building=int(train_house),
+                                                               window_size=window,
+                                                               device=device,
+                                                               dates=train_dates,
+                                                               sample_period=self.sample_period,
+                                                               preprocessing_method=self.preprocessing_method,
+                                                               fillna_method=self.fillna_method,
+                                                               subseq_window=self.subseq_window,
+                                                               noise_factor=self.noise_factor)
 
                 return train_dataset_all
         file.close()
@@ -710,7 +724,7 @@ class NILMExperiments:
                                                          train_set, time_folds, fold)
             iteration, train_set_name = fold, train_set
         else:
-            train_dataset_all = self._prepare_train_dataset(experiment_category, device, window)
+            train_dataset_all = self._prepare_train_dataset(experiment_category, device, window, water)
             tests_params = self._prepare_test_parameters(experiment_category, device)
             train_set_name = train_dataset_all.datasource.get_name()
         train_loader, val_loader = self._prepare_train_val_loaders(train_dataset_all)
@@ -1207,6 +1221,91 @@ class NILMExperiments:
                                                                          model_name, None, fold,
                                                                          model_hparams=model_hparams,
                                                                          water=True)
+                        self._call_train_eval(
+                            train_eval_args
+                        )
+        if export_report:
+            self.export_report(save_name=STAT_REPORT,
+                               stat_measures=stat_measures,
+                               prepare_project_properties=False,
+                               )
+
+    def run_water_benchmark(self, devices: list = None, experiment_parameters: list = None, data_dir: str = None,
+                            train_file_dir: str = None, test_file_dir: str = None, model_hparams: ModelHyperModelParameters = None,
+                            experiment_volume: SupportedExperimentVolumes = None, experiment_categories: list = None,
+                            export_report: bool = True, stat_measures: list = None, ):
+        """
+        A method to execute the benchmark methodology described in:
+            Symeonidis et al. “A Benchmark Framework to Evaluate Energy Disaggregation Solutions.” EANN (2019).
+            DOI:10.1007/978-3-030-20257-6_2
+
+        Args:
+            devices(list): This list contains the desired devices to be investigated. The available devices can be found in
+                constants/enumerates/ElectricalAppliances.
+            experiment_parameters(list): The general experiment parameters-settings to be used.
+            data_dir(str): The directory of the data. If None is given, the path in datasources/paths_manager.py is used
+            train_file_dir(str): The directory of the date files. If None is given, the files in benchmark dir are used.
+            test_file_dir(str): The directory of the date files. If None is given, the files in benchmark dir are used.
+            model_hparams(ModelHyperModelParameters): The hyperparameters for all the models under investigation.
+            experiment_volume(SupportedExperimentVolumes): The list of the desired experiment_volume to be used.
+            experiment_categories(list): This list contains the desired experiment_categories to be executed.
+                The available categories can be found in constants/enumerates/SupportedExperimentCategories.
+            export_report(bool): Whether to export the final report (xlsx) or not.
+            stat_measures(list): user can define the appropriate statistical measures to be included to the report
+                supported measures: [ MEAN, MEDIAN, STANDARD_DEVIATION, MINIMUM, MAXIMUM, PERCENTILE_25TH,
+                PERCENTILE_75TH]
+        Example of use:
+            model_hparams = [
+                {
+                    'model_name': 'SAED',
+                    'hparams': {'window_size': None},
+                },
+                {
+                    'model_name': 'WGRU',
+                    'hparams': {'dropout': 0},
+                },
+            ]
+            model_hparams = ModelHyperModelParameters(model_hparams)
+            experiment_parameters = ExperimentParameters(**experiment_parameters)
+
+            experiment = NILMExperiments(project_name='NILM_EXPERIMENTS', clean_project=False,
+                                         devices=devices, save_timeseries_results=False,
+                                         experiment_categories=experiment_categories,
+                                         experiment_volume=SupportedExperimentVolumes.LARGE_VOLUME,
+                                         experiment_parameters=experiment_parameters,
+                                         )
+            experiment.run_benchmark(model_hparams=model_hparams)
+        """
+        print('>>>BENCHMARK EXPERIMENT<<<')
+        self._prepare_project_properties(devices=devices,
+                                         experiment_parameters=experiment_parameters,
+                                         data_dir=data_dir,
+                                         train_file_dir=train_file_dir,
+                                         test_file_dir=test_file_dir,
+                                         experiment_volume=experiment_volume,
+                                         model_hparams=model_hparams,
+                                         hparam_tuning=None,
+                                         experiment_categories=experiment_categories,
+                                         experiment_type=SupportedNilmExperiments.BENCHMARK,
+                                         water=True,
+                                         )
+
+        for experiment_category in self.experiment_categories:
+            print('EXPERIMENT CATEGORY: ', experiment_category)
+            for model_name in self.models:
+                model_hparams = self.model_hparams.get_model_params(model_name)
+                for device in self.devices:
+                    model_hparams, window = self._calculate_model_window(model_hparams=model_hparams,
+                                                                         model_name=model_name, device=device)
+                    model_hparams = self._set_model_output_dim(model_hparams, output_dim=window)
+
+                    for iteration in range(1, self.iterations + 1):
+                        print('#' * 20)
+                        print(ITERATION_NAME, ': ', iteration)
+                        print('#' * 20)
+                        train_eval_args = self._prepare_train_eval_input(experiment_category, device, window,
+                                                                         model_name, iteration, None,
+                                                                         model_hparams=model_hparams, water=True)
                         self._call_train_eval(
                             train_eval_args
                         )

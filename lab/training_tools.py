@@ -101,8 +101,8 @@ class ClassicTrainingTools(pl.LightningModule):
     def validation_step(self, val_batch: Tensor, batch_idx: int) -> Dict:
         loss, mae = self._forward_step(val_batch)
         # self.log("loss", loss, prog_bar=True)
-        self.log(VAL_LOSS, mae, prog_bar=True)
-        return {"vloss": loss, "val_loss": mae}
+        self.log(VAL_LOSS, loss, prog_bar=True)
+        return {"vloss": loss, "val_loss": loss}
 
     @staticmethod
     def calculate_loss(logits, labels):

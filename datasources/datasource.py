@@ -253,7 +253,7 @@ class DatasourceFactory:
     """
 
     @staticmethod
-    def create_datasource(dataset_name:str):
+    def create_datasource(dataset_name: str):
         if dataset_name == NAME_UK_DALE:
             return DatasourceFactory.create_uk_dale_datasource()
         elif dataset_name == NAME_REDD:

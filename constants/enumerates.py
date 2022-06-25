@@ -51,6 +51,7 @@ class SupportedExperimentVolumes(Enum):
     LARGE_VOLUME = 'large'
     SMALL_VOLUME = 'small'
     CV_VOLUME = 'cv'
+    WATER_VOLUME = 'water'
 
 
 class SupportedPreprocessingMethods(Enum):
