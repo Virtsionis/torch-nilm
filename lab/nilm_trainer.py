@@ -28,10 +28,11 @@ def train_eval(model_name: str, train_loader: DataLoader, tests_params: pd.DataF
     """
 
     if progress_bar:
-        trainer = pl.Trainer(gpus=1, max_epochs=epochs, auto_lr_find=True, callbacks=callbacks)
+        trainer = pl.Trainer(gpus=1, max_epochs=epochs, auto_lr_find=True, callbacks=callbacks,
+                             precision=16)
     else:
         trainer = pl.Trainer(gpus=1, max_epochs=epochs, auto_lr_find=True, callbacks=callbacks,
-                             progress_bar_refresh_rate=0)
+                             progress_bar_refresh_rate=0, precision=16)
 
     eval_params[WATER] = water
     model = TrainingToolsFactory.build_and_equip_model(model_name=model_name,

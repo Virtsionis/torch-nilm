@@ -4,6 +4,10 @@ from constants.constants import*
 
 
 def NILMmetrics(pred: np.array, ground: np.array, threshold: int = 40, round_digit: int = 3):
+
+    def convert_precision_16_to_32(arr):
+        return arr.astype(float)
+
     def tp_tn_fp_fn(states_pred, states_ground):
         tp = np.sum(np.logical_and(states_pred == 1, states_ground == 1))
         fp = np.sum(np.logical_and(states_pred == 1, states_ground == 0))
@@ -43,6 +47,7 @@ def NILMmetrics(pred: np.array, ground: np.array, threshold: int = 40, round_dig
     else:
         gr = ground
 
+    pr, gr = convert_precision_16_to_32(pred), convert_precision_16_to_32(ground)
     pr[np.isnan(pr)] = 0
     gr[np.isnan(gr)] = 0
 
