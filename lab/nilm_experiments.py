@@ -5,7 +5,7 @@ import torch
 import pandas as pd
 from typing import Union
 from constants.constants import *
-from lab.nilm_trainer import train_eval
+from lab.nilm_trainer import train_eval, train_transfer_eval
 from constants.appliance_windows import WINDOWS
 from datasources.datasource import Datasource
 from datasources.datasource import DatasourceFactory
@@ -778,6 +778,10 @@ class NILMExperiments:
         train_eval(**args)
 
     @staticmethod
+    def _call_train_eval(args):
+        train_transfer_eval(**args)
+
+    @staticmethod
     def get_dataset_mmax_means_stds(dataset: Union[ElectricityDataset,
                                                    ElectricityMultiBuildingsDataset,
                                                    ElectricityIterableDataset] = None):
@@ -1233,7 +1237,7 @@ class NILMExperiments:
     def run_water_benchmark(self, devices: list = None, experiment_parameters: list = None, data_dir: str = None,
                             train_file_dir: str = None, test_file_dir: str = None, model_hparams: ModelHyperModelParameters = None,
                             experiment_volume: SupportedExperimentVolumes = None, experiment_categories: list = None,
-                            export_report: bool = True, stat_measures: list = None, ):
+                            export_report: bool = True, stat_measures: list = None, transfer_learning: bool = False, ):
         """
         A method to execute the benchmark methodology described in:
             Symeonidis et al. “A Benchmark Framework to Evaluate Energy Disaggregation Solutions.” EANN (2019).
@@ -1306,9 +1310,14 @@ class NILMExperiments:
                         train_eval_args = self._prepare_train_eval_input(experiment_category, device, window,
                                                                          model_name, iteration, None,
                                                                          model_hparams=model_hparams, water=True)
-                        self._call_train_eval(
-                            train_eval_args
-                        )
+                        if transfer_learning:
+                            self._call_train_eval(
+                                train_eval_args
+                            )
+                        else:
+                            self._call_train_eval(
+                                train_eval_args
+                            )
         if export_report:
             self.export_report(save_name=STAT_REPORT,
                                stat_measures=stat_measures,

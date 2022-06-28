@@ -63,7 +63,7 @@ class FeedForward(nn.Module):
 
 class Seq2Point(BaseModel):
 
-    def __init__(self, window_size, dropout=0, lr=None, output_dim: int = 1):
+    def __init__(self, window_size, dropout=0, lr=None, output_dim: int = 1, transfer_learning=False,):
         super(Seq2Point, self).__init__()
         self.MODEL_NAME = 'Sequence2Point model'
         self.drop = dropout
@@ -82,6 +82,10 @@ class Seq2Point(BaseModel):
         self.dense = LinearDropRelu(self.dense_input, 1024, self.drop)
         self.output = nn.Linear(1024, output_dim)
 
+        if transfer_learning:
+            for param in self.conv.parameters():
+                param.requires_grad = False
+
     def forward(self, x):
         # x must be in shape [batch_size, 1, window_size]
         # eg: [1024, 1, 50]
@@ -94,7 +98,7 @@ class Seq2Point(BaseModel):
 
 class WGRU(BaseModel):
 
-    def __init__(self, dropout=0, lr=None, output_dim: int = 1):
+    def __init__(self, dropout=0, lr=None, output_dim: int = 1, transfer_learning=False, ):
         super(WGRU, self).__init__()
 
         self.drop = dropout
@@ -112,6 +116,14 @@ class WGRU(BaseModel):
         self.dense1 = LinearDropRelu(512, 128, self.drop)
         self.dense2 = LinearDropRelu(128, 64, self.drop)
         self.output = nn.Linear(64, output_dim)
+
+        if transfer_learning:
+            for param in self.conv1.parameters():
+                param.requires_grad = False
+            for param in self.b1.parameters():
+                param.requires_grad = False
+            for param in self.b2.parameters():
+                param.requires_grad = False
 
     def forward(self, x):
         # x must be in shape [batch_size, 1, window_size]
@@ -138,7 +150,7 @@ class WGRU(BaseModel):
 class SAED(BaseModel):
 
     def __init__(self, window_size, mode='dot', hidden_dim=16, num_heads=1, dropout=0, bidirectional=True, lr=None,
-                 output_dim: int = 1):
+                 output_dim: int = 1, transfer_learning=False,):
         super(SAED, self).__init__()
 
         '''
@@ -167,8 +179,8 @@ class SAED(BaseModel):
                                  dropout=self.drop)
         if num_heads>1:
             self.attention = nn.MultiheadAttention(embed_dim=hidden_dim,
-                                                        num_heads=num_heads,
-                                                        dropout=self.drop)
+                                                   num_heads=num_heads,
+                                                   dropout=self.drop)
         else:
             self.attention = Attention(window_size, attention_type=mode)
 
@@ -182,6 +194,14 @@ class SAED(BaseModel):
         else:
             self.dense = LinearDropRelu(64, 32, self.drop)
             self.output = nn.Linear(32, output_dim)
+
+        if transfer_learning:
+            for param in self.attention.parameters():
+                param.requires_grad = False
+            for param in self.conv.parameters():
+                param.requires_grad = False
+            for param in self.bgru.parameters():
+                param.requires_grad = False
 
     def forward(self, x):
         # x must be in shape [batch_size, 1, window_size]
@@ -211,7 +231,7 @@ class SAED(BaseModel):
 
 class SimpleGru(BaseModel):
 
-    def __init__(self, hidden_dim=16, dropout=0, bidirectional=True, lr=None, output_dim=1):
+    def __init__(self, hidden_dim=16, dropout=0, bidirectional=True, lr=None, output_dim=1, transfer_learning=False):
         super(SimpleGru, self).__init__()
 
         '''
@@ -239,6 +259,13 @@ class SimpleGru(BaseModel):
             self.dense = LinearDropRelu(64, 32, self.drop)
             self.output = nn.Linear(32, output_dim)
 
+        if transfer_learning:
+            print('TRANSFER LEARNING')
+            for param in self.conv.parameters():
+                param.requires_grad = False
+            for param in self.bgru.parameters():
+                param.requires_grad = False
+
     def forward(self, x):
         # x must be in shape [batch_size, 1, window_size]
         # eg: [1024, 1, 50]
@@ -254,7 +281,7 @@ class SimpleGru(BaseModel):
 
 
 class DAE(BaseModel):
-    def __init__(self, input_dim, dropout=0.2, output_dim=1):
+    def __init__(self, input_dim, dropout=0.2, output_dim=1, transfer_learning=False,):
         super().__init__()
         self.encoder = nn.Sequential(
             ConvDropRelu(1, 8, kernel_size=4, relu=False),
@@ -275,6 +302,10 @@ class DAE(BaseModel):
             nn.ConvTranspose1d(in_channels=8, out_channels=1, kernel_size=4, padding=3, stride=1, dilation=2),
             nn.Linear(input_dim, output_dim)
         )
+
+        if transfer_learning:
+            for param in self.encoder.parameters():
+                param.requires_grad = False
 
     def forward(self, x):
         x = x
@@ -348,7 +379,7 @@ class FourierBLock(nn.Module):
 
 
 class NFED(BaseModel):
-    def __init__(self, depth, kernel_size, cnn_dim, output_dim: int = 1, **block_args):
+    def __init__(self, depth, kernel_size, cnn_dim, output_dim: int = 1, transfer_learning=False, **block_args):
         """
         Input arguments:
             depth - The number of fourier blocks in series
@@ -370,6 +401,14 @@ class NFED(BaseModel):
         self.dense2 = LinearDropRelu(cnn_dim, cnn_dim // 2, self.drop)
 
         self.output = nn.Linear(cnn_dim // 2, output_dim)
+
+        if transfer_learning:
+            for param in self.conv.parameters():
+                param.requires_grad = False
+            for param in self.pool.parameters():
+                param.requires_grad = False
+            for param in self.fourier_layers.parameters():
+                param.requires_grad = False
 
     def forward(self, x):
         x = x.unsqueeze(1)

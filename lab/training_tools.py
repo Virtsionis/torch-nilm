@@ -54,6 +54,15 @@ class TrainingToolsFactory:
         else:
             return ClassicTrainingTools(model, model_hparams, eval_params)
 
+    @staticmethod
+    def load_and_equip_model(model_name, model_hparams, eval_params, checkpoint=None):
+        model = create_model(model_name, model_hparams)
+        model = TrainingToolsFactory.equip_model(model=model, model_hparams=model_hparams, eval_params=eval_params)
+        model = model.load_weights(model_name, eval_params, checkpoint)
+        model.eval_params = eval_params
+        model.model_name = model_name
+        return model
+
 
 class ClassicTrainingTools(pl.LightningModule):
 
@@ -76,17 +85,18 @@ class ClassicTrainingTools(pl.LightningModule):
         self.final_mains = np.array([])
         self.results = {}
 
+    def load_weights(self, model_name, eval_params, checkpoint):
+        model = self.load_from_checkpoint(checkpoint)
+        model.eval_params = eval_params
+        model.model_name = model_name
+        return model
+
     def forward(self, x):
         # Forward function that is run when visualizing the graph
         return self.model(x)
 
     def configure_optimizers(self):
-        # print(f"learning rate {self.model.lr}")
-        # print(f"learning rate {self.lr}")
-        # print(f"model params {[p for p in self.model.parameters()]}")
-        # print(f"params {[p for p in self.parameters()]}")
-        return torch.optim.Adam(self.parameters())
-        # return torch.optim.SGD(self.parameters(), lr=0.001)
+        return torch.optim.Adam(filter(lambda p: p.requires_grad, self.parameters()))
 
     def training_step(self, batch, batch_idx):
         # x must be in shape [batch_size, 1, window_size]
