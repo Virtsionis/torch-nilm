@@ -178,11 +178,7 @@ def train_transfer_eval(model_name: str, train_loader: DataLoader, tests_params:
     model = TrainingToolsFactory.load_and_equip_model(model_name=model_name,
                                                       model_hparams=model_hparams,
                                                       checkpoint=saved_model,
-                                                      eval_params={ONLY_INFERENCE: True,
-                                                                   COLUMN_MMAX: mmax,
-                                                                   COLUMN_MEANS: means,
-                                                                   COLUMN_STDS: stds,
-                                                                   }, )
+                                                      eval_params=eval_params, )
     if val_loader:
         trainer.fit(model, train_loader, val_loader)
     else:
