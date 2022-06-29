@@ -778,7 +778,7 @@ class NILMExperiments:
         train_eval(**args)
 
     @staticmethod
-    def _call_train_eval(args):
+    def _call_train_transfer_eval(args):
         train_transfer_eval(**args)
 
     @staticmethod
@@ -1315,7 +1315,7 @@ class NILMExperiments:
                                 train_eval_args
                             )
                         else:
-                            self._call_train_eval(
+                            self._call_train_transfer_eval(
                                 train_eval_args
                             )
         if export_report:
