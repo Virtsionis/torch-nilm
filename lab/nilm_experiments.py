@@ -1311,11 +1311,11 @@ class NILMExperiments:
                                                                          model_name, iteration, None,
                                                                          model_hparams=model_hparams, water=True)
                         if transfer_learning:
-                            self._call_train_eval(
+                            self._call_train_transfer_eval(
                                 train_eval_args
                             )
                         else:
-                            self._call_train_transfer_eval(
+                            self._call_train_eval(
                                 train_eval_args
                             )
         if export_report:
