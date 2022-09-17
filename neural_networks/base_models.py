@@ -28,3 +28,6 @@ class BaseModel(nn.Module, abc.ABC):
         Returns yes if it supports bayesian inference.
         """
         return False
+
+    def supports_supervib(self) -> bool:
+        return False

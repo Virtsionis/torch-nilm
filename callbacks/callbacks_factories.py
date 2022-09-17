@@ -8,8 +8,8 @@ class TrainerCallbacksFactory:
     @staticmethod
     def create_earlystopping() -> EarlyStopping:
         return EarlyStopping(monitor='val_loss',
-                             min_delta=0.001,
-                             patience=5,
+                             min_delta=1e-3,
+                             patience=10,
                              verbose=True,
                              mode='min')
 
