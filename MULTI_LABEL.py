@@ -2,7 +2,7 @@ from lab.nilm_experiments import *
 from constants.constants import *
 from constants.enumerates import *
 experiment_parameters = {
-    EPOCHS: 100,
+    EPOCHS: 20,
     ITERATIONS: 3,
     INFERENCE_CPU: False,
     SAMPLE_PERIOD: 6,
@@ -19,38 +19,45 @@ experiment_parameters = {
 }
 
 devices = [
-    ElectricalAppliances.KETTLE,
+    # ElectricalAppliances.KETTLE,
     # ElectricalAppliances.MICROWAVE,
     # ElectricalAppliances.FRIDGE,
-    # ElectricalAppliances.WASHING_MACHINE,
+    ElectricalAppliances.WASHING_MACHINE,
     # ElectricalAppliances.DISH_WASHER,
     # ElectricalAppliances.OVEN,
     # ElectricalAppliances.LIGHT,
 ]
 
-prior_distributions = ['cauchy' for i in range(0, len(devices))]
-prior_weights = [0.01 for i in range(0, len(devices))]
-prior_noise = 0.01
-for i, dev in enumerate(devices):
-    if dev == ElectricalAppliances.DISH_WASHER:
-        prior_distributions[i] = LAPLACE_DIST
-        prior_weights[i] = 0.0077#0.15# 0.1 sto 15 kai paei kala
-    elif dev == ElectricalAppliances.WASHING_MACHINE:
-        prior_distributions[i] = LAPLACE_DIST
-        prior_weights[i] = 0.071#0.15#0.1 to krataw
-    elif dev == ElectricalAppliances.FRIDGE:
-        prior_distributions[i] = STUDENT_T_DIST
-        prior_weights[i] = 0.022#0.001# 0.001 to krataw
-    elif dev == ElectricalAppliances.KETTLE:
-        prior_weights[i] = 0.0067#0.1# to krataw
-    elif dev == ElectricalAppliances.MICROWAVE:
-        prior_weights[i] = 0.0077#0.001#0.1# 0.001 sto 15 kai paei kala
+prior_distributions = [NORMAL_DIST for i in range(0, len(devices))]
+prior_means = [0 for i in range(0, len(devices))]
+prior_stds = [0.01 for i in range(0, len(devices))]
+prior_noise_std = 0.01
+# for i, dev in enumerate(devices):
+#     if dev == ElectricalAppliances.DISH_WASHER:
+#         prior_distributions[i] = LAPLACE_DIST
+#         prior_stds[i] = 0.0077#0.15# 0.1 sto 15 kai paei kala
+#         prior_means[i] = 0.611
+#     elif dev == ElectricalAppliances.WASHING_MACHINE:
+#         prior_distributions[i] = LAPLACE_DIST
+#         prior_stds[i] = 0.071#0.15#0.1 to krataw
+#         prior_means[i] = 0.454
+#     elif dev == ElectricalAppliances.FRIDGE:
+#         prior_distributions[i] = STUDENT_T_DIST
+#         prior_stds[i] = 0.022#0.001# 0.001 to krataw
+#         prior_means[i] = 0.1376
+#     elif dev == ElectricalAppliances.KETTLE:
+#         prior_stds[i] = 0.0067#0.1# to krataw
+#         prior_means[i] = 0.6794
+#     elif dev == ElectricalAppliances.MICROWAVE:
+#         prior_stds[i] = 0.0077#0.001#0.1# 0.001 sto 15 kai paei kala
+#         prior_means[i] = 0.4942
 
-prior_noise = 1 - sum(prior_weights)
+prior_noise_std = 1 - sum(prior_stds)
 
-print('prior_weights: ', prior_weights)
+print('prior_stds: ', prior_stds)
+print('prior_means: ', prior_means)
 print('prior_distributions: ', prior_distributions)
-print('prior_noise: ', prior_noise)
+print('prior_noise: ', prior_noise_std)
 
 experiment_categories = [
     SupportedExperimentCategories.SINGLE_CATEGORY,
@@ -61,41 +68,42 @@ model_hparams = [
     #     'model_name': 'SuperVAE',# FROM LATENT SPACE
     #     'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
     #                 'alpha': 1e-2, 'beta': 1e-3, 'gamma': 1e-1, 'dae_output_dim': experiment_parameters[FIXED_WINDOW],
-    #                 'max_noise': 0.1, 'prior_weights': prior_weights, 'prior_noise': prior_noise,
+    #                 'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise': prior_noise,
     #                 },
     # },
     {
         'model_name': 'SuperVAE1b',  # FROM LATENT SPACE but with 2 changes
                                      # a) deeper shallow nets, b) got rid of reshape layers
         'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
-                    'alpha': 0*1e-2, 'beta': 1e-3, 'gamma': 1e-1, 'dae_output_dim': experiment_parameters[FIXED_WINDOW],
-                    'max_noise': 0.1, 'prior_weights': prior_weights, 'prior_noise': prior_noise,
-                    'prior_distributions': prior_distributions,
-                    },
-    },
-    {
-        'model_name': 'SuperVAE1b',  # FROM LATENT SPACE but with 2 changes
-        # a) deeper shallow nets, b) got rid of reshape layers
-        'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
                     'alpha': 1e-2, 'beta': 1e-1, 'gamma': 1e-1,
                     'dae_output_dim': experiment_parameters[FIXED_WINDOW],
-                    'max_noise': 0.1, 'prior_weights': prior_weights, 'prior_noise': prior_noise,
+                    'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
+                    'prior_means': prior_means, 'prior_distributions': prior_distributions,
                     },
     },
-    {
-        'model_name': 'SuperVAE1b',  # FROM LATENT SPACE but with 2 changes
-        # a) deeper shallow nets, b) got rid of reshape layers
-        'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
-                    'alpha': 1e-1, 'beta': 1e-1, 'gamma': 1e-1,
-                    'dae_output_dim': experiment_parameters[FIXED_WINDOW],
-                    'max_noise': 0.1, 'prior_weights': prior_weights, 'prior_noise': prior_noise,
-                    },
-    },
+    # {
+    #     'model_name': 'SuperVAE1b',  # FROM LATENT SPACE but with 2 changes
+    #     # a) deeper shallow nets, b) got rid of reshape layers
+    #     'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
+    #                 'alpha': 1e-2, 'beta': 1e-1, 'gamma': 1e-1,
+    #                 'dae_output_dim': experiment_parameters[FIXED_WINDOW],
+    #                 'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
+    #                 },
+    # },
+    # {
+    #     'model_name': 'SuperVAE1b',  # FROM LATENT SPACE but with 2 changes
+    #     # a) deeper shallow nets, b) got rid of reshape layers
+    #     'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
+    #                 'alpha': 1e-1, 'beta': 1e-1, 'gamma': 1e-1,
+    #                 'dae_output_dim': experiment_parameters[FIXED_WINDOW],
+    #                 'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
+    #                 },
+    # },
     # {
     #     'model_name': 'SuperVAE2',# FROM PRIORS
     #     'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
     #                 'alpha': 1e-2, 'beta': 1e-3, 'gamma': 1e-1, 'dae_output_dim': experiment_parameters[FIXED_WINDOW],
-    #                 'max_noise': 0.1, 'prior_weights': prior_weights, 'prior_noise': prior_noise,
+    #                 'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
     #                 },
     # },
 ]

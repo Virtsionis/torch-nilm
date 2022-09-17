@@ -30,6 +30,8 @@ class VIBNet(BaseModel):
 
     @staticmethod
     def data_distribution_type(distribution):
+        # reference :
+        # http://pytorch.org/docs/0.3.1/_modules/torch/distributions.html#Distribution.sample_n
         return {
             NORMAL_DIST: torch.distributions.Normal,
             LOGNORMAL_DIST: torch.distributions.LogNormal,
@@ -38,9 +40,7 @@ class VIBNet(BaseModel):
             LAPLACE_DIST: torch.distributions.Laplace,
         }.get(distribution)
 
-    def reparametrize_n(self, mu, std, current_epoch, n=1, max_noise=1e-1, distribution=NORMAL_DIST):
-        # reference :
-        # http://pytorch.org/docs/0.3.1/_modules/torch/distributions.html#Distribution.sample_n
+    def reparametrize_n(self, mu, std, current_epoch, n=1, prior_std=1e-1, prior_mean=0, distribution=NORMAL_DIST):
         def expand(v):
             if isinstance(v, Number):
                 return torch.Tensor([v]).expand(n, 1)
@@ -52,10 +52,11 @@ class VIBNet(BaseModel):
             std = expand(std)
         device = self.get_device()
 
-        noise_rate = torch.tanh(torch.tensor(current_epoch))
+        # noise_rate = torch.tanh(torch.tensor(current_epoch))
+        noise_rate = 1
 
         if current_epoch > 0:
-            noise_distribution = self.data_distribution_type(distribution)(0, scale=noise_rate * max_noise)
+            noise_distribution = self.data_distribution_type(distribution)(loc=prior_mean, scale=noise_rate * prior_std)
             eps = noise_distribution.sample(std.size()).to(device)
         else:
             eps = torch.tensor(0).to(device)
@@ -262,13 +263,15 @@ class SuperVAE(DAE, VIBNet):
         return True
 
     def __init__(self, input_dim, dropout=0, distribution_dim=16, targets_num=1, max_noise=0.1, output_dim=1,
-                 dae_output_dim=50, prior_weights=None, prior_distributions=None, prior_noise=None, alpha=1, beta=1e-5,
+                 dae_output_dim=50, prior_stds=None, prior_means=None, prior_distributions=None, prior_noise_std=None, alpha=1, beta=1e-5,
                  gamma=1e-2, default_distribution=NORMAL_DIST):
         super(SuperVAE, self).__init__(input_dim=input_dim, dropout=dropout, output_dim=dae_output_dim,)
+        if prior_means is None:
+            prior_means = []
         if prior_distributions is None:
             prior_distributions = []
-        if prior_weights is None:
-            prior_weights = []
+        if prior_stds is None:
+            prior_stds = []
         self.architecture_name = 'SuperVAE'
         """
         :param input_dim:
@@ -290,15 +293,20 @@ class SuperVAE(DAE, VIBNet):
         self.targets_num = targets_num
         print('TARGETS NUM', targets_num, self.targets_num)
 
-        if prior_noise:
-            self.prior_noise = prior_noise
+        if prior_noise_std:
+            self.prior_noise_std = prior_noise_std
         else:
-            self.prior_noise = self.max_noise
+            self.prior_noise_std = self.max_noise
 
-        if prior_weights:
-            self.prior_weights = prior_weights
+        if prior_stds:
+            self.prior_stds = prior_stds
         else:
-            self.prior_weights = [self.max_noise for i in range(0, self.targets_num)]
+            self.prior_stds = [self.max_noise for i in range(0, self.targets_num)]
+
+        if prior_means:
+            self.prior_means = prior_means
+        else:
+            self.prior_means = [0 for i in range(0, self.targets_num)]
 
         if prior_distributions:
             self.prior_distributions = prior_distributions
@@ -354,7 +362,7 @@ class SuperVAE(DAE, VIBNet):
 
         noise_dist = (mu_noise, std_noise)
         noise_encoding = self.reparametrize_n(mu_noise, std_noise, current_epoch,
-                                              num_sample, self.prior_noise)
+                                              num_sample, self.prior_noise_std)
 
         target_dists = []
         target_encodings = torch.tensor([])
@@ -362,8 +370,13 @@ class SuperVAE(DAE, VIBNet):
             mu = statistics[:, (i+1) * self.distribution_dim: (i+2) * self.distribution_dim]
             std = F.softplus(statistics[:, (i+2) * self.distribution_dim: (i+3) * self.distribution_dim], beta=1)
             target_dists.append((mu, std))
-            target_encoding = self.reparametrize_n(mu, std, current_epoch,
-                                                   num_sample, self.prior_weights[i], self.prior_distributions[i])
+            target_encoding = self.reparametrize_n(mu=mu,
+                                                   std=std,
+                                                   current_epoch=current_epoch,
+                                                   n=num_sample,
+                                                   prior_std=self.prior_stds[i],
+                                                   prior_mean=self.prior_means[i],
+                                                   distribution=self.prior_distributions[i])
             if i == 0:
                 target_encodings = target_encoding.unsqueeze(2).to(self.device)
             else:
@@ -383,11 +396,13 @@ class SuperVAE2(DAE, VIBNet):
         return True
 
     def __init__(self, input_dim, dropout=0, distribution_dim=16, targets_num=1, max_noise=0.1, output_dim=1,
-                 dae_output_dim=50, prior_weights=None, prior_noise=None, prior_distributions=None, alpha=1, beta=1e-5,
+                 dae_output_dim=50, prior_stds=None, prior_means=None, prior_noise_std=None, prior_distributions=None, alpha=1, beta=1e-5,
                  gamma=1e-2, default_distribution=NORMAL_DIST):
         super(SuperVAE2, self).__init__(input_dim=input_dim, dropout=dropout, output_dim=dae_output_dim,)
-        if prior_weights is None:
-            prior_weights = []
+        if prior_means is None:
+            prior_means = []
+        if prior_stds is None:
+            prior_stds = []
         if prior_distributions is None:
             prior_distributions = []
         self.architecture_name = 'SuperVAE2'
@@ -409,15 +424,20 @@ class SuperVAE2(DAE, VIBNet):
         self.targets_num = targets_num
         print('TARGETS NUM', targets_num, self.targets_num)
 
-        if prior_noise:
-            self.prior_noise = prior_noise
+        if prior_noise_std:
+            self.prior_noise_std = prior_noise_std
         else:
-            self.prior_noise = self.max_noise
+            self.prior_noise_std = self.max_noise
 
-        if prior_weights:
-            self.prior_weights = prior_weights
+        if prior_stds:
+            self.prior_stds = prior_stds
         else:
-            self.prior_weights = [self.max_noise for i in range(0, len(self.targets_num))]
+            self.prior_stds = [self.max_noise for i in range(0, self.targets_num)]
+
+        if prior_means:
+            self.prior_means = prior_means
+        else:
+            self.prior_means = [0 for i in range(0, self.targets_num)]
 
         self.default_distribution = default_distribution
         if prior_distributions:
@@ -476,7 +496,7 @@ class SuperVAE2(DAE, VIBNet):
 
         noise_dist = (mu_noise, std_noise)
         noise_encoding = self.reparametrize_n(mu_noise, std_noise, current_epoch,
-                                              num_sample, self.prior_noise)
+                                              num_sample, self.prior_noise_std)
 
         target_dists = []
         target_encodings = torch.tensor([])
@@ -484,8 +504,13 @@ class SuperVAE2(DAE, VIBNet):
             mu = statistics[:, (i+1) * self.distribution_dim: (i+2) * self.distribution_dim]
             std = F.softplus(statistics[:, (i+2) * self.distribution_dim: (i+3) * self.distribution_dim], beta=1)
             target_dists.append((mu, std))
-            target_encoding = self.reparametrize_n(mu, std, current_epoch,
-                                                   num_sample, self.prior_weights[i], self.prior_distributions[i])
+            target_encoding = self.reparametrize_n(mu=mu,
+                                                   std=std,
+                                                   current_epoch=current_epoch,
+                                                   n=num_sample,
+                                                   prior_std=self.prior_stds[i],
+                                                   prior_mean=self.prior_means[i],
+                                                   distribution=self.prior_distributions[i])
             if i == 0:
                 target_encodings = target_encoding.unsqueeze(2).to(self.device)
             else:
@@ -507,7 +532,7 @@ class SuperVAE2(DAE, VIBNet):
 #         return True
 #
 #     def __init__(self, input_dim, dropout=0, distribution_dim=16, targets_num=1, max_noise=0.1, output_dim=1,
-#                  dae_output_dim=50, prior_weights=[], prior_noise=None, alpha=1, beta=1e-5, gamma=1e-2, ):
+#                  dae_output_dim=50, prior_stds=[], prior_noise=None, alpha=1, beta=1e-5, gamma=1e-2, ):
 #
 #         self.architecture_name = 'SuperVAE1b'
 #         """
@@ -533,10 +558,10 @@ class SuperVAE2(DAE, VIBNet):
 #         else:
 #             self.prior_noise = self.max_noise
 #
-#         if prior_weights:
-#             self.prior_weights = prior_weights
+#         if prior_stds:
+#             self.prior_stds = prior_stds
 #         else:
-#             self.prior_weights = [self.max_noise for i in range(0, len(self.targets_num))]
+#             self.prior_stds = [self.max_noise for i in range(0, len(self.targets_num))]
 #
 #         self.latent_dim = (self.targets_num + 1) * self.distribution_dim
 #
@@ -622,7 +647,7 @@ class SuperVAE2(DAE, VIBNet):
 #             std = F.softplus(statistics[:, (i+1) * self.distribution_dim: (i+3) * self.distribution_dim], beta=1)
 #             target_dists.append((mu, std))
 #             target_encoding = self.reparametrize_n(mu, std, current_epoch,
-#                                                    num_sample, self.prior_weights[i])
+#                                                    num_sample, self.prior_stds[i])
 #             if i == 0:
 #                 target_encodings = target_encoding.unsqueeze(2).to(self.device)
 #             else:
@@ -646,11 +671,13 @@ class SuperVAE1b(ConvDAE, VIBNet):
         return True
 
     def __init__(self, input_dim, dropout=0, distribution_dim=16, targets_num=1, max_noise=0.1, output_dim=1,
-                 dae_output_dim=50, prior_weights=None, prior_distributions=None, prior_noise=None, alpha=1, beta=1e-5,
-                 gamma=1e-2, default_distribution=NORMAL_DIST):
+                 dae_output_dim=50, prior_stds=None, prior_means=None, prior_distributions=None, prior_noise_std=None,
+                 alpha=1, beta=1e-5, gamma=1e-2, default_distribution=NORMAL_DIST):
 
-        if prior_weights is None:
-            prior_weights = []
+        if prior_means is None:
+            prior_means = []
+        if prior_stds is None:
+            prior_stds = []
         if prior_distributions is None:
             prior_distributions = []
         self.architecture_name = 'SuperVAE1b'
@@ -672,15 +699,20 @@ class SuperVAE1b(ConvDAE, VIBNet):
         self.targets_num = targets_num
         print('TARGETS NUM', targets_num, self.targets_num)
 
-        if prior_noise:
-            self.prior_noise = prior_noise
+        if prior_noise_std:
+            self.prior_noise_std = prior_noise_std
         else:
-            self.prior_noise = self.max_noise
+            self.prior_noise_std = self.max_noise
 
-        if prior_weights:
-            self.prior_weights = prior_weights
+        if prior_stds:
+            self.prior_stds = prior_stds
         else:
-            self.prior_weights = [self.max_noise for i in range(0, self.targets_num)]
+            self.prior_stds = [self.max_noise for i in range(0, self.targets_num)]
+
+        if prior_means:
+            self.prior_means = prior_means
+        else:
+            self.prior_means = [0 for i in range(0, self.targets_num)]
 
         self.default_distribution = default_distribution
         if prior_distributions:
@@ -733,7 +765,7 @@ class SuperVAE1b(ConvDAE, VIBNet):
 
         noise_dist = (mu_noise, std_noise)
         noise_encoding = self.reparametrize_n(mu_noise, std_noise, current_epoch,
-                                              num_sample, self.prior_noise)
+                                              num_sample, self.prior_noise_std)
         target_dists = []
         target_encodings = torch.tensor([])
         for i in range(self.targets_num):
@@ -742,8 +774,13 @@ class SuperVAE1b(ConvDAE, VIBNet):
             std = F.softplus(statistics[:, (i + 1) * 2 * self.distribution_dim: (i + 2) * 2 * self.distribution_dim],
                              beta=1)
             target_dists.append((mu, std))
-            target_encoding = self.reparametrize_n(mu, std, current_epoch,
-                                                   num_sample, self.prior_weights[i], self.prior_distributions[i])
+            target_encoding = self.reparametrize_n(mu=mu,
+                                                   std=std,
+                                                   current_epoch=current_epoch,
+                                                   n=num_sample,
+                                                   prior_std=self.prior_stds[i],
+                                                   prior_mean=self.prior_means[i],
+                                                   distribution=self.prior_distributions[i])
             if i == 0:
                 target_encodings = target_encoding.unsqueeze(2).to(self.device)
             else:
