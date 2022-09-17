@@ -75,9 +75,10 @@ class BaseElectricityDataset(ABC):
     def __init__(self, datasource: Datasource, building: int, device: str, start_date: str,
                  end_date: str, window_size: int = 50, mmax: float = None, means: float = None, stds: float = None,
                  meter_means: float = None, meter_stds: float = None, sample_period: int = None, chunksize: int = 10000,
-                 shuffle: bool = False, normalization_method: str = STANDARDIZATION,
-                 preprocessing_method: str = SupportedPreprocessingMethods.ROLLING_WINDOW, subseq_window: int = None,
-                 fillna_method: str = SupportedFillingMethods.FILL_ZEROS, noise_factor: float = None):
+                 shuffle: bool = False, normalization_method: SupportedScalingMethods = STANDARDIZATION,
+                 preprocessing_method: SupportedPreprocessingMethods = SupportedPreprocessingMethods.ROLLING_WINDOW,
+                 subseq_window: int = None, fillna_method: str = SupportedFillingMethods.FILL_ZEROS,
+                 noise_factor: float = None):
         self.building = building
         self.device = device
         self.mmax = mmax
@@ -172,11 +173,11 @@ class BaseElectricityDataset(ABC):
         if self.fillna_method == SupportedFillingMethods.FILL_INTERPOLATION:
             mainchunk, meterchunk = replace_nans_interpolation(mainchunk, meterchunk)
         mainchunk, meterchunk = replace_nans(mainchunk, meterchunk)
-        if self.normalization_method == STANDARDIZATION:
+        if self.normalization_method == SupportedScalingMethods.STANDARDIZATION:
             if None in [self.means, self.meter_means, self.meter_stds, self.stds]:
                 self._set_means_stds(mainchunk, meterchunk)
             mainchunk, meterchunk = self._standardize_chunks(mainchunk, meterchunk)
-        elif self.normalization_method == NORMALIZATION:
+        elif self.normalization_method == SupportedScalingMethods.NORMALIZATION:
             self._set_mmax(mainchunk)
             mainchunk, meterchunk = normalize_chunks(mainchunk, meterchunk, self.mmax)
 
@@ -271,8 +272,8 @@ class BaseElectricityMultiDataset(Dataset, ABC):
     def __init__(self, datasource: Datasource, building: int, devices: list, start_date: str,
                  end_date: str, window_size: int = 50, mmax: float = None, means: float = None, stds: float = None,
                  meter_means: float = None, meter_stds: float = None, sample_period: int = None, chunksize: int = 10**6,
-                 shuffle: bool = False, normalization_method: str = STANDARDIZATION,
-                 preprocessing_method: str = SupportedPreprocessingMethods.SEQ_T0_SEQ, subseq_window: int = None,
+                 shuffle: bool = False, normalization_method: SupportedScalingMethods = SupportedScalingMethods.STANDARDIZATION,
+                 preprocessing_method: SupportedPreprocessingMethods = SupportedPreprocessingMethods.SEQ_T0_SEQ, subseq_window: int = None,
                  fillna_method: str = SupportedFillingMethods.FILL_ZEROS, noise_factor: float = None):
         self.building = building
         self.devices = devices
@@ -379,11 +380,11 @@ class BaseElectricityMultiDataset(Dataset, ABC):
         if self.fillna_method == SupportedFillingMethods.FILL_INTERPOLATION:
             mainchunk, meterchunks = replace_chunks_nans_interpolation(mainchunk, meterchunks)
         mainchunk, meterchunks = replace_chunks_nans(mainchunk, meterchunks)
-        if self.normalization_method == STANDARDIZATION:
+        if self.normalization_method == SupportedScalingMethods.STANDARDIZATION:
             if None in [self.means, self.meter_means, self.meter_stds, self.stds]:
                 self._set_means_stds(mainchunk, meterchunks[0])
             mainchunk, meterchunks = self._standardize_chunks(mainchunk, meterchunks)
-        elif self.normalization_method == NORMALIZATION:
+        elif self.normalization_method == SupportedScalingMethods.NORMALIZATION:
             self._set_mmax(mainchunk)
             mainchunk, meterchunks = normalize_chunks(mainchunk, meterchunks, self.mmax)
 
@@ -490,9 +491,10 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
     def __init__(self, datasource: Datasource, building: int, device: str, dates: list = None,
                  window_size: int = 50, chunksize: int = 10 ** 10, mmax: float = None, means: float = None,
                  stds: float = None, meter_means: float = None, meter_stds: float = None, sample_period: int = None,
-                 normalization_method: str = STANDARDIZATION, noise_factor: float = None,
-                 preprocessing_method: str = SupportedPreprocessingMethods.ROLLING_WINDOW, subseq_window: int = None,
-                 fillna_method: str = SupportedFillingMethods.FILL_ZEROS,):
+                 normalization_method: SupportedScalingMethods = SupportedScalingMethods.STANDARDIZATION,
+                 noise_factor: float = None,
+                 preprocessing_method: SupportedPreprocessingMethods = SupportedPreprocessingMethods.ROLLING_WINDOW,
+                 subseq_window: int = None, fillna_method: str = SupportedFillingMethods.FILL_ZEROS,):
         super().__init__(datasource, building, device,
                          dates[0], dates[1], window_size,
                          mmax, means, stds, meter_means, meter_stds,
@@ -741,9 +743,9 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
                  window_size: int = 50, mmax: float = None, means: float = None, stds: float = None,
                  meter_means: float = None, meter_stds: float = None, sample_period: int = None,
                  chunksize: int = 10 ** 6, batch_size: int = 32, shuffle: bool = False,
-                 normalization_method: str = NORMALIZATION, noise_factor: float = None,
-                 preprocessing_method: str = SupportedPreprocessingMethods.ROLLING_WINDOW, subseq_window: int = None,
-                 fillna_method: str = SupportedFillingMethods.FILL_ZEROS,):
+                 normalization_method: SupportedScalingMethods = NORMALIZATION, noise_factor: float = None,
+                 preprocessing_method: SupportedPreprocessingMethods = SupportedPreprocessingMethods.ROLLING_WINDOW,
+                 subseq_window: int = None, fillna_method: str = SupportedFillingMethods.FILL_ZEROS,):
         self.batch_size = batch_size
         self.data_len = None
         super().__init__(datasource, building, device,
