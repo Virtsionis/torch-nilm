@@ -518,7 +518,7 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
     def compute_reconstruction_loss(vae_logit, x):
         return F.mse_loss(vae_logit.squeeze(), x.squeeze()).div(math.log(2))
 
-    def _forward_step(self, batch: Tensor):
+    def _forward_step(self, batch: Tensor) -> Tuple[float, float, float, float]:
         x, y = batch
         noise_dist, vae_logit, target_dists, target_logits = self(x)
         total_loss, reco_loss, class_loss, info_loss = self.compute_total_train_loss(vae_logit=vae_logit, x=x, y=y,
@@ -570,15 +570,10 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
         self.eval_params[COLUMN_GROUNDTRUTH] = grounds
 
     def _super_metrics(self, dev_index):
-        print(dev_index)
         preds = self.final_preds[:, :, :, dev_index].squeeze().cpu().numpy().reshape(-1)
         groundtruth = self.final_grounds[:, dev_index, :].squeeze().cpu().numpy().reshape(-1) #reshape(1,-1)[0]
-        print(preds.shape)
-        print(groundtruth.shape)
-        dev, mmax = self.eval_params[COLUMN_DEVICE][dev_index], self.eval_params[COLUMN_MMAX],
-
-        means = self.eval_params[COLUMN_MEANS]
-        stds = self.eval_params[COLUMN_STDS]
+        dev, mmax = self.eval_params[COLUMN_DEVICE][dev_index], self.eval_params[COLUMN_MMAX]
+        means, stds = self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
 
         if mmax:
             preds = denormalize(preds, mmax)
@@ -586,6 +581,8 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
         elif means and stds:
             preds = destandardize(preds, means, stds)
             ground = destandardize(groundtruth, means, stds)
+        else:
+            ground = np.array([])
 
         res = NILMmetrics(pred=preds,
                           ground=ground,

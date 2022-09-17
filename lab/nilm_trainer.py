@@ -9,7 +9,7 @@ from lab.training_tools import TrainingToolsFactory
 from utils.nilm_reporting import save_appliance_report
 from datasources.datasource import DatasourceFactory
 from datasources.torchdataset import ElectricityDataset, BaseElectricityMultiDataset
-from constants.enumerates import SupportedPreprocessingMethods, SupportedFillingMethods
+from constants.enumerates import SupportedPreprocessingMethods, SupportedFillingMethods, SupportedScalingMethods
 from pytorch_lightning.loggers import WandbLogger
 
 
@@ -17,7 +17,9 @@ def train_eval(model_name: str, train_loader: DataLoader, tests_params: pd.DataF
                batch_size: int, experiment_name: str, iteration: int, device: str, mmax: float,
                means: float, stds: float, meter_means: float, meter_stds: float, window_size: int, root_dir: str,
                model_hparams: dict, eval_params: dict, save_timeseries: bool = True, epochs: int = 5, callbacks=None,
-               val_loader: DataLoader = None, preprocessing_method: str = SupportedPreprocessingMethods.ROLLING_WINDOW,
+               val_loader: DataLoader = None,
+               preprocessing_method: SupportedPreprocessingMethods = SupportedPreprocessingMethods.ROLLING_WINDOW,
+               normalization_method: SupportedScalingMethods = SupportedScalingMethods.NORMALIZATION,
                fillna_method: str = SupportedFillingMethods.FILL_ZEROS, inference_cpu: bool = False,
                experiment_type: str = None, experiment_category: str = None, subseq_window: int = None,
                save_model: bool = False, saved_models_dir: str = DIR_SAVED_MODELS_NAME, model_index: int = None,
@@ -90,6 +92,7 @@ def train_eval(model_name: str, train_loader: DataLoader, tests_params: pd.DataF
                                           meter_means=meter_means, meter_stds=meter_stds,
                                           sample_period=sample_period,
                                           preprocessing_method=preprocessing_method,
+                                          normalization_method=normalization_method,
                                           fillna_method=fillna_method,)
 
         test_loader = DataLoader(test_dataset, batch_size=batch_size,
@@ -127,9 +130,10 @@ def train_eval_super(model_name: str, train_loader: DataLoader, tests_params: pd
                      means: float, stds: float, meter_means: float, meter_stds: float, window_size: int, root_dir: str,
                      model_hparams: dict, eval_params: dict, save_timeseries: bool = True, epochs: int = 5,
                      callbacks=None, val_loader: DataLoader = None,
-                     preprocessing_method: str = SupportedPreprocessingMethods.SEQ_T0_SEQ,
-                     fillna_method: str = SupportedFillingMethods.FILL_ZEROS, inference_cpu: bool = False,
-                     experiment_type: str = None, experiment_category: str = None, subseq_window: int = None,
+                     preprocessing_method: SupportedPreprocessingMethods = SupportedPreprocessingMethods.SEQ_T0_SEQ,
+                     normalization_method: SupportedScalingMethods = SupportedScalingMethods.NORMALIZATION,
+                     fillna_method: SupportedFillingMethods = SupportedFillingMethods.FILL_ZEROS,
+                     inference_cpu: bool = False, experiment_type: str = None, experiment_category: str = None, subseq_window: int = None,
                      save_model: bool = False, saved_models_dir: str = DIR_SAVED_MODELS_NAME, model_index: int = None,
                      save_preprocessing_params: bool = True, output_dir: str = DIR_OUTPUT_NAME,
                      progress_bar: bool = True, ):
@@ -175,7 +179,8 @@ def train_eval_super(model_name: str, train_loader: DataLoader, tests_params: pd
                                                    mmax=mmax, means=means, stds=stds,
                                                    meter_means=meter_means, meter_stds=meter_stds,
                                                    sample_period=sample_period,
-                                                   preprocessing_method=preprocessing_method, )
+                                                   preprocessing_method=preprocessing_method,
+                                                   normalization_method=normalization_method,)
 
         test_loader = DataLoader(test_dataset, batch_size=batch_size,
                                  shuffle=False, num_workers=8)

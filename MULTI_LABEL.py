@@ -9,7 +9,7 @@ experiment_parameters = {
     BATCH_SIZE: 512,
     ITERABLE_DATASET: False,
     PREPROCESSING_METHOD: SupportedPreprocessingMethods.ROLLING_WINDOW,
-    # SCALING_METHOD: SupportedScalingMethods.NORMALIZATION,
+    SCALING_METHOD: SupportedScalingMethods.NORMALIZATION,
     FIXED_WINDOW: 100,
     FILLNA_METHOD: SupportedFillingMethods.FILL_ZEROS,
     SUBSEQ_WINDOW: None,
@@ -20,31 +20,36 @@ experiment_parameters = {
 
 devices = [
     ElectricalAppliances.KETTLE,
-    ElectricalAppliances.MICROWAVE,
-    ElectricalAppliances.FRIDGE,
-    ElectricalAppliances.WASHING_MACHINE,
-    ElectricalAppliances.DISH_WASHER,
+    # ElectricalAppliances.MICROWAVE,
+    # ElectricalAppliances.FRIDGE,
+    # ElectricalAppliances.WASHING_MACHINE,
+    # ElectricalAppliances.DISH_WASHER,
     # ElectricalAppliances.OVEN,
     # ElectricalAppliances.LIGHT,
 ]
 
+prior_distributions = ['cauchy' for i in range(0, len(devices))]
 prior_weights = [0.01 for i in range(0, len(devices))]
 prior_noise = 0.01
 for i, dev in enumerate(devices):
     if dev == ElectricalAppliances.DISH_WASHER:
-        prior_weights[i] = 0.15# 0.1 sto 15 kai paei kala
+        prior_distributions[i] = LAPLACE_DIST
+        prior_weights[i] = 0.0077#0.15# 0.1 sto 15 kai paei kala
     elif dev == ElectricalAppliances.WASHING_MACHINE:
-        prior_weights[i] = 0.15#0.1 to krataw
+        prior_distributions[i] = LAPLACE_DIST
+        prior_weights[i] = 0.071#0.15#0.1 to krataw
     elif dev == ElectricalAppliances.FRIDGE:
-        prior_weights[i] = 0.001# 0.001 to krataw
+        prior_distributions[i] = STUDENT_T_DIST
+        prior_weights[i] = 0.022#0.001# 0.001 to krataw
     elif dev == ElectricalAppliances.KETTLE:
-        prior_weights[i] = 0.1# to krataw
+        prior_weights[i] = 0.0067#0.1# to krataw
     elif dev == ElectricalAppliances.MICROWAVE:
-        prior_weights[i] = 0.001#0.1# 0.001 sto 15 kai paei kala
+        prior_weights[i] = 0.0077#0.001#0.1# 0.001 sto 15 kai paei kala
 
 prior_noise = 1 - sum(prior_weights)
 
 print('prior_weights: ', prior_weights)
+print('prior_distributions: ', prior_distributions)
 print('prior_noise: ', prior_noise)
 
 experiment_categories = [
@@ -65,6 +70,7 @@ model_hparams = [
         'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
                     'alpha': 0*1e-2, 'beta': 1e-3, 'gamma': 1e-1, 'dae_output_dim': experiment_parameters[FIXED_WINDOW],
                     'max_noise': 0.1, 'prior_weights': prior_weights, 'prior_noise': prior_noise,
+                    'prior_distributions': prior_distributions,
                     },
     },
     {

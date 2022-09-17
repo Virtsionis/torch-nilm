@@ -433,6 +433,7 @@ class NILMExperiments:
         self.batch_size = 256
         self.iterable_dataset = False
         self._set_preprocessing_method(SupportedPreprocessingMethods.ROLLING_WINDOW)
+        self._set_scaling_method(SupportedScalingMethods.NORMALIZATION)
         self._set_fillna_method(SupportedFillingMethods.FILL_ZEROS)
         self.fixed_window = 100
         self.subseq_window = None
@@ -447,6 +448,7 @@ class NILMExperiments:
             self.iterations = experiment_parameters[ITERATIONS]
             self.inference_cpu = experiment_parameters[INFERENCE_CPU]
             self._set_preprocessing_method(experiment_parameters[PREPROCESSING_METHOD])
+            self._set_scaling_method(experiment_parameters[SCALING_METHOD])
             self._set_fillna_method(experiment_parameters[FILLNA_METHOD])
             self.sample_period = experiment_parameters[SAMPLE_PERIOD]
             self.batch_size = experiment_parameters[BATCH_SIZE]
@@ -497,6 +499,14 @@ class NILMExperiments:
         else:
             warnings.warn('Preprocessing method was not properly defined. So, ROLLING_WINDOW is used by default.')
             self.preprocessing_method = SupportedPreprocessingMethods.ROLLING_WINDOW
+
+    def _set_scaling_method(self, scaling_method: SupportedScalingMethods = None):
+        if scaling_method and isinstance(scaling_method, SupportedScalingMethods):
+            self.scaling_method = scaling_method
+        else:
+            warnings.warn('Scaling method was not properly defined. So, NORMALIZATION is used by default.')
+            self.scaling_method = SupportedScalingMethods.NORMALIZATION
+
 
     def _set_fillna_method(self, fillna_method: SupportedFillingMethods = None):
         if fillna_method and isinstance(fillna_method, SupportedFillingMethods):
@@ -580,6 +590,7 @@ class NILMExperiments:
                                                              window_size=window,
                                                              sample_period=self.sample_period,
                                                              preprocessing_method=self.preprocessing_method,
+                                                             normalization_method=self.normalization_method,
                                                              fillna_method=self.fillna_method,
                                                              subseq_window=self.subseq_window,)
         return train_dataset_all
@@ -611,6 +622,7 @@ class NILMExperiments:
                                                                    dates=train_dates,
                                                                    sample_period=self.sample_period,
                                                                    preprocessing_method=self.preprocessing_method,
+                                                                   normalization_method=self.normalization_method,
                                                                    fillna_method=self.fillna_method,
                                                                    subseq_window=self.subseq_window,
                                                                    noise_factor=self.noise_factor)
@@ -622,6 +634,7 @@ class NILMExperiments:
                                                            dates=train_dates,
                                                            sample_period=self.sample_period,
                                                            preprocessing_method=self.preprocessing_method,
+                                                           normalization_method=self.normalization_method,
                                                            fillna_method=self.fillna_method,
                                                            subseq_window=self.subseq_window,
                                                            noise_factor=self.noise_factor)
@@ -632,6 +645,7 @@ class NILMExperiments:
                                                              window_size=window,
                                                              sample_period=self.sample_period,
                                                              preprocessing_method=self.preprocessing_method,
+                                                             normalization_method=self.normalization_method,
                                                              fillna_method=self.fillna_method,
                                                              subseq_window=self.subseq_window,
                                                              noise_factor=self.noise_factor)
@@ -720,6 +734,7 @@ class NILMExperiments:
             BATCH_SIZE: self.batch_size,
             ITERATION: iteration,
             PREPROCESSING_METHOD: self.preprocessing_method,
+            NORMALIZATION: self.normalization_method,
             FILLNA_METHOD: self.fillna_method,
             INFERENCE_CPU: self.inference_cpu,
             ROOT_DIR: self.project_name,
@@ -1270,7 +1285,8 @@ class NILMSuperExperiments(NILMExperiments):
                                                                     sample_period=self.sample_period,
                                                                     subseq_window=self.subseq_window,
                                                                     noise_factor=self.noise_factor,
-                                                                    preprocessing_method=self.preprocessing_method, )
+                                                                    preprocessing_method=self.preprocessing_method,
+                                                                    normalization_method=self.scaling_method)
                 return train_dataset_all
         file.close()
         # TODO: Multi buildings version for BaseElectricityMultiDataset

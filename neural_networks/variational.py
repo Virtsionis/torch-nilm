@@ -3,7 +3,7 @@ from torch import nn
 from numbers import Number
 import torch.nn.functional as F
 
-from constants.constants import GPU_NAME
+from constants.constants import GPU_NAME, CAUCHY_DIST, NORMAL_DIST, LOGNORMAL_DIST, STUDENT_T_DIST, LAPLACE_DIST
 from neural_networks.base_models import BaseModel
 from neural_networks.custom_modules import VIBDecoder
 from neural_networks.models import Seq2Point, LinearDropRelu, ConvDropRelu, NFED, SAED, WGRU, SimpleGru, DAE, ConvDAE
@@ -28,7 +28,17 @@ class VIBNet(BaseModel):
     def supports_vib(self) -> bool:
         return True
 
-    def reparametrize_n(self, mu, std, current_epoch, n=1, max_noise=1e-1):
+    @staticmethod
+    def data_distribution_type(distribution):
+        return {
+            NORMAL_DIST: torch.distributions.Normal,
+            LOGNORMAL_DIST: torch.distributions.LogNormal,
+            CAUCHY_DIST: torch.distributions.Cauchy,
+            STUDENT_T_DIST: torch.distributions.StudentT,
+            LAPLACE_DIST: torch.distributions.Laplace,
+        }.get(distribution)
+
+    def reparametrize_n(self, mu, std, current_epoch, n=1, max_noise=1e-1, distribution=NORMAL_DIST):
         # reference :
         # http://pytorch.org/docs/0.3.1/_modules/torch/distributions.html#Distribution.sample_n
         def expand(v):
@@ -43,9 +53,9 @@ class VIBNet(BaseModel):
         device = self.get_device()
 
         noise_rate = torch.tanh(torch.tensor(current_epoch))
+
         if current_epoch > 0:
-            noise_distribution = torch.distributions.Normal(0, noise_rate * max_noise)
-            # noise_distribution = torch.distributions.LogNormal(0, noise_rate * max_noise)
+            noise_distribution = self.data_distribution_type(distribution)(0, scale=noise_rate * max_noise)
             eps = noise_distribution.sample(std.size()).to(device)
         else:
             eps = torch.tensor(0).to(device)
@@ -64,7 +74,7 @@ class VIBNet(BaseModel):
 class VIB_SAED(SAED, VIBNet):
     def __init__(self, window_size, mode='dot', hidden_dim=16,
                  num_heads=1, dropout=0, bidirectional=True, lr=None, K=32, max_noise=0.1, output_dim=1):
-        super(VIB_SAED, self).__init__(window_size, mode, hidden_dim, num_heads,\
+        super(VIB_SAED, self).__init__(window_size, mode, hidden_dim, num_heads,
                                        dropout, bidirectional, lr, output_dim=1)
         self.max_noise = max_noise
         self.K = K
@@ -252,8 +262,13 @@ class SuperVAE(DAE, VIBNet):
         return True
 
     def __init__(self, input_dim, dropout=0, distribution_dim=16, targets_num=1, max_noise=0.1, output_dim=1,
-                 dae_output_dim=50, prior_weights=[], prior_noise=None, alpha=1, beta=1e-5, gamma=1e-2, ):
+                 dae_output_dim=50, prior_weights=None, prior_distributions=None, prior_noise=None, alpha=1, beta=1e-5,
+                 gamma=1e-2, default_distribution=NORMAL_DIST):
         super(SuperVAE, self).__init__(input_dim=input_dim, dropout=dropout, output_dim=dae_output_dim,)
+        if prior_distributions is None:
+            prior_distributions = []
+        if prior_weights is None:
+            prior_weights = []
         self.architecture_name = 'SuperVAE'
         """
         :param input_dim:
@@ -266,6 +281,8 @@ class SuperVAE(DAE, VIBNet):
         self.device = self.get_device()
 
         self.max_noise = max_noise
+        self.default_distribution = default_distribution
+
         if distribution_dim % 2 > 0:
             distribution_dim += 1
         self.distribution_dim = distribution_dim
@@ -281,7 +298,12 @@ class SuperVAE(DAE, VIBNet):
         if prior_weights:
             self.prior_weights = prior_weights
         else:
-            self.prior_weights = [self.max_noise for i in range(0, len(self.targets_num))]
+            self.prior_weights = [self.max_noise for i in range(0, self.targets_num)]
+
+        if prior_distributions:
+            self.prior_distributions = prior_distributions
+        else:
+            self.prior_distributions = [self.default_distribution for i in range(0, self.targets_num)]
 
         self.latent_dim = (self.targets_num + 1) * self.distribution_dim
         self.bottleneck_layer = LinearDropRelu(input_dim // 2, 2 * self.latent_dim, dropout)
@@ -310,7 +332,7 @@ class SuperVAE(DAE, VIBNet):
 
         noise_dist, noise_encoding, target_dists, target_encodings = self.get_distributions(statistics,
                                                                                             num_sample,
-                                                                                            current_epoch)
+                                                                                            current_epoch,)
         encodings = torch.cat((noise_encoding.unsqueeze(-1), target_encodings), -1).reshape(noise_encoding.shape[0],
                                                                                             self.latent_dim)
         encoding = self.reshape(encodings)
@@ -341,7 +363,7 @@ class SuperVAE(DAE, VIBNet):
             std = F.softplus(statistics[:, (i+2) * self.distribution_dim: (i+3) * self.distribution_dim], beta=1)
             target_dists.append((mu, std))
             target_encoding = self.reparametrize_n(mu, std, current_epoch,
-                                                   num_sample, self.prior_weights[i])
+                                                   num_sample, self.prior_weights[i], self.prior_distributions[i])
             if i == 0:
                 target_encodings = target_encoding.unsqueeze(2).to(self.device)
             else:
@@ -361,8 +383,13 @@ class SuperVAE2(DAE, VIBNet):
         return True
 
     def __init__(self, input_dim, dropout=0, distribution_dim=16, targets_num=1, max_noise=0.1, output_dim=1,
-                 dae_output_dim=50, prior_weights=[], prior_noise=None, alpha=1, beta=1e-5, gamma=1e-2, ):
+                 dae_output_dim=50, prior_weights=None, prior_noise=None, prior_distributions=None, alpha=1, beta=1e-5,
+                 gamma=1e-2, default_distribution=NORMAL_DIST):
         super(SuperVAE2, self).__init__(input_dim=input_dim, dropout=dropout, output_dim=dae_output_dim,)
+        if prior_weights is None:
+            prior_weights = []
+        if prior_distributions is None:
+            prior_distributions = []
         self.architecture_name = 'SuperVAE2'
         """
         :param input_dim:
@@ -391,6 +418,12 @@ class SuperVAE2(DAE, VIBNet):
             self.prior_weights = prior_weights
         else:
             self.prior_weights = [self.max_noise for i in range(0, len(self.targets_num))]
+
+        self.default_distribution = default_distribution
+        if prior_distributions:
+            self.prior_distributions = prior_distributions
+        else:
+            self.prior_distributions = [self.default_distribution for i in range(0, self.targets_num)]
 
         self.latent_dim = (self.targets_num + 1) * self.distribution_dim
         self.bottleneck_layer = LinearDropRelu(input_dim // 2, 2 * self.latent_dim, dropout)
@@ -452,7 +485,7 @@ class SuperVAE2(DAE, VIBNet):
             std = F.softplus(statistics[:, (i+2) * self.distribution_dim: (i+3) * self.distribution_dim], beta=1)
             target_dists.append((mu, std))
             target_encoding = self.reparametrize_n(mu, std, current_epoch,
-                                                   num_sample, self.prior_weights[i])
+                                                   num_sample, self.prior_weights[i], self.prior_distributions[i])
             if i == 0:
                 target_encodings = target_encoding.unsqueeze(2).to(self.device)
             else:
@@ -613,8 +646,13 @@ class SuperVAE1b(ConvDAE, VIBNet):
         return True
 
     def __init__(self, input_dim, dropout=0, distribution_dim=16, targets_num=1, max_noise=0.1, output_dim=1,
-                 dae_output_dim=50, prior_weights=[], prior_noise=None, alpha=1, beta=1e-5, gamma=1e-2, ):
+                 dae_output_dim=50, prior_weights=None, prior_distributions=None, prior_noise=None, alpha=1, beta=1e-5,
+                 gamma=1e-2, default_distribution=NORMAL_DIST):
 
+        if prior_weights is None:
+            prior_weights = []
+        if prior_distributions is None:
+            prior_distributions = []
         self.architecture_name = 'SuperVAE1b'
         """
         :param input_dim:
@@ -642,7 +680,13 @@ class SuperVAE1b(ConvDAE, VIBNet):
         if prior_weights:
             self.prior_weights = prior_weights
         else:
-            self.prior_weights = [self.max_noise for i in range(0, len(self.targets_num))]
+            self.prior_weights = [self.max_noise for i in range(0, self.targets_num)]
+
+        self.default_distribution = default_distribution
+        if prior_distributions:
+            self.prior_distributions = prior_distributions
+        else:
+            self.prior_distributions = [self.default_distribution for i in range(0, self.targets_num)]
 
         self.latent_dim = (self.targets_num + 1) * self.distribution_dim
 
@@ -699,7 +743,7 @@ class SuperVAE1b(ConvDAE, VIBNet):
                              beta=1)
             target_dists.append((mu, std))
             target_encoding = self.reparametrize_n(mu, std, current_epoch,
-                                                   num_sample, self.prior_weights[i])
+                                                   num_sample, self.prior_weights[i], self.prior_distributions[i])
             if i == 0:
                 target_encodings = target_encoding.unsqueeze(2).to(self.device)
             else:
