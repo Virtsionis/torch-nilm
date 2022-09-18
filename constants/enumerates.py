@@ -41,6 +41,7 @@ class ElectricalAppliances(Enum):
     OVEN = 'oven'
     LIGHT = 'light'
     ELECTRIC_HEATER = 'electric space heater'
+    TELEVISION = 'television'
 
 
 class SupportedExperimentVolumes(Enum):

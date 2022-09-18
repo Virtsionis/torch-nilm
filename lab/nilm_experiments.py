@@ -507,7 +507,6 @@ class NILMExperiments:
             warnings.warn('Scaling method was not properly defined. So, NORMALIZATION is used by default.')
             self.scaling_method = SupportedScalingMethods.NORMALIZATION
 
-
     def _set_fillna_method(self, fillna_method: SupportedFillingMethods = None):
         if fillna_method and isinstance(fillna_method, SupportedFillingMethods):
             self.fillna_method = fillna_method
@@ -1339,6 +1338,7 @@ class NILMSuperExperiments(NILMExperiments):
             BATCH_SIZE: self.batch_size,
             ITERATION: iteration,
             PREPROCESSING_METHOD: self.preprocessing_method,
+            NORMALIZATION_METHOD: self.scaling_method,
             FILLNA_METHOD: self.fillna_method,
             INFERENCE_CPU: self.inference_cpu,
             ROOT_DIR: self.project_name,
