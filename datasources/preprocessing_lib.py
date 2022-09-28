@@ -183,8 +183,8 @@ def standardize_chunks_lists(mainchunk: np.array, meterchunks: list, mains_mean:
         mains_std = mainchunk.std()
 
     if meter_mean is None and meter_std is None:
-        meter_mean = meterchunks[0].mean()
-        meter_std = meterchunks[0].std()
+        meter_mean = mainchunk.mean()
+        meter_std = mainchunk.std()
 
     mainchunk = (mainchunk - mains_mean) / mains_std
     meterchunks = [(meterchunk - meter_mean) / meter_std for meterchunk in meterchunks]

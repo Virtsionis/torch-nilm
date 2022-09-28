@@ -1,4 +1,5 @@
 import torch
+import warnings
 from abc import ABC
 from typing import Iterator
 from collections import deque
@@ -72,6 +73,7 @@ class BaseElectricityDataset(ABC):
         (depends on the chosen normalization method) and the creation of windows if preprocessing_method and window_size
         are specified. The feeding of the preprocessed data is taken care of the pytorch dataloader.
     """
+
     def __init__(self, datasource: Datasource, building: int, device: str, start_date: str,
                  end_date: str, window_size: int = 50, mmax: float = None, means: float = None, stds: float = None,
                  meter_means: float = None, meter_stds: float = None, sample_period: int = None, chunksize: int = 10000,
@@ -269,11 +271,15 @@ class BaseElectricityMultiDataset(Dataset, ABC):
         (depends on the chosen normalization method) and the creation of windows if preprocessing_method and window_size
         are specified. The feeding of the preprocessed data is taken care of the pytorch dataloader.
     """
+
     def __init__(self, datasource: Datasource, building: int, devices: list, start_date: str,
                  end_date: str, window_size: int = 50, mmax: float = None, means: float = None, stds: float = None,
-                 meter_means: float = None, meter_stds: float = None, sample_period: int = None, chunksize: int = 10**6,
-                 shuffle: bool = False, normalization_method: SupportedScalingMethods = SupportedScalingMethods.STANDARDIZATION,
-                 preprocessing_method: SupportedPreprocessingMethods = SupportedPreprocessingMethods.SEQ_T0_SEQ, subseq_window: int = None,
+                 meter_means: float = None, meter_stds: float = None, sample_period: int = None,
+                 chunksize: int = 10 ** 6,
+                 shuffle: bool = False,
+                 normalization_method: SupportedScalingMethods = SupportedScalingMethods.STANDARDIZATION,
+                 preprocessing_method: SupportedPreprocessingMethods = SupportedPreprocessingMethods.SEQ_T0_SEQ,
+                 subseq_window: int = None,
                  fillna_method: str = SupportedFillingMethods.FILL_ZEROS, noise_factor: float = None):
         self.building = building
         self.devices = devices
@@ -300,6 +306,7 @@ class BaseElectricityMultiDataset(Dataset, ABC):
         self.noise_factor = noise_factor
         self._run()
         print(normalization_method)
+
     def _run(self):
         self._init_generators(datasource=self.datasource,
                               building=self.building,
@@ -323,8 +330,8 @@ class BaseElectricityMultiDataset(Dataset, ABC):
             self.stds = mainchunk.std()
 
         if self.meter_means is None and self.meter_stds is None and len(meterchunk):
-            self.meter_means = meterchunk.mean()
-            self.meter_stds = meterchunk.std()
+            self.meter_means = mainchunk.mean()
+            self.meter_stds = mainchunk.std()
 
     def __getitem__(self, i):
         x = self.mainchunk
@@ -345,13 +352,21 @@ class BaseElectricityMultiDataset(Dataset, ABC):
         self.appliance_generators = []
         for device in devices:
             print('Load Appliance: ', device)
-            self.appliance_generator = self.datasource.get_appliance_generator(appliance=device,
-                                                                               start=start_date,
-                                                                               end=end_date,
-                                                                               sample_period=sample_period,
-                                                                               building=building,
-                                                                               chunksize=chunksize)
-            self.appliance_generators.append(self.appliance_generator)
+            try:
+                self.appliance_generator = self.datasource.get_appliance_generator(appliance=device,
+                                                                                   start=start_date,
+                                                                                   end=end_date,
+                                                                                   sample_period=sample_period,
+                                                                                   building=building,
+                                                                                   chunksize=chunksize)
+                self.appliance_generators.append(self.appliance_generator)
+
+            except Exception as e:
+                warnings.warn(str(e))
+                warnings.warn('No data for device: {}. Created a zero timeseries instead.'.format(device))
+                # zeros_gen = (series*0 for series in enumerate(self.mains_generator))
+                # self.appliance_generators.append(zeros_gen)
+
         if len(self.appliance_generators) < 1:
             raise Exception('No appliance generators exist')
 
@@ -385,7 +400,15 @@ class BaseElectricityMultiDataset(Dataset, ABC):
                 self._set_means_stds(mainchunk, meterchunks[0])
             mainchunk, meterchunks = self._standardize_chunks(mainchunk, meterchunks)
         elif self.normalization_method == SupportedScalingMethods.NORMALIZATION:
-            self._set_mmax(mainchunk)
+            if None in [self.mmax]:
+                self._set_mmax(mainchunk)
+            mainchunk, meterchunks = normalize_chunks(mainchunk, meterchunks, self.mmax)
+        elif self.normalization_method == SupportedScalingMethods.MIXED:
+            if None in [self.means, self.meter_means, self.meter_stds, self.stds]:
+                self._set_means_stds(mainchunk, meterchunks[0])
+            mainchunk, meterchunks = self._standardize_chunks(mainchunk, meterchunks)
+            if None in [self.mmax]:
+                self._set_mmax(mainchunk)
             mainchunk, meterchunks = normalize_chunks(mainchunk, meterchunks, self.mmax)
 
         if self.preprocessing_method == SupportedPreprocessingMethods.ROLLING_WINDOW:
@@ -488,19 +511,20 @@ class ElectricityDataset(BaseElectricityDataset, Dataset):
 
         trainer.fit(model, train_loader, val_loader)
     """
+
     def __init__(self, datasource: Datasource, building: int, device: str, dates: list = None,
                  window_size: int = 50, chunksize: int = 10 ** 10, mmax: float = None, means: float = None,
                  stds: float = None, meter_means: float = None, meter_stds: float = None, sample_period: int = None,
                  normalization_method: SupportedScalingMethods = SupportedScalingMethods.STANDARDIZATION,
                  noise_factor: float = None,
                  preprocessing_method: SupportedPreprocessingMethods = SupportedPreprocessingMethods.ROLLING_WINDOW,
-                 subseq_window: int = None, fillna_method: str = SupportedFillingMethods.FILL_ZEROS,):
+                 subseq_window: int = None, fillna_method: str = SupportedFillingMethods.FILL_ZEROS, ):
         super().__init__(datasource, building, device,
                          dates[0], dates[1], window_size,
                          mmax, means, stds, meter_means, meter_stds,
                          sample_period, chunksize, normalization_method=normalization_method,
                          preprocessing_method=preprocessing_method, subseq_window=subseq_window,
-                         fillna_method=fillna_method, noise_factor=noise_factor,)
+                         fillna_method=fillna_method, noise_factor=noise_factor, )
 
 
 class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
@@ -584,6 +608,7 @@ class ElectricityMultiBuildingsDataset(BaseElectricityDataset, Dataset):
         trainer.fit(model, train_loader, val_loader)
 
     """
+
     def __init__(self, train_info: list = None, window_size: int = 50, chunksize: int = 10 ** 10, mmax: float = None,
                  means: float = None, stds: float = None, meter_means: float = None, meter_stds: float = None,
                  sample_period: int = None, normalization_method=STANDARDIZATION, **load_kwargs):
@@ -739,13 +764,14 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
         b. For the pytorch dataloader to work properly with iterable datasets, shuffle must be False
         c. Iterable datasets don't support dataloader with shuffle=True
     """
+
     def __init__(self, datasource: Datasource, building: int, device: str, dates: list = None,
                  window_size: int = 50, mmax: float = None, means: float = None, stds: float = None,
                  meter_means: float = None, meter_stds: float = None, sample_period: int = None,
                  chunksize: int = 10 ** 6, batch_size: int = 32, shuffle: bool = False,
                  normalization_method: SupportedScalingMethods = NORMALIZATION, noise_factor: float = None,
                  preprocessing_method: SupportedPreprocessingMethods = SupportedPreprocessingMethods.ROLLING_WINDOW,
-                 subseq_window: int = None, fillna_method: str = SupportedFillingMethods.FILL_ZEROS,):
+                 subseq_window: int = None, fillna_method: str = SupportedFillingMethods.FILL_ZEROS, ):
         self.batch_size = batch_size
         self.data_len = None
         super().__init__(datasource, building, device,
@@ -754,7 +780,7 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
                          meter_means, meter_stds, sample_period,
                          chunksize, shuffle, normalization_method=normalization_method,
                          preprocessing_method=preprocessing_method, subseq_window=subseq_window,
-                         fillna_method=fillna_method, noise_factor=noise_factor,)
+                         fillna_method=fillna_method, noise_factor=noise_factor, )
 
     def _run(self):
         self._calc_data_len()
@@ -833,4 +859,3 @@ class ElectricityIterableDataset(BaseElectricityDataset, IterableDataset):
     @staticmethod
     def _should_partition(worker_info):
         return worker_info is not None and worker_info.num_workers > 1
-

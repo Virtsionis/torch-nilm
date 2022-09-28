@@ -66,4 +66,5 @@ class SupportedFillingMethods(Enum):
 class SupportedScalingMethods(Enum):
     STANDARDIZATION = 'standardization'
     NORMALIZATION = 'normalization'
+    MIXED = 'mixed'
 
