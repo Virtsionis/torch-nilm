@@ -2,7 +2,7 @@ from neural_networks.vae_nilm import VAE
 from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, NFED, DAE, ConvDAE
 
 from neural_networks.variational import VIBNFED, VIB_SAED, VIBSeq2Point, VIB_SimpleGru, VIBWGRU, MyVAE, SuperVAE, \
-    SuperVAE2, SuperVAE1b
+    SuperVAE2, SuperVAE1b, SuperVAE1blight, SuperEncoder
 
 from neural_networks.bayesian import BayesSimpleGru, BayesSeq2Point, BayesWGRU, BayesNFED, BayesSAED
 from neural_networks.bert import BERT4NILM, CUT_OFF, MIN_OFF_DUR, MIN_ON_DUR, POWER_ON_THRESHOLD, LAMBDA
@@ -30,5 +30,7 @@ ACTIVE_MODELS = {'WGRU': WGRU,
                  'SuperVAE': SuperVAE,
                  'SuperVAE2': SuperVAE2,
                  'SuperVAE1b': SuperVAE1b,
+                 'SuperEncoder': SuperEncoder,
+                 'SuperVAE1blight': SuperVAE1blight,
                  'ConvDAE': ConvDAE,
                  }

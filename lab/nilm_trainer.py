@@ -3,6 +3,9 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 import pytorch_lightning as pl
+import wandb
+import torch
+
 from constants.constants import*
 from torch.utils.data import DataLoader
 from lab.training_tools import TrainingToolsFactory
@@ -136,25 +139,29 @@ def train_eval_super(model_name: str, train_loader: DataLoader, tests_params: pd
                      inference_cpu: bool = False, experiment_type: str = None, experiment_category: str = None, subseq_window: int = None,
                      save_model: bool = False, saved_models_dir: str = DIR_SAVED_MODELS_NAME, model_index: int = None,
                      save_preprocessing_params: bool = True, output_dir: str = DIR_OUTPUT_NAME,
-                     progress_bar: bool = True, ):
+                     progress_bar: bool = True, gradient_clip_val=0.5, gradient_clip_algorithm='norm'):
     """
     Inputs:
         model_name - Name of the model you want to run.
             It's used to look up the class in "model_dict"
     """
-
-    wandb_logger = WandbLogger(name='SuperVAE1bc_{}'.format(str(iteration)), project='nikos')
+    date = str(datetime.now().strftime("%Y%m%d-%H:%M"))
+    wandb_logger = WandbLogger(name='{}_GridSearch_iter{}_{}'.format(model_name, str(iteration), str(date)),
+                               project='SuperVae')
 
     if progress_bar:
         trainer = pl.Trainer(gpus=1, max_epochs=epochs, auto_lr_find=True, callbacks=callbacks, precision=16,
-                             logger=wandb_logger)
+                             logger=wandb_logger, gradient_clip_val=gradient_clip_val,
+                             gradient_clip_algorithm=gradient_clip_algorithm)
     else:
         trainer = pl.Trainer(gpus=1, max_epochs=epochs, auto_lr_find=True, callbacks=callbacks, precision=16,
-                             progress_bar_refresh_rate=0, logger=wandb_logger)
+                             progress_bar_refresh_rate=0, logger=wandb_logger,  gradient_clip_val=gradient_clip_val,
+                             gradient_clip_algorithm=gradient_clip_algorithm)
 
     model = TrainingToolsFactory.build_and_equip_model(model_name=model_name,
                                                        model_hparams=model_hparams,
                                                        eval_params=eval_params)
+    wandb_logger.watch(model, log='all')
     if val_loader:
         trainer.fit(model, train_loader, val_loader)
     else:
@@ -208,37 +215,4 @@ def train_eval_super(model_name: str, train_loader: DataLoader, tests_params: pd
                                   iteration=iteration, model_results=model_results, model_hparams=model_hparams,
                                   epochs=epochs, model_index=model_index)
             print('REPORT SAVED')
-#
-#
-# def compute_metrics(res):
-#     def f1_score_from_stats(tp, fp, fn, average='micro'):
-#         assert len(tp) == len(fp)
-#         assert len(fp) == len(fn)
-#
-#         if average not in set(['micro', 'macro']):
-#             raise ValueError("Specify micro or macro")
-#
-#         if average == 'micro':
-#             f1 = 2 * np.sum(tp) / \
-#                  float(2 * np.sum(tp) + np.sum(fp) + np.sum(fn))
-#
-#         elif average == 'macro':
-#
-#             def safe_div(a, b):
-#                 """ ignore / 0, div0( [-1, 0, 1], 0 ) -> [0, 0, 0] """
-#                 with np.errstate(divide='ignore', invalid='ignore'):
-#                     c = np.true_divide(a, b)
-#                 return c[np.isfinite(c)]
-#
-#             f1 = np.mean(safe_div(2 * tp, 2 * tp + fp + fn))
-#
-#         return f1
-#
-#     mif1 = round(f1_score_from_stats(tp, fp, fn, average='micro'), 4)
-#     maf1 = round(f1_score_from_stats(tp, fp, fn, average='macro'), 4)
-#
-#     return mif1, maf1
-
-
-
-
+    # wandb.finish()

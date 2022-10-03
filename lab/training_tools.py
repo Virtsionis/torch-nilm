@@ -2,6 +2,7 @@ import math
 import torch
 import numpy as np
 import torch.nn as nn
+from pytorch_lightning.loggers import wandb
 from torch import Tensor
 from typing import Dict, Tuple
 import pytorch_lightning as pl
@@ -459,10 +460,17 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
             self.gamma = model_hparams['gamma']
         else:
             self.gamma = gamma
+        if 'lr' in model_hparams.keys():
+            self.lr = model_hparams['lr']
+        else:
+            self.lr = 1e-3
         print('ALPHA = ', self.alpha)
         print('BETA = ', self.beta)
         print('GAMMA = ', self.gamma)
-        print('loss = {}*reco_loss + {}*class_loss + {}*info_loss'.format(self.alpha, self.beta, self.gamma))
+        print('loss = {}*reco_loss + {}*info_loss + {}*class_loss'.format(self.alpha, self.beta, self.gamma))
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=self.lr)
 
     def forward(self, x):
         # Forward function that is run when visualizing the graph
@@ -478,11 +486,11 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
                                                                                      target_logits=target_logits,
                                                                                      noise_dist=noise_dist,
                                                                                      target_dists=target_dists)
-        self.log('reco_loss', reco_loss, prog_bar=True, on_epoch=True)
-        self.log('class_loss', class_loss, prog_bar=True, on_epoch=True)
-        self.log('info_loss', info_loss, prog_bar=True, on_epoch=True)
-        self.log('total_loss', total_loss, prog_bar=True, on_epoch=True)
-        return {'loss': total_loss}
+        self.log('reco_loss', reco_loss, prog_bar=True, on_epoch=True, on_step=False)
+        self.log('class_loss', class_loss, prog_bar=True, on_epoch=True, on_step=False)
+        self.log('info_loss', info_loss, prog_bar=True, on_epoch=True, on_step=False)
+        self.log('total_loss', total_loss, prog_bar=True, on_epoch=True, on_step=False)
+        return {'loss': total_loss, 'reco_loss': reco_loss, 'class_loss': class_loss, 'info_loss': info_loss}
 
     def compute_total_train_loss(self, vae_logit, x, y, target_logits, noise_dist, target_dists):
         reco_loss = self.compute_reconstruction_loss(vae_logit=vae_logit, x=x)
@@ -497,13 +505,13 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
 
     @staticmethod
     def compute_info_loss(noise_dist, target_dists):
-        info_loss = 0
         # mu, std = noise_dist[0], noise_dist[1]
         # info_loss = -0.5 * (1 + 2 * std.log() - mu.pow(2) - std.pow(2)).sum(1).mean().div(math.log(2))
+        # return info_loss
+        info_loss = 0
         for (mu, std) in target_dists:
             info_loss += -0.5 * (1 + 2 * std.log() - mu.pow(2) - std.pow(2)).sum(1).mean().div(math.log(2))
-
-        return info_loss / len(target_dists)
+        return info_loss / (len(target_dists))
 
     @staticmethod
     def compute_class_loss(y, target_logits):
@@ -512,11 +520,12 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
         for i in range(target_logits.shape[-1]):
             logit = target_logits[:, :, :, i].squeeze(1)
             class_loss += F.mse_loss(logit, y[:, i, :]).div(math.log(2))
-        return class_loss
+        return class_loss #/ len(target_logits)
 
     @staticmethod
     def compute_reconstruction_loss(vae_logit, x):
         return F.mse_loss(vae_logit.squeeze(), x.squeeze()).div(math.log(2))
+        # return 0
 
     def _forward_step(self, batch: Tensor) -> Tuple[float, float, float, float]:
         x, y = batch
@@ -530,10 +539,10 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
     def validation_step(self, val_batch: Tensor, batch_idx: int) -> Dict:
         total_loss, reco_loss, class_loss, info_loss = self._forward_step(val_batch)
         val_loss = total_loss
-        self.log(VAL_LOSS, val_loss, prog_bar=True, on_epoch=True)
-        self.log("val_reco_loss", reco_loss, prog_bar=True, on_epoch=True)
-        self.log("val_class_loss", class_loss, prog_bar=True, on_epoch=True)
-        self.log("val_info_loss", info_loss, prog_bar=True, on_epoch=True)
+        self.log(VAL_LOSS, val_loss, prog_bar=True, on_epoch=True, on_step=False)
+        self.log("val_reco_loss", reco_loss, prog_bar=False, on_epoch=True, on_step=False)
+        self.log("val_class_loss", class_loss, prog_bar=False, on_epoch=True, on_step=False)
+        self.log("val_info_loss", info_loss, prog_bar=False, on_epoch=True, on_step=False)
         return {"val_loss": val_loss}
 
     def test_step(self, batch, batch_idx):
@@ -564,6 +573,7 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
             print('#### appliance: {} ####'.format(res[i][COLUMN_DEVICE]))
             print('metrics: {}'.format(res[i][COLUMN_METRICS]))
         self.final_preds = []
+        # self.export_model_graph()
         return res
 
     def set_ground(self, grounds):
@@ -575,7 +585,12 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
         dev, mmax = self.eval_params[COLUMN_DEVICE][dev_index], self.eval_params[COLUMN_MMAX]
         means, stds = self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
 
-        if mmax:
+        if mmax and means and stds:
+            preds = denormalize(preds, mmax)
+            preds = destandardize(preds, means, stds)
+            ground = denormalize(groundtruth, mmax)
+            ground = destandardize(ground, means, stds)
+        elif mmax:
             preds = denormalize(preds, mmax)
             ground = denormalize(groundtruth, mmax)
         elif means and stds:
@@ -595,3 +610,9 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
                    COLUMN_DEVICE: dev,
                    }
         return results
+
+    def export_model_graph(self):
+        dummy_input = torch.zeros([512, 100]).to(self.device)
+        model_filename = "model_final.onnx"
+        self.to_onnx(model_filename, dummy_input, export_params=True)
+        wandb.save(filename=model_filename)

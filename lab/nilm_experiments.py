@@ -1220,6 +1220,7 @@ class NILMSuperExperiments(NILMExperiments):
 
         for experiment_category in self.experiment_categories:
             print('EXPERIMENT CATEGORY: ', experiment_category)
+            print(self.models)
             for model_name in self.models:
                 model_hparams = self.model_hparams.get_model_params(model_name)
                 model_hparams, window = self._calculate_model_window(model_hparams=model_hparams,

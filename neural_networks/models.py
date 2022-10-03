@@ -4,7 +4,7 @@ import torch.nn as nn
 from torchnlp.nn.attention import Attention
 
 from neural_networks.base_models import BaseModel
-from neural_networks.custom_modules import ConvDropRelu, LinearDropRelu
+from neural_networks.custom_modules import ConvDropRelu, LinearDropRelu, View
 
 
 class GELU(nn.Module):
@@ -331,18 +331,18 @@ class ConvDAE(BaseModel):
             ConvDropRelu(50, 50, kernel_size=4, dropout=dropout),
             ConvDropRelu(50, 60, kernel_size=4, dropout=dropout),
             nn.Flatten(),
-            nn.Linear(input_dim * 60, 2 * latent_dim),
+            nn.Linear(input_dim * 60, 2 * latent_dim, bias=True),
         )
         self.decoder = nn.Sequential(
-            nn.Linear(2 * latent_dim, input_dim * 60),
-            nn.Unflatten(1, (60, input_dim)),
+            nn.Linear(2 * latent_dim, input_dim * 60, bias=True),
+            View(1, (60, input_dim)),
             nn.ConvTranspose1d(60, 50, kernel_size=4, padding=3, stride=1, dilation=2),
             nn.ConvTranspose1d(50, 50, kernel_size=4, padding=3, stride=1, dilation=2),
             nn.ConvTranspose1d(50, 40, kernel_size=4, padding=3, stride=1, dilation=2),
             nn.ConvTranspose1d(40, 30, kernel_size=4, padding=3, stride=1, dilation=2),
             nn.ConvTranspose1d(30, 20, kernel_size=4, padding=3, stride=1, dilation=2),
             nn.ConvTranspose1d(20, 1, kernel_size=4, padding=3, stride=1, dilation=2),
-            nn.Linear(input_dim, output_dim)
+            nn.Linear(input_dim, output_dim, bias=True)
         )
 
     def forward(self, x):
@@ -354,6 +354,59 @@ class ConvDAE(BaseModel):
         x = self.encoder(x)
         x = self.decoder(x)
         return x
+
+
+class ConvDAElight(BaseModel):
+    def __init__(self, input_dim, latent_dim, dropout=0.2, output_dim=1):
+        super().__init__()
+        self.encoder = nn.Sequential(
+            ConvDropRelu(1, 20, kernel_size=4, dropout=dropout, groups=1),
+            ConvDropRelu(20, 30, kernel_size=4, dropout=dropout),
+            nn.Flatten(),
+            nn.Linear(input_dim * 30, 2 * latent_dim, bias=True),
+        )
+        self.decoder = nn.Sequential(
+            nn.Linear(2 * latent_dim, input_dim * 30, bias=True),
+            View(1, (30, input_dim)),
+            nn.ConvTranspose1d(30, 20, kernel_size=4, padding=3, stride=1, dilation=2),
+            nn.ConvTranspose1d(20, 1, kernel_size=4, padding=3, stride=1, dilation=2),
+            nn.Linear(input_dim, output_dim, bias=True)
+        )
+
+    def forward(self, x):
+        x = x
+        # x must be in shape [batch_size, 1, window_size]
+        # eg: [1024, 1, 50]
+        x = x
+        x = x.unsqueeze(1)
+        x = self.encoder(x)
+        x = self.decoder(x)
+        return x
+
+
+class ConvEncoder(BaseModel):
+    def __init__(self, input_dim, latent_dim, dropout=0.2, output_dim=1):
+        super().__init__()
+        self.encoder = nn.Sequential(
+            ConvDropRelu(1, 20, kernel_size=4, dropout=dropout, groups=1),
+            ConvDropRelu(20, 30, kernel_size=4, dropout=dropout),
+            ConvDropRelu(30, 40, kernel_size=4, dropout=dropout),
+            ConvDropRelu(40, 50, kernel_size=4, dropout=dropout),
+            ConvDropRelu(50, 50, kernel_size=4, dropout=dropout),
+            ConvDropRelu(50, 60, kernel_size=4, dropout=dropout),
+            nn.Flatten(),
+            nn.Linear(input_dim * 60, 2 * latent_dim, bias=True),
+        )
+
+    def forward(self, x):
+        x = x
+        # x must be in shape [batch_size, 1, window_size]
+        # eg: [1024, 1, 50]
+        x = x
+        x = x.unsqueeze(1)
+        x = self.encoder(x)
+        return x
+
 
 class FourierBLock(nn.Module):
 

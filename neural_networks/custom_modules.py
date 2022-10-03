@@ -3,12 +3,13 @@ import torch.nn as nn
 
 
 class LinearDropRelu(nn.Module):
-    def __init__(self, in_features, out_features, dropout=0):
+    def __init__(self, in_features, out_features, dropout=0, bias=True):
         super(LinearDropRelu, self).__init__()
         self.linear = nn.Sequential(
-            nn.Linear(in_features, out_features),
+            nn.Linear(in_features, out_features, bias=bias),
+            # nn.BatchNorm1d(out_features),
             nn.Dropout(dropout),
-            nn.ReLU(inplace=True),
+            nn.LeakyReLU(inplace=True),
         )
 
     def forward(self, x):
@@ -28,13 +29,15 @@ class ConvDropRelu(nn.Module):
             self.conv = nn.Sequential(
                 nn.ZeroPad2d(padding),
                 nn.Conv1d(in_channels, out_channels, kernel_size, groups=groups),
+                # nn.BatchNorm1d(out_channels),
                 nn.Dropout(dropout),
-                nn.ReLU(inplace=True),
+                nn.LeakyReLU(inplace=True),
             )
         else:
             self.conv = nn.Sequential(
                 nn.ZeroPad2d(padding),
                 nn.Conv1d(in_channels, out_channels, kernel_size, groups=groups),
+                # nn.BatchNorm1d(out_channels),
                 nn.Dropout(dropout),
             )
 
@@ -123,3 +126,14 @@ class VIBDecoder(nn.Module):
         decoding = self.conv(encoding).squeeze()
         decoding = self.flatten(decoding)
         return self.feedforward(decoding)
+
+
+class View(nn.Module):
+    def __init__(self, dim,  shape):
+        super(View, self).__init__()
+        self.dim = dim
+        self.shape = shape
+
+    def forward(self, input_tensor):
+        new_shape = list(input_tensor.shape)[:self.dim] + list(self.shape) + list(input_tensor.shape)[self.dim+1:]
+        return input_tensor.view(*new_shape)
