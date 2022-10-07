@@ -485,6 +485,8 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
         # Forward pass
         noise_dist, vae_logit, target_dists, target_logits = self(x)
         total_loss, reco_loss, class_loss, info_loss = self.compute_total_train_loss(vae_logit=vae_logit, x=x, y=y,
+                                                                                     target_logits=target_logits,
+                                                                                     noise_dist=noise_dist,
                                                                                      target_dists=target_dists)
         self.log('reco_loss', reco_loss, prog_bar=True, on_epoch=True, on_step=False)
         self.log('class_loss', class_loss, prog_bar=True, on_epoch=True, on_step=False)
@@ -531,6 +533,9 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
         x, y = batch
         noise_dist, vae_logit, target_dists, target_logits = self(x)
         total_loss, reco_loss, class_loss, info_loss = self.compute_total_train_loss(vae_logit=vae_logit, x=x, y=y,
+                                                                                     target_logits=target_logits,
+                                                                                     noise_dist=noise_dist,
+                                                                                     target_dists=target_dists)
         return total_loss, reco_loss, class_loss, info_loss
 
     def validation_step(self, val_batch: Tensor, batch_idx: int) -> Dict:
@@ -613,6 +618,7 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
         model_filename = "model_final.onnx"
         self.to_onnx(model_filename, dummy_input, export_params=True)
         wandb.save(filename=model_filename)
+
 
 class SuperVariationalTrainingToolsEncoder(SuperVariationalTrainingTools):
     def __init__(self, model, model_hparams, eval_params, alpha=1, beta=1e-5, gamma=1e-2):
