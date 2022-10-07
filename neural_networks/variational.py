@@ -35,17 +35,7 @@ class VIBNet(BaseModel):
         return True
 
     @staticmethod
-    # def data_distribution_type(distribution):
-    #     # reference :
-    #     # http://pytorch.org/docs/0.3.1/_modules/torch/distributions.html#Distribution.sample_n
-    #     return {
-    #         NORMAL_DIST: torch.distributions.Normal,
-    #         LOGNORMAL_DIST: torch.distributions.LogNormal,
-    #         CAUCHY_DIST: torch.distributions.Cauchy,
-    #         STUDENT_T_DIST: torch.distributions.StudentT,
-    #         LAPLACE_DIST: torch.distributions.Laplace,
-    #     }.get(distribution)
-    def data_distribution_type(distribution, df=0.609, loc=0, scale=1):
+    def data_distribution_type(distribution, df=0.609, loc=0.0, scale=1.0):
         # reference :
         # http://pytorch.org/docs/0.3.1/_modules/torch/distributions.html#Distribution.sample_n
         return {
@@ -56,7 +46,8 @@ class VIBNet(BaseModel):
             LAPLACE_DIST: torch.distributions.Laplace(loc=loc, scale=scale),
         }.get(distribution)
 
-    def reparametrize_n(self, mu, std, current_epoch, n=1, prior_std=1.0, prior_mean=0.0, distribution=NORMAL_DIST):
+    def reparametrize_n(self, mu, std, current_epoch, n=1, prior_std=1.0, prior_mean=0.0, distribution=NORMAL_DIST,
+                        logvar=False):
         def expand(v):
             if isinstance(v, Number):
                 return torch.Tensor([v]).expand(n, 1)
@@ -67,9 +58,10 @@ class VIBNet(BaseModel):
             mu = expand(mu)
             std = expand(std)
         device = self.get_device()
+        if logvar:
+            std = torch.exp(0.5 * std)
 
         noise_rate = torch.tanh(torch.tensor(current_epoch))
-
         if current_epoch > 0:
             noise_distribution = self.data_distribution_type(distribution=distribution,
                                                              loc=prior_mean,
@@ -77,7 +69,6 @@ class VIBNet(BaseModel):
             eps = noise_distribution.sample(std.size()).to(device)
         else:
             eps = torch.tensor(0).to(device)
-        # std = torch.exp(0.5 * std)
         return mu + eps * std
 
     def weight_init(self):
@@ -541,151 +532,13 @@ class SuperVAE2(DAE, VIBNet):
         return noise_dist, noise_encoding, target_dists, target_encodings
 
 
-# class SuperVAE1b(ConvDAE, VIBNet):
-#     '''
-#     FROM LATENT SPACE but with 2 changes
-#         a)deeper shallow nets,
-#         b)got rid of reshape layers
-#     '''
-#     def supports_vib(self) -> bool:
-#         return False
-#
-#     def supports_supervib(self) -> bool:
-#         return True
-#
-#     def __init__(self, input_dim, dropout=0, distribution_dim=16, targets_num=1, max_noise=0.1, output_dim=1,
-#                  dae_output_dim=50, prior_stds=[], prior_noise=None, alpha=1, beta=1e-5, gamma=1e-2, ):
-#
-#         self.architecture_name = 'SuperVAE1b'
-#         """
-#         :param input_dim:
-#         :param distribution_dim:  the latent dimension of each distribution
-#         :param targets_num:  the number of targets
-#         :param max_noise:
-#         :param dropout:
-#         :param output_dim:
-#         """
-#         self.device = self.get_device()
-#
-#         self.max_noise = max_noise
-#         if distribution_dim % 2 > 0:
-#             distribution_dim += 1
-#         self.distribution_dim = distribution_dim
-#
-#         self.targets_num = targets_num
-#         print('TARGETS NUM', targets_num, self.targets_num)
-#
-#         if prior_noise:
-#             self.prior_noise = prior_noise
-#         else:
-#             self.prior_noise = self.max_noise
-#
-#         if prior_stds:
-#             self.prior_stds = prior_stds
-#         else:
-#             self.prior_stds = [self.max_noise for i in range(0, len(self.targets_num))]
-#
-#         self.latent_dim = (self.targets_num + 1) * self.distribution_dim
-#
-#         super(SuperVAE1b, self).__init__(input_dim=input_dim, dropout=dropout, output_dim=dae_output_dim,
-#                                          latent_dim=self.latent_dim, )
-#
-#         self.noise_mu_layer = LinearDropRelu(2*self.distribution_dim, 2*self.distribution_dim)
-#         self.noise_std_layer = LinearDropRelu(2*self.distribution_dim, 2*self.distribution_dim)
-#
-#         self.mu_layers = nn.ModuleList()
-#         self.std_layers = nn.ModuleList()
-#         for i in range(self.targets_num):
-#             self.mu_layers.append(
-#                 nn.Sequential(
-#                     LinearDropRelu(2 * self.latent_dim, self.latent_dim)
-#                 )
-#             )
-#             self.std_layers.append(
-#                 nn.Sequential(
-#                     LinearDropRelu(2 * self.latent_dim, self.latent_dim)
-#                 )
-#             )
-#
-#         self.reshape = nn.Linear(self.latent_dim, 2*self.latent_dim)
-#         self.shallow_modules = nn.ModuleList()
-#         for i in range(self.targets_num):
-#             self.shallow_modules.append(
-#                 nn.Sequential(
-#                     LinearDropRelu(2 * self.latent_dim, self.latent_dim, dropout),
-#                     LinearDropRelu(self.latent_dim, self.latent_dim//2, dropout),
-#                     LinearDropRelu(self.latent_dim//2, self.latent_dim//4, dropout),
-#                     # nn.Linear(self.latent_dim//4, output_dim),
-#                     LinearDropRelu(self.latent_dim // 4, self.latent_dim // 6, dropout),
-#                     LinearDropRelu(self.latent_dim // 6, self.latent_dim // 8, dropout),
-#                     nn.Linear(self.latent_dim // 8, output_dim),
-#                 )
-#             )
-#
-#     def forward(self, x, current_epoch=None, num_sample=1):
-#
-#         # x must be in shape [batch_size, 1, window_size]
-#         # eg: [1024, 1, 50]
-#
-#         x = x
-#         x = x.unsqueeze(1)
-#         statistics = self.encoder(x)
-#
-#         noise_dist, noise_encoding, target_dists, target_encodings = self.get_distributions(statistics,
-#                                                                                             num_sample,
-#                                                                                             current_epoch)
-#         encodings = torch.cat((noise_encoding, target_encodings), -1)
-#         vae_logit = self.decoder(encodings)
-#         target_logits = torch.tensor([])
-#         for i in range(len(self.shallow_modules)):
-#             target_logit = self.shallow_modules[i](statistics)
-#             if i == 0:
-#                 target_logits = target_logit.unsqueeze(1).unsqueeze(3).to(self.device)
-#             else:
-#                 target_logits = torch.cat((target_logits, target_logit.unsqueeze(1).unsqueeze(3)), 3)
-#
-#         return noise_dist, vae_logit, target_dists, target_logits
-#
-#     def get_distributions(self, statistics, num_sample, current_epoch):
-#         # mu_noise = self.noise_mu_layer(statistics[:, :2 * self.distribution_dim])
-#         # std_noise = self.noise_std_layer(statistics[:, :2 * self.distribution_dim])
-#         # mu_noise = torch.mean(statistics[:, :2 * self.distribution_dim])
-#         # std_noise = F.softplus(statistics[:, : 2 * self.distribution_dim], beta=1)
-#
-#         noise_dist = (mu_noise, std_noise)
-#         noise_encoding = self.reparametrize_n(mu_noise, std_noise, current_epoch,
-#                                               num_sample, self.prior_noise)
-#
-#         print('statistics ', statistics.shape)
-#         print('mu_noise ', mu_noise.shape)
-#         print('std_noise ', std_noise.shape)
-#         print('noise_encoding ', noise_encoding.shape)
-#
-#
-#         target_dists = []
-#         target_encodings = torch.tensor([])
-#         for i in range(self.targets_num):
-#             mu = torch.mean(statistics[:, (i+1) * self.distribution_dim: (i+3) * self.distribution_dim])
-#             std = F.softplus(statistics[:, (i+1) * self.distribution_dim: (i+3) * self.distribution_dim], beta=1)
-#             target_dists.append((mu, std))
-#             target_encoding = self.reparametrize_n(mu, std, current_epoch,
-#                                                    num_sample, self.prior_stds[i])
-#             if i == 0:
-#                 target_encodings = target_encoding.unsqueeze(2).to(self.device)
-#             else:
-#                 target_encodings = torch.cat((target_encodings, target_encoding.unsqueeze(2)), 2)
-#         target_encodings = target_encodings.squeeze()
-#         print('target_encodings ', target_encodings.shape)
-#
-#         return noise_dist, noise_encoding, target_dists, target_encodings
-#
-
 class SuperVAE1b(ConvDAE, VIBNet):
     # FROM LATENT SPACE but with some changes
     #     a)conv dae
     #     b)deeper shallow nets,
     #     c)got rid of reshape layers
     #     d)mu, std from neural nets
+    #     e)take statistics for decoder
     def supports_vib(self) -> bool:
         return False
 
@@ -751,11 +604,17 @@ class SuperVAE1b(ConvDAE, VIBNet):
         for i in range(self.targets_num):
             self.shallow_modules.append(
                 nn.Sequential(
-                    LinearDropRelu(2 * self.latent_dim, self.latent_dim, dropout),
-                    LinearDropRelu(self.latent_dim, self.latent_dim//2, dropout),
-                    LinearDropRelu(self.latent_dim//2, self.latent_dim//4, dropout),
-                    nn.Linear(self.latent_dim//4, output_dim, bias=True),
+                    nn.Linear(2 * self.distribution_dim, 8 * self.latent_dim),
+                    nn.ReLU(),
+                    nn.Dropout(dropout),
+                    nn.Linear(self.latent_dim * 8, output_dim),
                 )
+                # nn.Sequential(
+                #     LinearDropRelu(2 * self.latent_dim, self.latent_dim, dropout),
+                #     LinearDropRelu(self.latent_dim, self.latent_dim//2, dropout),
+                #     LinearDropRelu(self.latent_dim//2, self.latent_dim//4, dropout),
+                #     nn.Linear(self.latent_dim//4, output_dim, bias=True),
+                # )
             )
 
     def forward(self, x, current_epoch=None, num_sample=1):
@@ -767,14 +626,12 @@ class SuperVAE1b(ConvDAE, VIBNet):
 
         noise_dist, noise_encoding, target_dists, target_encodings = self.get_distributions(statistics, num_sample,
                                                                                             current_epoch)
-        # encodings = torch.cat((noise_encoding.unsqueeze(-1), target_encodings), -1).reshape(statistics.shape)
-        # vae_logit = self.decoder(encodings)
-
         vae_logit = self.decoder(statistics)
-
         target_logits = torch.tensor([])
         for i in range(len(self.shallow_modules)):
-            target_logit = self.shallow_modules[i](statistics)
+            # target_logit = self.shallow_modules[i](statistics)
+            t = target_encodings[:, :, i]
+            target_logit = self.shallow_modules[i](t)
             if i == 0:
                 target_logits = target_logit.unsqueeze(1).unsqueeze(3).to(self.device)
             else:
@@ -872,7 +729,7 @@ class SuperVAE1blight(ConvDAElight, VIBNet):
         self.latent_dim = (self.targets_num + 1) * self.distribution_dim
 
         super(SuperVAE1blight, self).__init__(input_dim=input_dim, dropout=dropout, output_dim=dae_output_dim,
-                                              latent_dim=self.latent_dim, )
+                                              latent_dim=self.latent_dim,)
 
         self.shallow_modules = nn.ModuleList()
         for i in range(self.targets_num):
@@ -948,6 +805,9 @@ class SuperEncoder(ConvEncoder, VIBNet):
         return False
 
     def supports_supervib(self) -> bool:
+        return False
+
+    def supports_supervibenc(self) -> bool:
         return True
 
     def __init__(self, input_dim, dropout=0, distribution_dim=16, targets_num=1, max_noise=0.1, output_dim=1,
@@ -1034,6 +894,284 @@ class SuperEncoder(ConvEncoder, VIBNet):
                 target_logits = torch.cat((target_logits, target_logit.unsqueeze(1).unsqueeze(3)), 3)
 
         return noise_dist, statistics, target_dists, target_logits
+
+    def get_distributions(self, statistics, num_sample, current_epoch):
+        mu_noise = torch.mean(statistics[:, :2 * self.distribution_dim])
+        std_noise = F.softplus(statistics[:, : 2 * self.distribution_dim], beta=1)
+
+        noise_dist = (mu_noise, std_noise)
+        noise_encoding = self.reparametrize_n(mu_noise, std_noise, current_epoch,
+                                              num_sample, self.prior_noise_std)
+        target_dists = []
+        target_encodings = torch.tensor([])
+        for i in range(self.targets_num):
+            # print('from: ', (i + 1) * 2 * self.distribution_dim, ' to: ', (i + 2) * 2 * self.distribution_dim)
+            mu = torch.mean(statistics[:, (i + 1) * 2 * self.distribution_dim: (i + 2) * 2 * self.distribution_dim])
+            std = F.softplus(statistics[:, (i + 1) * 2 * self.distribution_dim: (i + 2) * 2 * self.distribution_dim],
+                             beta=1)
+            target_dists.append((mu, std))
+            target_encoding = self.reparametrize_n(mu=mu,
+                                                   std=std,
+                                                   current_epoch=current_epoch,
+                                                   n=num_sample,
+                                                   prior_std=self.prior_stds[i],
+                                                   prior_mean=self.prior_means[i],
+                                                   distribution=self.prior_distributions[i])
+            if i == 0:
+                target_encodings = target_encoding.unsqueeze(2).to(self.device)
+            else:
+                target_encodings = torch.cat((target_encodings, target_encoding.unsqueeze(2)), 2)
+        return noise_dist, noise_encoding, target_dists, target_encodings
+
+
+class SuperVAE1c(ConvDAE, VIBNet):
+    # FROM LATENT SPACE but with some changes
+    #     a)conv dae
+    #     b)deeper shallow nets,
+    #     c)got rid of reshape layers
+    #     d)mu, std from neural nets
+    #     e)add tensors not concat
+    def supports_vib(self) -> bool:
+        return False
+
+    def supports_supervib(self) -> bool:
+        return True
+
+    def __init__(self, input_dim, dropout=0, distribution_dim=16, targets_num=1, max_noise=0.1, output_dim=1,
+                 dae_output_dim=50, prior_stds=None, prior_means=None, prior_distributions=None, prior_noise_std=None,
+                 alpha=1, beta=1e-5, gamma=1e-2, default_distribution=NORMAL_DIST, lr=1e-3):
+
+        if prior_means is None:
+            prior_means = []
+        if prior_stds is None:
+            prior_stds = []
+        if prior_distributions is None:
+            prior_distributions = []
+        self.architecture_name = 'SuperVAE1b'
+        """
+        :param input_dim:
+        :param distribution_dim:  the latent dimension of each distribution
+        :param targets_num:  the number of targets
+        :param max_noise:
+        :param dropout:
+        :param output_dim:
+        """
+        self.device = self.get_device()
+
+        self.max_noise = max_noise
+        if distribution_dim % 2 > 0:
+            distribution_dim += 1
+        self.distribution_dim = distribution_dim
+
+        self.targets_num = targets_num
+        print('TARGETS NUM', targets_num, self.targets_num)
+
+        if prior_noise_std:
+            self.prior_noise_std = prior_noise_std
+        else:
+            self.prior_noise_std = self.max_noise
+
+        if prior_stds:
+            self.prior_stds = prior_stds
+        else:
+            self.prior_stds = [self.max_noise for i in range(0, self.targets_num)]
+
+        if prior_means:
+            self.prior_means = prior_means
+        else:
+            self.prior_means = [0 for i in range(0, self.targets_num)]
+
+        self.default_distribution = default_distribution
+        if prior_distributions:
+            self.prior_distributions = prior_distributions
+        else:
+            self.prior_distributions = [self.default_distribution for i in range(0, self.targets_num)]
+
+        self.latent_dim = (self.targets_num + 1) * self.distribution_dim
+
+        super(SuperVAE1c, self).__init__(input_dim=input_dim, dropout=dropout, output_dim=dae_output_dim,
+                                         latent_dim=self.latent_dim, scale_factor=self.targets_num + 1)
+
+        # self.reshape = nn.Linear(2*self.distribution_dim, self.latent_dim)
+        self.shallow_modules = nn.ModuleList()
+        for i in range(self.targets_num):
+            self.shallow_modules.append(
+                nn.Sequential(
+                    LinearDropRelu(2 * self.latent_dim, self.latent_dim, dropout),
+                    LinearDropRelu(self.latent_dim, self.latent_dim//2, dropout),
+                    LinearDropRelu(self.latent_dim//2, self.latent_dim//4, dropout),
+                    nn.Linear(self.latent_dim//4, output_dim, bias=True),
+                )
+            )
+
+    def forward(self, x, current_epoch=None, num_sample=1):
+        # x must be in shape [batch_size, 1, window_size]
+        # eg: [1024, 1, 50]
+        x = x
+        x = x.unsqueeze(1)
+        statistics = self.encoder(x)
+
+        noise_dist, noise_encoding, target_dists, target_encodings = self.get_distributions(statistics, num_sample,
+                                                                                            current_epoch)
+
+        # encodings = torch.cat((noise_encoding.unsqueeze(-1), target_encodings), -1).reshape(statistics.shape)
+        # vae_logit = self.decoder(statistics)
+        encodings = self.add_tensors(noise_encoding, target_encodings)
+        # encodings = self.reshape(encodings)
+        vae_logit = self.decoder(encodings)
+
+        target_logits = torch.tensor([])
+        for i in range(len(self.shallow_modules)):
+            target_logit = self.shallow_modules[i](statistics)
+            if i == 0:
+                target_logits = target_logit.unsqueeze(1).unsqueeze(3).to(self.device)
+            else:
+                target_logits = torch.cat((target_logits, target_logit.unsqueeze(1).unsqueeze(3)), 3)
+
+        return noise_dist, vae_logit, target_dists, target_logits
+
+    @staticmethod
+    def add_tensors(noise_encoding, target_encodings):
+        return noise_encoding + target_encodings.sum(-1)
+
+    def get_distributions(self, statistics, num_sample, current_epoch):
+        mu_noise = torch.mean(statistics[:, :2 * self.distribution_dim])
+        std_noise = F.softplus(statistics[:, : 2 * self.distribution_dim], beta=1)
+
+        noise_dist = (mu_noise, std_noise)
+        noise_encoding = self.reparametrize_n(mu_noise, std_noise, current_epoch,
+                                              num_sample, self.prior_noise_std)
+        target_dists = []
+        target_encodings = torch.tensor([])
+        for i in range(self.targets_num):
+            # print('from: ', (i + 1) * 2 * self.distribution_dim, ' to: ', (i + 2) * 2 * self.distribution_dim)
+            mu = torch.mean(statistics[:, (i + 1) * 2 * self.distribution_dim: (i + 2) * 2 * self.distribution_dim])
+            std = F.softplus(statistics[:, (i + 1) * 2 * self.distribution_dim: (i + 2) * 2 * self.distribution_dim],
+                             beta=1)
+            target_dists.append((mu, std))
+            target_encoding = self.reparametrize_n(mu=mu,
+                                                   std=std,
+                                                   current_epoch=current_epoch,
+                                                   n=num_sample,
+                                                   prior_std=self.prior_stds[i],
+                                                   prior_mean=self.prior_means[i],
+                                                   distribution=self.prior_distributions[i])
+            if i == 0:
+                target_encodings = target_encoding.unsqueeze(2).to(self.device)
+            else:
+                target_encodings = torch.cat((target_encodings, target_encoding.unsqueeze(2)), 2)
+        return noise_dist, noise_encoding, target_dists, target_encodings
+
+
+class SuperVAE2b(ConvDAE, VIBNet):
+    # FROM LATENT SPACE but with some changes
+    #     a)conv dae
+    #     b)deeper shallow nets,
+    #     c)got rid of reshape layers
+    #     d)mu, std from neural nets
+    #     e)add tensors not concat
+    def supports_vib(self) -> bool:
+        return False
+
+    def supports_supervib(self) -> bool:
+        return True
+
+    def __init__(self, input_dim, dropout=0, distribution_dim=16, targets_num=1, max_noise=0.1, output_dim=1,
+                 dae_output_dim=50, prior_stds=None, prior_means=None, prior_distributions=None, prior_noise_std=None,
+                 alpha=1, beta=1e-5, gamma=1e-2, default_distribution=NORMAL_DIST, lr=1e-3):
+
+        if prior_means is None:
+            prior_means = []
+        if prior_stds is None:
+            prior_stds = []
+        if prior_distributions is None:
+            prior_distributions = []
+        self.architecture_name = 'SuperVAE1b'
+        """
+        :param input_dim:
+        :param distribution_dim:  the latent dimension of each distribution
+        :param targets_num:  the number of targets
+        :param max_noise:
+        :param dropout:
+        :param output_dim:
+        """
+        self.device = self.get_device()
+
+        self.max_noise = max_noise
+        if distribution_dim % 2 > 0:
+            distribution_dim += 1
+        self.distribution_dim = distribution_dim
+
+        self.targets_num = targets_num
+        print('TARGETS NUM', targets_num, self.targets_num)
+
+        if prior_noise_std:
+            self.prior_noise_std = prior_noise_std
+        else:
+            self.prior_noise_std = self.max_noise
+
+        if prior_stds:
+            self.prior_stds = prior_stds
+        else:
+            self.prior_stds = [self.max_noise for i in range(0, self.targets_num)]
+
+        if prior_means:
+            self.prior_means = prior_means
+        else:
+            self.prior_means = [0 for i in range(0, self.targets_num)]
+
+        self.default_distribution = default_distribution
+        if prior_distributions:
+            self.prior_distributions = prior_distributions
+        else:
+            self.prior_distributions = [self.default_distribution for i in range(0, self.targets_num)]
+
+        self.latent_dim = (self.targets_num + 1) * self.distribution_dim
+
+        super(SuperVAE2b, self).__init__(input_dim=input_dim, dropout=dropout, output_dim=dae_output_dim,
+                                         latent_dim=self.latent_dim, scale_factor=self.targets_num + 1)
+
+        # self.reshape = nn.Linear(2*self.distribution_dim, self.latent_dim)
+        self.shallow_modules = nn.ModuleList()
+        for i in range(self.targets_num):
+            self.shallow_modules.append(
+                nn.Sequential(
+                    LinearDropRelu(2 * self.latent_dim, self.latent_dim, dropout),
+                    LinearDropRelu(self.latent_dim, self.latent_dim//2, dropout),
+                    LinearDropRelu(self.latent_dim//2, self.latent_dim//4, dropout),
+                    nn.Linear(self.latent_dim//4, output_dim, bias=True),
+                )
+            )
+
+    def forward(self, x, current_epoch=None, num_sample=1):
+        # x must be in shape [batch_size, 1, window_size]
+        # eg: [1024, 1, 50]
+        x = x
+        x = x.unsqueeze(1)
+        statistics = self.encoder(x)
+
+        noise_dist, noise_encoding, target_dists, target_encodings = self.get_distributions(statistics, num_sample,
+                                                                                            current_epoch)
+
+        # encodings = torch.cat((noise_encoding.unsqueeze(-1), target_encodings), -1).reshape(statistics.shape)
+        # vae_logit = self.decoder(statistics)
+        encodings = self.add_tensors(noise_encoding, target_encodings)
+        # encodings = self.reshape(encodings)
+        vae_logit = self.decoder(encodings)
+
+        target_logits = torch.tensor([])
+        for i in range(len(self.shallow_modules)):
+            target_logit = self.shallow_modules[i](statistics)
+            if i == 0:
+                target_logits = target_logit.unsqueeze(1).unsqueeze(3).to(self.device)
+            else:
+                target_logits = torch.cat((target_logits, target_logit.unsqueeze(1).unsqueeze(3)), 3)
+
+        return noise_dist, vae_logit, target_dists, target_logits
+
+    @staticmethod
+    def add_tensors(noise_encoding, target_encodings):
+        return noise_encoding + target_encodings.sum(-1)
 
     def get_distributions(self, statistics, num_sample, current_epoch):
         mu_noise = torch.mean(statistics[:, :2 * self.distribution_dim])
