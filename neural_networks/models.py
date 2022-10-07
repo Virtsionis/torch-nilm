@@ -321,7 +321,7 @@ class DAE(BaseModel):
 #         return x
 
 class ConvDAE(BaseModel):
-    def __init__(self, input_dim, latent_dim, dropout=0.2, output_dim=1):
+    def __init__(self, input_dim, latent_dim, dropout=0.2, output_dim=1, scale_factor=2):
         super().__init__()
         self.encoder = nn.Sequential(
             ConvDropRelu(1, 20, kernel_size=4, dropout=dropout, groups=1),
@@ -334,7 +334,7 @@ class ConvDAE(BaseModel):
             nn.Linear(input_dim * 60, 2 * latent_dim, bias=True),
         )
         self.decoder = nn.Sequential(
-            nn.Linear(2 * latent_dim, input_dim * 60, bias=True),
+            nn.Linear(int(scale_factor)*latent_dim, input_dim * 60, bias=True),
             View(1, (60, input_dim)),
             nn.ConvTranspose1d(60, 50, kernel_size=4, padding=3, stride=1, dilation=2),
             nn.ConvTranspose1d(50, 50, kernel_size=4, padding=3, stride=1, dilation=2),
