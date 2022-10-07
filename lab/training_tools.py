@@ -50,6 +50,8 @@ class TrainingToolsFactory:
             return VIBTrainingTools(model, model_hparams, eval_params)
         elif model.supports_supervib():
             return SuperVariationalTrainingTools(model, model_hparams, eval_params)
+        elif model.supports_supervibenc():
+            return SuperVariationalTrainingToolsEncoder(model, model_hparams, eval_params)
         elif model.supports_bayes():
             return BayesTrainingTools(model, model_hparams, eval_params)
         elif model.supports_bert():
@@ -616,3 +618,40 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
         model_filename = "model_final.onnx"
         self.to_onnx(model_filename, dummy_input, export_params=True)
         wandb.save(filename=model_filename)
+
+
+class SuperVariationalTrainingToolsEncoder(SuperVariationalTrainingTools):
+    def __init__(self, model, model_hparams, eval_params, alpha=1, beta=1e-5, gamma=1e-2):
+        """
+        Inputs:
+            model_name - Name of the model to run. Used for creating the model (see function below)
+            model_hparams - Hyperparameters for the model, as dictionary.
+        """
+        super().__init__(model, model_hparams, eval_params)
+        self.final_preds = torch.tensor([])
+        self.final_grounds = torch.tensor([])
+        if 'alpha' in model_hparams.keys():
+            self.alpha = model_hparams['alpha']
+        else:
+            self.alpha = alpha
+        if 'beta' in model_hparams.keys():
+            self.beta = model_hparams['beta']
+        else:
+            self.beta = beta
+        if 'gamma' in model_hparams.keys():
+            self.gamma = model_hparams['gamma']
+        else:
+            self.gamma = gamma
+        if 'lr' in model_hparams.keys():
+            self.lr = model_hparams['lr']
+        else:
+            self.lr = 1e-3
+        print('ALPHA = ', self.alpha)
+        print('BETA = ', self.beta)
+        print('GAMMA = ', self.gamma)
+        print('loss = {}*reco_loss + {}*info_loss + {}*class_loss'.format(self.alpha, self.beta, self.gamma))
+
+    @staticmethod
+    def compute_reconstruction_loss(vae_logit, x):
+        return 0
+
