@@ -444,7 +444,7 @@ class ConvDecoder(BaseModel):
 
 
 class ConvMultiDAE(MultiLabelModel):
-    def __init__(self, input_dim, latent_dim, dropout=0.2, output_dim=1, targets_num=0):
+    def __init__(self, input_dim, latent_dim, dropout=0.2, output_dim=1, targets_num=0, mains_sequence=False):
         super().__init__()
         self.device = self.get_device()
         scale_factor = targets_num + 1
@@ -461,10 +461,10 @@ class ConvMultiDAE(MultiLabelModel):
         )
         self.decoders = nn.ModuleList()
         for i in range(scale_factor):
-            # if i < 1:
-            #     out_features = input_dim
-            # else:
-            #     out_features = output_dim
+            if mains_sequence and i == 0:
+                out_features = input_dim
+            else:
+                out_features = 1
 
             self.decoders.append(
                 nn.Sequential(
@@ -476,7 +476,7 @@ class ConvMultiDAE(MultiLabelModel):
                     nn.ConvTranspose1d(40, 30, kernel_size=4, padding=3, stride=1, dilation=2),
                     nn.ConvTranspose1d(30, 20, kernel_size=4, padding=3, stride=1, dilation=2),
                     nn.ConvTranspose1d(20, 1, kernel_size=4, padding=3, stride=1, dilation=2),
-                    nn.Linear(input_dim, out_features=output_dim, bias=True)
+                    nn.Linear(input_dim, out_features=out_features, bias=True)
                 )
             )
 
@@ -495,6 +495,8 @@ class ConvMultiDAE(MultiLabelModel):
         logits = logits.squeeze()
         mains_logit = logits[:, 0]
         target_logits = logits[:, 1:]
+        # print("mains_logit", mains_logit.shape)
+        # print("target_logits", target_logits.shape)
         return mains_logit, target_logits
 
 

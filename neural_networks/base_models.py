@@ -37,3 +37,6 @@ class BaseModel(nn.Module, abc.ABC):
 
     def supports_multi(self) -> bool:
         return False
+
+    def supports_multivib(self) -> bool:
+        return False

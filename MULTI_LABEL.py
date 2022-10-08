@@ -9,8 +9,8 @@ experiment_parameters = {
     BATCH_SIZE: 1024,
     ITERABLE_DATASET: False,
     PREPROCESSING_METHOD: SupportedPreprocessingMethods.ROLLING_WINDOW,
-    SCALING_METHOD: SupportedScalingMethods.MIXED,
-    FIXED_WINDOW: 200,
+    SCALING_METHOD: SupportedScalingMethods.STANDARDIZATION,
+    FIXED_WINDOW: 10,
     FILLNA_METHOD: SupportedFillingMethods.FILL_ZEROS,
     SUBSEQ_WINDOW: None,
     TRAIN_TEST_SPLIT: 0.75,
@@ -80,39 +80,27 @@ experiment_categories = [
 ]
 #self.alpha*reco_loss + self.beta*info_loss + self.gamma*class_loss
 model_hparams = [
-    # {
-    #     'model_name': 'SuperVAE',# FROM LATENT SPACE
-    #     'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
-    #                 'alpha': 1e-2, 'beta': 1e-5, 'gamma': 1e-1, 'dae_output_dim': experiment_parameters[FIXED_WINDOW],
-    #                 'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
-    #                 },
-    # },
-    # {
-    #     'model_name': 'SuperVAE1b',  # FROM LATENT SPACE but with 2 changes
-    #     # a) deeper shallow nets, b) got rid of reshape layers
-    #     'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
-    #                 'alpha': 1e-2, 'beta': 1e-3, 'gamma': 1e-0,
-    #                 'dae_output_dim': experiment_parameters[FIXED_WINDOW],
-    #                 'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
-    #                 'prior_means': prior_means, 'prior_distributions': prior_distributions,
-    #                 'lr': 1e-3
-    #                 },
-    # },
-    # {
-    #     'model_name': 'SuperVAE1b',  # FROM LATENT SPACE but with 2 changes
-    #                                  # a) deeper shallow nets, b) got rid of reshape layers
-    #     'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
-    #                 'alpha': 1e-3, 'beta': 1e-3, 'gamma': 1e-1,
-    #                 'dae_output_dim': experiment_parameters[FIXED_WINDOW],
-    #                 'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
-    #                 'prior_means': prior_means, 'prior_distributions': prior_distributions,
-    #                 'lr': 1e-3
-    #                 },
-    # },
     {
         'model_name': 'SuperVAE1b',  # FROM LATENT SPACE but with 2 changes
         # a) deeper shallow nets, b) got rid of reshape layers
-        'hparams': {'input_dim': None, 'distribution_dim': 32, 'targets_num': len(devices),
+        'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
+                    'alpha': 1e-2, 'beta': 1e-3, 'gamma': 1e-0,
+                    'dae_output_dim': experiment_parameters[FIXED_WINDOW],
+                    'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
+                    'prior_means': prior_means, 'prior_distributions': prior_distributions,
+                    'lr': 1e-3
+                    },
+    },
+     {
+        'model_name': 'ConvMultiDAE',
+        'hparams': {'input_dim': None, 'latent_dim': 16 * (len(devices) + 1), 'targets_num': len(devices),
+                    'output_dim': experiment_parameters[FIXED_WINDOW],
+                    },
+    },
+    {
+        'model_name': 'SuperVAEMulti',  # FROM LATENT SPACE but with 2 changes
+        # a) deeper shallow nets, b) got rid of reshape layers
+        'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
                     'alpha': 1e-2, 'beta': 1e-1, 'gamma': 1e-0,
                     'dae_output_dim': experiment_parameters[FIXED_WINDOW],
                     'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
@@ -123,69 +111,40 @@ model_hparams = [
     {
         'model_name': 'SuperEncoder',  # FROM LATENT SPACE but with 2 changes
         # a) deeper shallow nets, b) got rid of reshape layers
-        'hparams': {'input_dim': None, 'distribution_dim': 32, 'targets_num': len(devices),
-                    'alpha': 1e-12, 'beta': 1e-1, 'gamma': 1e-0,
+        'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
+                    'alpha': 1e-2, 'beta': 1e-1, 'gamma': 1e-0,
                     'dae_output_dim': experiment_parameters[FIXED_WINDOW],
                     'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
                     'prior_means': prior_means, 'prior_distributions': prior_distributions,
                     'lr': 1e-3
                     },
     },
-    # {
-    #     'model_name': 'SuperVAE1b',  # FROM LATENT SPACE but with 2 changes
-    #     # a) deeper shallow nets, b) got rid of reshape layers
-    #     'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
-    #                 'alpha': 1e-2, 'beta': 1e-3, 'gamma': 1e-3,
-    #                 'dae_output_dim': experiment_parameters[FIXED_WINDOW],
-    #                 'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
-    #                 'prior_means': prior_means, 'prior_distributions': prior_distributions,
-    #                 'lr': 1e-3
-    #                 },
-    # },
-    # {
-    #     'model_name': 'SuperVAE1blight',  # FROM LATENT SPACE but with 2 changes
-    #     # a) deeper shallow nets, b) got rid of reshape layers
-    #     'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
-    #                 'alpha': 1e-2, 'beta': 1e-3, 'gamma': 1e-2,
-    #                 'dae_output_dim': experiment_parameters[FIXED_WINDOW],
-    #                 'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
-    #                 'prior_means': prior_means, 'prior_distributions': prior_distributions,
-    #                 'lr': 1e-3
-    #                 },
-    # },
-    # {
-    #     'model_name': 'SuperVAE1b',  # FROM LATENT SPACE but with 2 changes
-    #     # a) deeper shallow nets, b) got rid of reshape layers
-    #     'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
-    #                 'alpha': 1e-2, 'beta': 1e-1, 'gamma': 1e-1,
-    #                 'dae_output_dim': experiment_parameters[FIXED_WINDOW],
-    #                 'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
-    #                 },
-    # },
-    # {
-    #     'model_name': 'SuperVAE1b',  # FROM LATENT SPACE but with 2 changes
-    #     # a) deeper shallow nets, b) got rid of reshape layers
-    #     'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
-    #                 'alpha': 1e-1, 'beta': 1e-1, 'gamma': 1e-1,
-    #                 'dae_output_dim': experiment_parameters[FIXED_WINDOW],
-    #                 'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
-    #                 },
-    # },
-    # {
-    #     'model_name': 'SuperVAE2',# FROM PRIORS
-    #     'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
-    #                 'alpha': 1e-2, 'beta': 1e-3, 'gamma': 1e-1, 'dae_output_dim': experiment_parameters[FIXED_WINDOW],
-    #                 'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
-    #                 },
-    # },
+    {
+        'model_name': 'SuperVAE',  # FROM LATENT SPACE
+        'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
+                    'alpha': 1e-2, 'beta': 1e-5, 'gamma': 1e-1, 'dae_output_dim': experiment_parameters[FIXED_WINDOW],
+                    'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
+                    },
+    },
+    {
+        'model_name': 'SuperVAE1blight',  # FROM LATENT SPACE but with 2 changes
+        # a) deeper shallow nets, b) got rid of reshape layers
+        'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
+                    'alpha': 1e-2, 'beta': 1e-3, 'gamma': 1e-2,
+                    'dae_output_dim': experiment_parameters[FIXED_WINDOW],
+                    'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
+                    'prior_means': prior_means, 'prior_distributions': prior_distributions,
+                    'lr': 1e-3
+                    },
+    },
 ]
 
 
 model_hparams = ModelHyperModelParameters(model_hparams)
 experiment_parameters = ExperimentParameters(**experiment_parameters)
 
-experiment = NILMSuperExperiments(project_name='GridSearch', clean_project=False,
-                                  devices=devices, save_timeseries_results=False,
+experiment = NILMSuperExperiments(project_name='BENCHMARK', clean_project=False,
+                                  devices=devices, save_timeseries_results=True,
                                   experiment_categories=experiment_categories,
                                   experiment_volume=SupportedExperimentVolumes.COMMON_VOLUME,
                                   experiment_parameters=experiment_parameters,
@@ -194,3 +153,4 @@ experiment = NILMSuperExperiments(project_name='GridSearch', clean_project=False
 
 experiment.run_benchmark(model_hparams=model_hparams)
 # experiment.export_report(model_hparams=model_hparams, experiment_type=SupportedNilmExperiments.BENCHMARK)
+#

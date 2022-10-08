@@ -58,6 +58,8 @@ class TrainingToolsFactory:
             return BertTrainingTools(model, model_hparams, eval_params)
         elif model.supports_multi():
             return MultiTrainingTools(model, model_hparams, eval_params)
+        elif model.supports_multivib():
+            return SuperVariationalMultiTrainingTools(model, model_hparams, eval_params)
         else:
             return ClassicTrainingTools(model, model_hparams, eval_params)
 
@@ -528,11 +530,8 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
 
     @staticmethod
     def compute_reconstruction_loss(vae_logit, x):
-        print('x.shape', x.shape)
-        print('vae_logit.shape', vae_logit.shape)
-        x = x[:, -1].unsqueeze(-1)
+        # x = x[:, -1].unsqueeze(-1)
         return F.mse_loss(vae_logit, x).div(math.log(2))
-        # return 0
 
     def _forward_step(self, batch: Tensor) -> Tuple[float, float, float, float]:
         x, y = batch
@@ -659,6 +658,85 @@ class SuperVariationalTrainingToolsEncoder(SuperVariationalTrainingTools):
     @staticmethod
     def compute_reconstruction_loss(vae_logit, x):
         return 0
+
+
+class SuperVariationalMultiTrainingTools(SuperVariationalTrainingTools):
+    def __init__(self, model, model_hparams, eval_params, alpha=1, beta=1e-5, gamma=1e-2):
+        """
+        Inputs:
+            model_name - Name of the model to run. Used for creating the model (see function below)
+            model_hparams - Hyperparameters for the model, as dictionary.
+        """
+        super().__init__(model, model_hparams, eval_params)
+        self.final_preds = torch.tensor([])
+        self.final_grounds = torch.tensor([])
+        if 'alpha' in model_hparams.keys():
+            self.alpha = model_hparams['alpha']
+        else:
+            self.alpha = alpha
+        if 'beta' in model_hparams.keys():
+            self.beta = model_hparams['beta']
+        else:
+            self.beta = beta
+        if 'gamma' in model_hparams.keys():
+            self.gamma = model_hparams['gamma']
+        else:
+            self.gamma = gamma
+        if 'lr' in model_hparams.keys():
+            self.lr = model_hparams['lr']
+        else:
+            self.lr = 1e-3
+        print('ALPHA = ', self.alpha)
+        print('BETA = ', self.beta)
+        print('GAMMA = ', self.gamma)
+        print('loss = {}*reco_loss + {}*info_loss + {}*class_loss'.format(self.alpha, self.beta, self.gamma))
+
+    @staticmethod
+    def compute_class_loss(y, target_logits):
+        class_loss = 0
+        # y must be in shape [[batch_size, 1], [batch_size, 1], ...]
+        for i in range(target_logits.shape[-1]):
+            logit = target_logits[:, :, i].squeeze()#squeeze(1)
+            class_loss += F.mse_loss(logit, y[:, i, :]).div(math.log(2))
+        return class_loss #/ len(target_logits)
+
+    @staticmethod
+    def compute_reconstruction_loss(vae_logit, x):
+        # x = x[:, -1].unsqueeze(-1)
+        # return F.mse_loss(vae_logit, x).div(math.log(2))
+        return F.mse_loss(vae_logit, x).div(math.log(2))
+
+    def _super_metrics(self, dev_index):
+        preds = self.final_preds[:, :, dev_index].squeeze().cpu().numpy().reshape(-1)
+        groundtruth = self.final_grounds[:, dev_index, :].squeeze().cpu().numpy().reshape(-1)
+        dev, mmax = self.eval_params[COLUMN_DEVICE][dev_index], self.eval_params[COLUMN_MMAX]
+        means, stds = self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
+
+        if mmax and means and stds:
+            preds = denormalize(preds, mmax)
+            preds = destandardize(preds, means, stds)
+            ground = denormalize(groundtruth, mmax)
+            ground = destandardize(ground, means, stds)
+        elif mmax:
+            preds = denormalize(preds, mmax)
+            ground = denormalize(groundtruth, mmax)
+        elif means and stds:
+            preds = destandardize(preds, means, stds)
+            ground = destandardize(groundtruth, means, stds)
+        else:
+            ground = np.array([])
+
+        res = NILMmetrics(pred=preds,
+                          ground=ground,
+                          threshold=ON_THRESHOLDS.get(ElectricalAppliances(dev), 50),
+                         )
+        results = {COLUMN_MODEL: self.model_name,
+                   COLUMN_METRICS: res,
+                   COLUMN_PREDICTIONS: preds,
+                   COLUMN_GROUNDTRUTH: ground,
+                   COLUMN_DEVICE: dev,
+                   }
+        return results
 
 
 class MultiTrainingTools(ClassicTrainingTools):
