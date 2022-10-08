@@ -56,6 +56,8 @@ class TrainingToolsFactory:
             return BayesTrainingTools(model, model_hparams, eval_params)
         elif model.supports_bert():
             return BertTrainingTools(model, model_hparams, eval_params)
+        elif model.supports_multi():
+            return MultiTrainingTools(model, model_hparams, eval_params)
         else:
             return ClassicTrainingTools(model, model_hparams, eval_params)
 
@@ -526,7 +528,10 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
 
     @staticmethod
     def compute_reconstruction_loss(vae_logit, x):
-        return F.mse_loss(vae_logit.squeeze(), x.squeeze()).div(math.log(2))
+        print('x.shape', x.shape)
+        print('vae_logit.shape', vae_logit.shape)
+        x = x[:, -1].unsqueeze(-1)
+        return F.mse_loss(vae_logit, x).div(math.log(2))
         # return 0
 
     def _forward_step(self, batch: Tensor) -> Tuple[float, float, float, float]:
@@ -655,3 +660,147 @@ class SuperVariationalTrainingToolsEncoder(SuperVariationalTrainingTools):
     def compute_reconstruction_loss(vae_logit, x):
         return 0
 
+
+class MultiTrainingTools(ClassicTrainingTools):
+    def __init__(self, model, model_hparams, eval_params, alpha=1e-4, beta=1,):
+        """
+        Inputs:
+            model_name - Name of the model to run. Used for creating the model (see function below)
+            model_hparams - Hyperparameters for the model, as dictionary.
+        """
+        super().__init__(model, model_hparams, eval_params)
+        self.final_preds = torch.tensor([])
+        self.final_grounds = torch.tensor([])
+        if 'alpha' in model_hparams.keys():
+            self.alpha = model_hparams['alpha']
+        else:
+            self.alpha = alpha
+        if 'beta' in model_hparams.keys():
+            self.beta = model_hparams['beta']
+        else:
+            self.beta = beta
+
+        print('ALPHA = ', self.alpha)
+        print('BETA = ', self.beta)
+        print('loss = {}*reco_loss + {}*class_loss'.format(self.alpha, self.beta))
+
+    def forward(self, x):
+        # Forward function that is run when visualizing the graph
+        return self.model(x)
+
+    def training_step(self, batch, batch_idx):
+        # x must be in shape [batch_size, 1, window_size]
+        # y must be in shape [[batch_size, 1], [batch_size, 1], ...]
+        x, y = batch
+        # Forward pass
+        mains_logit, target_logits = self(x)
+        total_loss, reco_loss, class_loss = self.compute_total_train_loss(mains_logit=mains_logit, x=x, y=y,
+                                                                          target_logits=target_logits,)
+        self.log('reco_loss', reco_loss, prog_bar=True, on_epoch=True, on_step=False)
+        self.log('class_loss', class_loss, prog_bar=True, on_epoch=True, on_step=False)
+        self.log('total_loss', total_loss, prog_bar=True, on_epoch=True, on_step=False)
+        return {'loss': total_loss, 'reco_loss': reco_loss, 'class_loss': class_loss}
+
+    def compute_total_train_loss(self, mains_logit, x, y, target_logits):
+        reco_loss = self.compute_reconstruction_loss(mains_logit=mains_logit, x=x)
+        class_loss = self.compute_class_loss(y=y, target_logits=target_logits)
+        total_loss = self.alpha*reco_loss + self.beta*class_loss
+        return total_loss, reco_loss, class_loss
+
+    def compute_total_test_loss(self, y, target_logits):
+        class_loss = self.compute_class_loss(y=y, target_logits=target_logits)
+        return class_loss
+
+    @staticmethod
+    def compute_class_loss(y, target_logits):
+        class_loss = 0
+        # y must be in shape [[batch_size, 1], [batch_size, 1], ...]
+        for i in range(target_logits.shape[-1]):
+            logit = target_logits[:, i]
+            class_loss += F.mse_loss(logit, y[:, i, :].squeeze()).div(math.log(2))
+        return class_loss / len(target_logits)
+
+    @staticmethod
+    def compute_reconstruction_loss(mains_logit, x):
+        return F.mse_loss(mains_logit, x[:, -1]).div(math.log(2))
+
+    def _forward_step(self, batch: Tensor) -> Tuple[float, float, float]:
+        x, y = batch
+        mains_logit, target_logits = self(x)
+        total_loss, reco_loss, class_loss = self.compute_total_train_loss(mains_logit=mains_logit, x=x, y=y,
+                                                                          target_logits=target_logits,)
+        return total_loss, reco_loss, class_loss
+
+    def validation_step(self, val_batch: Tensor, batch_idx: int) -> Dict:
+        total_loss, reco_loss, class_loss = self._forward_step(val_batch)
+        val_loss = total_loss
+        self.log(VAL_LOSS, val_loss, prog_bar=True, on_epoch=True, on_step=False)
+        self.log("val_reco_loss", reco_loss, prog_bar=False, on_epoch=True, on_step=False)
+        self.log("val_class_loss", class_loss, prog_bar=False, on_epoch=True, on_step=False)
+        return {"val_loss": val_loss}
+
+    def test_step(self, batch, batch_idx):
+        x, y = batch
+        # Forward pass
+        mains_logit, target_logits = self(x)
+
+        if not len(self.final_preds):
+            self.final_preds = target_logits
+            self.final_grounds = y
+        else:
+            self.final_preds = torch.cat((self.final_preds, target_logits))
+            self.final_grounds = torch.cat((self.final_grounds, y))
+
+        return {'test_loss': ''}
+
+    def test_epoch_end(self, outputs):
+        # outputs is a list of whatever you returned in `test_step`
+        print('Metrics calculation starts')
+        res = []
+        for i in range(0, len(self.eval_params[COLUMN_DEVICE])):
+            print(self.final_preds.shape)
+            res.append(self._super_metrics(i))
+        print('OK! Metrics are computed')
+        self.set_res(res)
+        for i in range(len(self.eval_params[COLUMN_DEVICE])):
+            print('#### model name: {} ####'.format(res[i][COLUMN_MODEL]))
+            print('#### appliance: {} ####'.format(res[i][COLUMN_DEVICE]))
+            print('metrics: {}'.format(res[i][COLUMN_METRICS]))
+        self.final_preds = []
+        return res
+
+    def set_ground(self, grounds):
+        self.eval_params[COLUMN_GROUNDTRUTH] = grounds
+
+    def _super_metrics(self, dev_index):
+        print('final_preds ', self.final_preds.shape)
+        print('final_grounds ', self.final_grounds.shape)
+        preds = self.final_preds[:, dev_index].cpu().numpy()
+        groundtruth = self.final_grounds[:, dev_index, :].squeeze().cpu().numpy()
+        dev, mmax = self.eval_params[COLUMN_DEVICE][dev_index], self.eval_params[COLUMN_MMAX]
+        means, stds = self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
+
+        if mmax and means and stds:
+            preds = denormalize(preds, mmax)
+            preds = destandardize(preds, means, stds)
+            ground = denormalize(groundtruth, mmax)
+            ground = destandardize(ground, means, stds)
+        elif mmax:
+            preds = denormalize(preds, mmax)
+            ground = denormalize(groundtruth, mmax)
+        elif means and stds:
+            preds = destandardize(preds, means, stds)
+            ground = destandardize(groundtruth, means, stds)
+        else:
+            ground = np.array([])
+
+        res = NILMmetrics(pred=preds,
+                          ground=ground,
+                          threshold=ON_THRESHOLDS.get(ElectricalAppliances(dev), 50),)
+        results = {COLUMN_MODEL: self.model_name,
+                   COLUMN_METRICS: res,
+                   COLUMN_PREDICTIONS: preds,
+                   COLUMN_GROUNDTRUTH: ground,
+                   COLUMN_DEVICE: dev,
+                   }
+        return results
