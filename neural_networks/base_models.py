@@ -31,3 +31,9 @@ class BaseModel(nn.Module, abc.ABC):
 
     def supports_supervib(self) -> bool:
         return False
+
+    def supports_supervibenc(self) -> bool:
+        return False
+
+    def supports_multi(self) -> bool:
+        return False
