@@ -1,5 +1,7 @@
 import warnings
 import torch.nn as nn
+from blitz.modules import BayesianConv1d
+from blitz.utils import variational_estimator
 
 
 class LinearDropRelu(nn.Module):
@@ -37,6 +39,36 @@ class ConvDropRelu(nn.Module):
             self.conv = nn.Sequential(
                 nn.ZeroPad2d(padding),
                 nn.Conv1d(in_channels, out_channels, kernel_size, groups=groups),
+                # nn.BatchNorm1d(out_channels),
+                nn.Dropout(dropout),
+            )
+
+    def forward(self, x):
+        return self.conv(x)
+
+
+@variational_estimator
+class BayesianConvDropRelu(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, dropout=0, groups=1, relu=True):
+        super(BayesianConvDropRelu, self).__init__()
+
+        left, right = kernel_size // 2, kernel_size // 2
+        if kernel_size % 2 == 0:
+            right -= 1
+        padding = (left, right, 0, 0)
+
+        if relu:
+            self.conv = nn.Sequential(
+                nn.ZeroPad2d(padding),
+                BayesianConv1d(in_channels, out_channels, kernel_size, groups=groups),
+                # nn.BatchNorm1d(out_channels),
+                nn.Dropout(dropout),
+                nn.LeakyReLU(inplace=True),
+            )
+        else:
+            self.conv = nn.Sequential(
+                nn.ZeroPad2d(padding),
+                BayesianConv1d(in_channels, out_channels, kernel_size, groups=groups),
                 # nn.BatchNorm1d(out_channels),
                 nn.Dropout(dropout),
             )
@@ -129,11 +161,11 @@ class VIBDecoder(nn.Module):
 
 
 class View(nn.Module):
-    def __init__(self, dim,  shape):
+    def __init__(self, dim, shape):
         super(View, self).__init__()
         self.dim = dim
         self.shape = shape
 
     def forward(self, input_tensor):
-        new_shape = list(input_tensor.shape)[:self.dim] + list(self.shape) + list(input_tensor.shape)[self.dim+1:]
+        new_shape = list(input_tensor.shape)[:self.dim] + list(self.shape) + list(input_tensor.shape)[self.dim + 1:]
         return input_tensor.view(*new_shape)

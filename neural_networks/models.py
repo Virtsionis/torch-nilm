@@ -1,14 +1,25 @@
 import math
 import torch
 import torch.nn as nn
+from blitz.utils import variational_estimator
 from torchnlp.nn.attention import Attention
 
 from neural_networks.base_models import BaseModel
+from neural_networks.bayesian import ShallowBayesianRegressor, BayesianConvEncoder
 from neural_networks.custom_modules import ConvDropRelu, LinearDropRelu, View
 
 
-class MultiLabelModel(BaseModel):
-    def supports_multi(self) -> bool:
+class MultiLabelDAEModel(BaseModel):
+    def supports_multidae(self) -> bool:
+        return True
+
+    @staticmethod
+    def get_device():
+        return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+
+class MultiRegressorModel(BaseModel):
+    def supports_multiregressor(self) -> bool:
         return True
 
     @staticmethod
@@ -411,10 +422,6 @@ class ConvEncoder(BaseModel):
         )
 
     def forward(self, x):
-        x = x
-        # x must be in shape [batch_size, 1, window_size]
-        # eg: [1024, 1, 50]
-        x = x
         x = x.unsqueeze(1)
         x = self.encoder(x)
         return x
@@ -443,7 +450,84 @@ class ConvDecoder(BaseModel):
         return x
 
 
-class ConvMultiDAE(MultiLabelModel):
+class ShallowRegressor(nn.Module):
+    def __init__(self, input_dim, output_dim=1, dropout=0,):
+        super().__init__()
+        self.dense = nn.Sequential(
+            LinearDropRelu(2 * input_dim, input_dim, dropout),
+            LinearDropRelu(input_dim, input_dim // 2, dropout),
+            LinearDropRelu(input_dim // 2, input_dim // 4, dropout),
+            nn.Linear(input_dim // 4, output_dim, bias=True),
+        )
+
+    def forward(self, x):
+        return self.dense(x)
+
+
+@variational_estimator
+class MultiRegressorConvEncoder(MultiRegressorModel):
+    def __init__(self, input_dim, dropout=0, distribution_dim=16, targets_num=1, output_dim=1, complexity_cost_weight=1e-2,
+                 dae_output_dim=50, bayesian_encoder=False, bayesian_regressor=False, lr=1e-3, *args, **kwargs):
+
+        super().__init__(*args, **kwargs)
+        self.architecture_name = 'MultiRegressorConvEncoder'
+        """
+        :param input_dim:
+        :param distribution_dim:  the latent dimension of each distribution
+        :param targets_num:  the number of targets
+        :param max_noise:
+        :param dropout:
+        :param output_dim:
+        """
+        self.device = self.get_device()
+        self.complexity_cost_weight = complexity_cost_weight
+        if distribution_dim % 2 > 0:
+            distribution_dim += 1
+        self.distribution_dim = distribution_dim
+        self.targets_num = targets_num
+        self.latent_dim = (self.targets_num + 1) * self.distribution_dim
+        if any([bayesian_encoder, bayesian_regressor]):
+            self.bayesian = True
+        else:
+            self.bayesian = False
+
+        if bayesian_encoder:
+            print('Integration of BayesianEncoder')
+            self.encoder = BayesianConvEncoder(input_dim=input_dim, dropout=dropout, output_dim=dae_output_dim,
+                                               latent_dim=self.latent_dim,)
+        else:
+            self.encoder = ConvEncoder(input_dim=input_dim, dropout=dropout, output_dim=dae_output_dim,
+                                       latent_dim=self.latent_dim, )
+
+        self.shallow_modules = nn.ModuleList()
+        if bayesian_regressor:
+            print('Integration of ShallowBayesianRegressors')
+            for i in range(self.targets_num):
+                self.shallow_modules.append(
+                    ShallowBayesianRegressor(input_dim=self.latent_dim)
+                )
+        else:
+            for i in range(self.targets_num):
+                self.shallow_modules.append(
+                    ShallowRegressor(input_dim=self.latent_dim)
+                )
+
+    def forward(self, x, current_epoch=None, num_sample=1):
+        # x must be in shape [batch_size, 1, window_size]
+        # eg: [1024, 1, 50]
+        x = x
+        statistics = self.encoder(x)
+        target_logits = torch.tensor([])
+        for i in range(len(self.shallow_modules)):
+            target_logit = self.shallow_modules[i](statistics)
+            if i == 0:
+                target_logits = target_logit.unsqueeze(1).unsqueeze(3).to(self.device)
+            else:
+                target_logits = torch.cat((target_logits, target_logit.unsqueeze(1).unsqueeze(3)), 3)
+        return target_logits
+
+
+class ConvMultiDAE(MultiLabelDAEModel):
     def __init__(self, input_dim, latent_dim, dropout=0.2, output_dim=1, targets_num=0, mains_sequence=False):
         super().__init__()
         self.device = self.get_device()

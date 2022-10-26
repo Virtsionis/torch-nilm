@@ -56,8 +56,12 @@ class TrainingToolsFactory:
             return BayesTrainingTools(model, model_hparams, eval_params)
         elif model.supports_bert():
             return BertTrainingTools(model, model_hparams, eval_params)
-        elif model.supports_multi():
-            return MultiTrainingTools(model, model_hparams, eval_params)
+        elif model.supports_multidae():
+            return MultiDAETrainingTools(model, model_hparams, eval_params)
+        elif model.supports_vibmultiregressor():
+            return VariationalMultiRegressorTrainingTools(model, model_hparams, eval_params)
+        elif model.supports_multiregressor():
+            return MultiRegressorTrainingTools(model, model_hparams, eval_params)
         elif model.supports_multivib():
             return SuperVariationalMultiTrainingTools(model, model_hparams, eval_params)
         else:
@@ -83,18 +87,17 @@ class ClassicTrainingTools(pl.LightningModule):
 
         self.final_preds = np.array([])
         self.results = {}
+        if 'lr' in model_hparams.keys():
+            self.lr = model_hparams['lr']
+        else:
+            self.lr = 1e-3
 
     def forward(self, x):
         # Forward function that is run when visualizing the graph
         return self.model(x)
 
     def configure_optimizers(self):
-        # print(f"learning rate {self.model.lr}")
-        # print(f"learning rate {self.lr}")
-        # print(f"model params {[p for p in self.model.parameters()]}")
-        # print(f"params {[p for p in self.parameters()]}")
-        return torch.optim.Adam(self.parameters())
-        # return torch.optim.SGD(self.parameters(), lr=0.001)
+        return torch.optim.Adam(self.parameters(), lr=self.lr)
 
     def training_step(self, batch, batch_idx):
         # x must be in shape [batch_size, 1, window_size]
@@ -207,6 +210,10 @@ class VIBTrainingTools(ClassicTrainingTools):
             self.beta = model_hparams['beta']
         else:
             self.beta = beta
+        if 'lr' in model_hparams.keys():
+            self.lr = model_hparams['lr']
+        else:
+            self.lr = 1e-3
 
     def forward(self, x):
         # Forward function that is run when visualizing the graph
@@ -266,6 +273,10 @@ class BayesTrainingTools(ClassicTrainingTools):
         print('BAYES TRAINING')
         self.criterion = torch.nn.MSELoss()  # F.mse_loss()
         self.sample_nbr = sample_nbr
+        if 'lr' in model_hparams.keys():
+            self.lr = model_hparams['lr']
+        else:
+            self.lr = 1e-3
 
     def training_step(self, batch, batch_idx):
         # x must be in shape [batch_size, 1, window_size]
@@ -306,6 +317,10 @@ class BertTrainingTools(ClassicTrainingTools):
         self.threshold = torch.tensor(POWER_ON_THRESHOLD[self.dev])
         self.min_on = torch.tensor(MIN_ON_DUR[self.dev])
         self.min_off = torch.tensor(MIN_OFF_DUR[self.dev])
+        if 'lr' in model_hparams.keys():
+            self.lr = model_hparams['lr']
+        else:
+            self.lr = 1e-3
 
     def training_step(self, batch, batch_idx):
         total_loss = self._bert_loss(batch)
@@ -739,7 +754,7 @@ class SuperVariationalMultiTrainingTools(SuperVariationalTrainingTools):
         return results
 
 
-class MultiTrainingTools(ClassicTrainingTools):
+class MultiDAETrainingTools(ClassicTrainingTools):
     def __init__(self, model, model_hparams, eval_params, alpha=1e-4, beta=1,):
         """
         Inputs:
@@ -749,6 +764,8 @@ class MultiTrainingTools(ClassicTrainingTools):
         super().__init__(model, model_hparams, eval_params)
         self.final_preds = torch.tensor([])
         self.final_grounds = torch.tensor([])
+        # self.criterion = torch.nn.MSELoss
+        self.criterion = F.mse_loss
         if 'alpha' in model_hparams.keys():
             self.alpha = model_hparams['alpha']
         else:
@@ -757,7 +774,10 @@ class MultiTrainingTools(ClassicTrainingTools):
             self.beta = model_hparams['beta']
         else:
             self.beta = beta
-
+        if 'lr' in model_hparams.keys():
+            self.lr = model_hparams['lr']
+        else:
+            self.lr = 1e-3
         print('ALPHA = ', self.alpha)
         print('BETA = ', self.beta)
         print('loss = {}*reco_loss + {}*class_loss'.format(self.alpha, self.beta))
@@ -779,7 +799,7 @@ class MultiTrainingTools(ClassicTrainingTools):
         self.log('total_loss', total_loss, prog_bar=True, on_epoch=True, on_step=False)
         return {'loss': total_loss, 'reco_loss': reco_loss, 'class_loss': class_loss}
 
-    def compute_total_train_loss(self, mains_logit, x, y, target_logits):
+    def compute_total_train_loss(self, y, x, target_logits=None, mains_logit=None):
         reco_loss = self.compute_reconstruction_loss(mains_logit=mains_logit, x=x)
         class_loss = self.compute_class_loss(y=y, target_logits=target_logits)
         total_loss = self.alpha*reco_loss + self.beta*class_loss
@@ -789,8 +809,7 @@ class MultiTrainingTools(ClassicTrainingTools):
         class_loss = self.compute_class_loss(y=y, target_logits=target_logits)
         return class_loss
 
-    @staticmethod
-    def compute_class_loss(y, target_logits):
+    def compute_class_loss(self, y, target_logits):
         class_loss = 0
         # y must be in shape [[batch_size, 1], [batch_size, 1], ...]
         for i in range(target_logits.shape[-1]):
@@ -882,3 +901,279 @@ class MultiTrainingTools(ClassicTrainingTools):
                    COLUMN_DEVICE: dev,
                    }
         return results
+
+
+class MultiRegressorTrainingTools(MultiDAETrainingTools):
+    def __init__(self, model, model_hparams, eval_params, sample_nbr=3, complexity_cost_weight=1e-6):
+        """
+        Inputs:
+            model_name - Name of the model to run. Used for creating the model (see function below)
+            model_hparams - Hyperparameters for the model, as dictionary.
+        """
+        super().__init__(model, model_hparams, eval_params)
+        self.final_preds = torch.tensor([])
+        self.final_grounds = torch.tensor([])
+        self.model = model
+        if 'lr' in model_hparams.keys():
+            self.lr = model_hparams['lr']
+        else:
+            self.lr = 1e-3
+        bayesian_keys = [key for key in model_hparams.keys() if 'bayes' in key]
+        if len(bayesian_keys):
+            self.bayesian = any([model_hparams[key] for key in bayesian_keys])
+        else:
+            self.bayesian = False
+
+        self.criterion = F.mse_loss
+        if self.bayesian:
+            print('Bayesian training is: ', self.bayesian)
+            if 'sample_nbr' in model_hparams.keys():
+                self.sample_nbr = model_hparams['sample_nbr']
+            else:
+                self.sample_nbr = sample_nbr
+            if 'complexity_cost_weight' in model_hparams.keys():
+                self.complexity_cost_weight = model_hparams['complexity_cost_weight']
+            else:
+                self.complexity_cost_weight = complexity_cost_weight
+
+    def compute_class_loss(self, y, target_logits):
+        class_loss = 0
+        target_logits = target_logits.squeeze()
+        for i in range(target_logits.shape[-1]):
+            logit = target_logits[:, i].squeeze()
+            truth = y[:, i, :].squeeze()
+            class_loss += self.criterion(logit, truth).div(math.log(2))
+        return class_loss / len(target_logits)
+
+    def compute_total_train_loss(self, y, x, target_logits=None, mains=None):
+        if self.bayesian:
+            # total_loss = self.model.sample_elbo(inputs=x,
+            total_loss = self.sample_elbo(inputs=x,
+                                          labels=y,
+                                          # criterion=self.criterion,
+                                          sample_nbr=self.sample_nbr,
+                                          multi_label=True,
+                                          complexity_cost_weight=self.complexity_cost_weight,
+                                          )
+        else:
+            # Forward pass
+            target_logits = self(x)
+            total_loss = self.compute_class_loss(y=y, target_logits=target_logits)
+        return total_loss
+
+    def compute_total_val_loss(self, y, x, target_logits=None, mains=None):
+        if self.bayesian:
+            # total_loss = self.model.sample_elbo(inputs=x,
+            total_loss = self.sample_elbo(inputs=x,
+                                          labels=y,
+                                          # criterion=self.criterion,
+                                          sample_nbr=1,
+                                          multi_label=True,
+                                          complexity_cost_weight=self.beta,
+                                          )
+        else:
+            # Forward pass
+            target_logits = self(x)
+            total_loss = self.compute_class_loss(y=y, target_logits=target_logits)
+        return total_loss
+
+    def training_step(self, batch, batch_idx):
+        x, y = batch
+        total_loss = self.compute_total_train_loss(x=x, y=y)
+        self.log('total_loss', total_loss, prog_bar=True, on_epoch=True, on_step=False)
+        return {'loss': total_loss, }
+
+    def _forward_step(self, batch: Tensor) -> float:
+        x, y = batch
+        total_loss = self.compute_total_val_loss(x=x, y=y)
+        return total_loss
+
+    def validation_step(self, val_batch: Tensor, batch_idx: int) -> Dict:
+        total_loss = self._forward_step(val_batch)
+        val_loss = total_loss
+        self.log(VAL_LOSS, val_loss, prog_bar=True, on_epoch=True, on_step=False)
+        return {"val_loss": val_loss}
+
+    def test_step(self, batch, batch_idx):
+        x, y = batch
+        # Forward pass
+        target_logits = self(x)
+        if not len(self.final_preds):
+            self.final_preds = target_logits
+            self.final_grounds = y
+        else:
+            self.final_preds = torch.cat((self.final_preds, target_logits))
+            self.final_grounds = torch.cat((self.final_grounds, y))
+
+        return {'test_loss': ''}
+
+    def _super_metrics(self, dev_index):
+        preds = self.final_preds[:, :, :, dev_index].squeeze().cpu().numpy().reshape(-1)
+        groundtruth = self.final_grounds[:, dev_index, :].squeeze().cpu().numpy().reshape(-1) #reshape(1,-1)[0]
+        dev, mmax = self.eval_params[COLUMN_DEVICE][dev_index], self.eval_params[COLUMN_MMAX]
+        means, stds = self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
+
+        if mmax and means and stds:
+            preds = denormalize(preds, mmax)
+            preds = destandardize(preds, means, stds)
+            ground = denormalize(groundtruth, mmax)
+            ground = destandardize(ground, means, stds)
+        elif mmax:
+            preds = denormalize(preds, mmax)
+            ground = denormalize(groundtruth, mmax)
+        elif means and stds:
+            preds = destandardize(preds, means, stds)
+            ground = destandardize(groundtruth, means, stds)
+        else:
+            ground = np.array([])
+
+        res = NILMmetrics(pred=preds,
+                          ground=ground,
+                          threshold=ON_THRESHOLDS.get(ElectricalAppliances(dev), 50),
+                         )
+        results = {COLUMN_MODEL: self.model_name,
+                   COLUMN_METRICS: res,
+                   COLUMN_PREDICTIONS: preds,
+                   COLUMN_GROUNDTRUTH: ground,
+                   COLUMN_DEVICE: dev,
+                   }
+        return results
+
+    def sample_elbo(self, inputs, labels, sample_nbr, multi_label=False, complexity_cost_weight=1):
+        loss = 0
+        for _ in range(sample_nbr):
+            # Forward pass
+            outputs = self(inputs)
+            loss += self.model.nn_kl_divergence() * complexity_cost_weight
+            if multi_label:
+                loss += self.calculate_multi_criterion(outputs=outputs, labels=labels)
+            else:
+                loss += self.criterion(outputs, labels)
+        return loss / sample_nbr
+
+    def calculate_multi_criterion(self, outputs, labels):
+        loss = 0
+        for i in range(outputs.shape[-1]):
+            outputs = outputs.squeeze()
+            logit = outputs[:, i]
+            y = labels[:, i, :].squeeze()
+            loss += self.criterion(logit, y).div(math.log(2))
+        return loss / len(outputs)
+
+
+class VariationalMultiRegressorTrainingTools(SuperVariationalTrainingTools):
+    def __init__(self, model, model_hparams, eval_params, beta=1e-5, gamma=1e-2, sample_nbr=3,
+                 complexity_cost_weight=1e-6):
+        """
+        Inputs:
+            model_name - Name of the model to run. Used for creating the model (see function below)
+            model_hparams - Hyperparameters for the model, as dictionary.
+        """
+        super().__init__(model, model_hparams, eval_params)
+        self.final_preds = torch.tensor([])
+        self.final_grounds = torch.tensor([])
+        self.model = model
+        if 'lr' in model_hparams.keys():
+            self.lr = model_hparams['lr']
+        else:
+            self.lr = 1e-3
+        if 'beta' in model_hparams.keys():
+            self.beta = model_hparams['beta']
+        else:
+            self.beta = beta
+        if 'gamma' in model_hparams.keys():
+            self.gamma = model_hparams['gamma']
+        else:
+            self.gamma = gamma
+
+        print('BETA = ', self.beta)
+        print('GAMMA = ', self.gamma)
+        print('loss = {}*info_loss + {}*class_loss'.format(self.beta, self.gamma))
+
+        bayesian_keys = [key for key in model_hparams.keys() if 'bayes' in key]
+        if len(bayesian_keys):
+            self.bayesian = any([model_hparams[key] for key in bayesian_keys])
+        else:
+            self.bayesian = False
+
+        self.criterion = F.mse_loss
+        if self.bayesian:
+            print('Bayesian training is: ', self.bayesian)
+            if 'sample_nbr' in model_hparams.keys():
+                self.sample_nbr = model_hparams['sample_nbr']
+            else:
+                self.sample_nbr = sample_nbr
+            if 'complexity_cost_weight' in model_hparams.keys():
+                self.complexity_cost_weight = model_hparams['complexity_cost_weight']
+            else:
+                self.complexity_cost_weight = complexity_cost_weight
+
+    def training_step(self, batch, batch_idx):
+        x, y = batch
+        total_loss, class_loss, info_loss, bayes_loss = self.compute_total_loss(x=x, y=y,)
+
+        self.log('bayes_loss', bayes_loss, prog_bar=True, on_epoch=True, on_step=False)
+        self.log('class_loss', class_loss, prog_bar=True, on_epoch=True, on_step=False)
+        self.log('info_loss', info_loss, prog_bar=True, on_epoch=True, on_step=False)
+        self.log('total_loss', total_loss, prog_bar=True, on_epoch=True, on_step=False)
+        return {'loss': total_loss, 'bayes_loss': bayes_loss, 'class_loss': class_loss, 'info_loss': info_loss}
+
+    def compute_total_loss(self, y, x, validation=False):
+        if self.bayesian:
+            if validation:
+                sample_nbr = 1
+            else:
+                sample_nbr = self.sample_nbr
+            total_loss, class_loss, info_loss, bayes_loss = self.sample_elbo(x=x,
+                                                                             y=y,
+                                                                             sample_nbr=sample_nbr,
+                                                                             complexity_cost_weight=self.complexity_cost_weight
+                                                                             )
+        else:
+            bayes_loss = 0
+            # Forward pass
+            noise_dist, vae_logit, target_dists, target_logits = self(x)
+            total_loss, class_loss, info_loss = self.compute_train_loss(y=y,
+                                                                        target_logits=target_logits,
+                                                                        noise_dist=noise_dist,
+                                                                        target_dists=target_dists)
+        return total_loss, class_loss, info_loss, bayes_loss
+
+    def compute_train_loss(self, y, target_logits, noise_dist, target_dists):
+        class_loss = self.compute_class_loss(y=y, target_logits=target_logits)
+        info_loss = self.compute_info_loss(noise_dist=noise_dist, target_dists=target_dists)
+        total_loss = self.beta*info_loss + self.gamma*class_loss
+        return total_loss, class_loss, info_loss
+
+    def _forward_step(self, batch: Tensor) -> Tuple[float, float, float, float]:
+        x, y = batch
+        total_loss, class_loss, info_loss, bayes_loss = self.compute_total_loss(x=x, y=y, validation=True)
+        return total_loss, class_loss, info_loss, bayes_loss
+
+    def validation_step(self, val_batch: Tensor, batch_idx: int) -> Dict:
+        total_loss, class_loss, info_loss, bayes_loss = self._forward_step(val_batch)
+        self.log("val_bayes_loss", bayes_loss, prog_bar=False, on_epoch=True, on_step=False)
+        self.log("val_class_loss", class_loss, prog_bar=False, on_epoch=True, on_step=False)
+        self.log("val_info_loss", info_loss, prog_bar=False, on_epoch=True, on_step=False)
+        self.log(VAL_LOSS, total_loss, prog_bar=True, on_epoch=True, on_step=False)
+        return {"val_loss": total_loss}
+
+    def sample_elbo(self, x, y, sample_nbr, complexity_cost_weight=1):
+        loss = 0
+        bayes_loss = 0
+        class_loss = 0
+        info_loss = 0
+        for _ in range(sample_nbr):
+            # Forward pass
+            noise_dist, vae_logit, target_dists, target_logits = self(x)
+            total_loss, c_loss, i_loss = self.compute_train_loss(y=y,
+                                                                 target_logits=target_logits,
+                                                                 noise_dist=noise_dist,
+                                                                 target_dists=target_dists)
+
+            bayes_loss += self.model.nn_kl_divergence() * complexity_cost_weight
+            loss = bayes_loss + total_loss
+            class_loss += c_loss
+            info_loss += i_loss
+        return loss / sample_nbr, class_loss / sample_nbr, info_loss / sample_nbr, bayes_loss / sample_nbr,
+

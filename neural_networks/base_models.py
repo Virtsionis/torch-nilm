@@ -35,7 +35,13 @@ class BaseModel(nn.Module, abc.ABC):
     def supports_supervibenc(self) -> bool:
         return False
 
-    def supports_multi(self) -> bool:
+    def supports_multidae(self) -> bool:
+        return False
+
+    def supports_multiregressor(self) -> bool:
+        return False
+
+    def supports_vibmultiregressor(self) -> bool:
         return False
 
     def supports_multivib(self) -> bool:
