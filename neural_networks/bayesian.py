@@ -4,7 +4,7 @@ from torchnlp.nn import Attention
 
 from neural_networks.base_models import BaseModel
 from blitz.modules import BayesianLinear, BayesianConv1d
-from neural_networks.custom_modules import ConvDropRelu, LinearDropRelu, BayesianConvDropRelu
+from neural_networks.custom_modules import ConvDropRelu, LinearDropRelu, BayesianConvDropRelu, BayesianLinearDropRelu
 from blitz.utils import variational_estimator
 
 
@@ -19,10 +19,10 @@ class ShallowBayesianRegressor(nn.Module):
     def __init__(self, input_dim, output_dim=1, dropout=0, ):
         super().__init__()
         self.dense = nn.Sequential(
-            BayesianLinear(2 * input_dim, input_dim, dropout),
-            BayesianLinear(input_dim, input_dim // 2, dropout),
-            BayesianLinear(input_dim // 2, input_dim // 4, dropout),
-            BayesianLinear(input_dim // 4, output_dim, bias=True),
+            BayesianLinearDropRelu(2 * input_dim, input_dim, dropout),
+            BayesianLinearDropRelu(input_dim, input_dim // 2, dropout),
+            BayesianLinearDropRelu(input_dim // 2, input_dim // 4, dropout),
+            BayesianLinearDropRelu(input_dim // 4, output_dim, bias=True),
         )
 
     def forward(self, x):

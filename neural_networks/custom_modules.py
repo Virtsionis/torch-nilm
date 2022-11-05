@@ -1,6 +1,6 @@
 import warnings
 import torch.nn as nn
-from blitz.modules import BayesianConv1d
+from blitz.modules import BayesianConv1d, BayesianLinear
 from blitz.utils import variational_estimator
 
 
@@ -9,6 +9,20 @@ class LinearDropRelu(nn.Module):
         super(LinearDropRelu, self).__init__()
         self.linear = nn.Sequential(
             nn.Linear(in_features, out_features, bias=bias),
+            # nn.BatchNorm1d(out_features),
+            nn.Dropout(dropout),
+            nn.LeakyReLU(inplace=True),
+        )
+
+    def forward(self, x):
+        return self.linear(x)
+
+
+class BayesianLinearDropRelu(nn.Module):
+    def __init__(self, in_features, out_features, dropout=0, bias=True):
+        super(BayesianLinearDropRelu, self).__init__()
+        self.linear = nn.Sequential(
+            BayesianLinear(in_features, out_features, bias=bias),
             # nn.BatchNorm1d(out_features),
             nn.Dropout(dropout),
             nn.LeakyReLU(inplace=True),
