@@ -488,7 +488,6 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
         print('loss = {}*reco_loss + {}*info_loss + {}*class_loss'.format(self.alpha, self.beta, self.gamma))
 
     def configure_optimizers(self):
-        print("self.eval_params: ", self.eval_params)
         return torch.optim.Adam(self.parameters(), lr=self.lr)
 
     def forward(self, x):
@@ -968,8 +967,6 @@ class MultiRegressorTrainingTools(MultiDAETrainingTools):
     def compute_class_loss(self, y, target_logits):
         class_loss = 0
         target_logits = target_logits.squeeze()
-        print(y.size())
-        print(target_logits.size())
         if len(list(y.squeeze().size())) > 1:
             for i in range(target_logits.shape[-1]):
                 logit = target_logits[:, i].squeeze()
