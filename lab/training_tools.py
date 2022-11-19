@@ -968,12 +968,14 @@ class MultiRegressorTrainingTools(MultiDAETrainingTools):
     def compute_class_loss(self, y, target_logits):
         class_loss = 0
         target_logits = target_logits.squeeze()
-        if len(list(y.size())) > 1:
+        print(y.size())
+        print(target_logits.size())
+        if len(list(y.squeeze().size())) > 1:
             for i in range(target_logits.shape[-1]):
                 logit = target_logits[:, i].squeeze()
                 truth = y[:, i, :].squeeze()
         else:
-            logit = target_logits.squeeze(1)
+            logit = target_logits.squeeze()
             truth = y
         class_loss += self.criterion(logit, truth).div(math.log(2))
         return class_loss / len(target_logits)
@@ -1041,7 +1043,7 @@ class MultiRegressorTrainingTools(MultiDAETrainingTools):
         return {'test_loss': ''}
 
     def _super_metrics(self, dev_index):
-        if len(list(y.size())) > 1:
+        if len(list(self.final_grounds.size())) > 1:
             preds = self.final_preds[:, :, :, dev_index].squeeze().cpu().numpy().reshape(-1)
             groundtruth = self.final_grounds[:, dev_index, :].squeeze().cpu().numpy().reshape(-1)  # reshape(1,-1)[0]
             dev = self.eval_params[COLUMN_DEVICE][dev_index]

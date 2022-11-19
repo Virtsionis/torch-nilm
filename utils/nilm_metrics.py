@@ -35,7 +35,10 @@ def NILMmetrics(pred: np.array, ground: np.array, threshold: int = 40, rounding_
 
     @njit
     def recall(tp, fn, round_digit=3):
-        return round((tp/float(tp+fn)), round_digit)
+        if float(tp+fn) > 0:
+            return round((tp/float(tp+fn)), round_digit)
+        else:
+            return np.nan
 
     @njit
     def precision(tp, fp, round_digit=3):
