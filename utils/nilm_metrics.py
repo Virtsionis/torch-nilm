@@ -65,7 +65,10 @@ def NILMmetrics(pred: np.array, ground: np.array, threshold: int = 40, rounding_
     def relative_error_total_energy(predictions, groundtruth, round_digit=3):
         e_pred = np.sum(predictions)
         e_ground = np.sum(groundtruth)
-        return round((np.abs(e_pred - e_ground) / float(max(e_pred, e_ground))), round_digit)
+        if float(max(e_pred, e_ground)) > 0:
+            return round((np.abs(e_pred - e_ground) / float(max(e_pred, e_ground))), round_digit)
+        else:
+            return np.nan
 
     @njit
     def mean_absolute_error(predictions, groundtruth, round_digit=3):
