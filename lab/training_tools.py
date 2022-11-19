@@ -158,7 +158,6 @@ class ClassicTrainingTools(pl.LightningModule):
 
         means = self.eval_params[COLUMN_MEANS]
         stds = self.eval_params[COLUMN_STDS]
-        print(self.final_preds.shape)
         print('start denorm')
         if mmax:
             preds = denormalize(self.final_preds, mmax)
@@ -167,8 +166,6 @@ class ClassicTrainingTools(pl.LightningModule):
             preds = destandardize(self.final_preds, means, stds)
             ground = destandardize(groundtruth, means, stds)
         print('end denorm')
-        print(preds.shape)
-        print(ground.shape)
         res = NILMmetrics(pred=preds,
                           ground=ground,
                           threshold=ON_THRESHOLDS.get(ElectricalAppliances(dev), 50)
@@ -491,6 +488,7 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
         print('loss = {}*reco_loss + {}*info_loss + {}*class_loss'.format(self.alpha, self.beta, self.gamma))
 
     def configure_optimizers(self):
+        print("self.eval_params: ", self.eval_params)
         return torch.optim.Adam(self.parameters(), lr=self.lr)
 
     def forward(self, x):
@@ -538,9 +536,13 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
     def compute_class_loss(y, target_logits):
         class_loss = 0
         # y must be in shape [[batch_size, 1], [batch_size, 1], ...]
-        for i in range(target_logits.shape[-1]):
-            logit = target_logits[:, :, :, i].squeeze(1)
-            class_loss += F.mse_loss(logit, y[:, i, :]).div(math.log(2))
+        if len(list(y.size())) > 1:
+            for i in range(target_logits.shape[-1]):
+                logit = target_logits[:, :, :, i].squeeze(1)
+                class_loss += F.mse_loss(logit, y[:, i, :]).div(math.log(2))
+        else:
+            logit = target_logits.squeeze(1)
+            class_loss += F.mse_loss(logit, y).div(math.log(2))
         return class_loss #/ len(target_logits)
 
     @staticmethod
@@ -584,15 +586,22 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
         # outputs is a list of whatever you returned in `test_step`
         print('Metrics calculation starts')
         res = []
-        for i in range(0, len(self.eval_params[COLUMN_DEVICE])):
-            print(self.final_preds.shape)
-            res.append(self._super_metrics(i))
-        print('OK! Metrics are computed')
-        self.set_res(res)
-        for i in range(len(self.eval_params[COLUMN_DEVICE])):
-            print('#### model name: {} ####'.format(res[i][COLUMN_MODEL]))
-            print('#### appliance: {} ####'.format(res[i][COLUMN_DEVICE]))
-            print('metrics: {}'.format(res[i][COLUMN_METRICS]))
+        if isinstance(self.eval_params[COLUMN_DEVICE], list):
+            for i in range(0, len(self.eval_params[COLUMN_DEVICE])):
+                res.append(self._super_metrics(i))
+            print('OK! Metrics are computed')
+            self.set_res(res)
+            for i in range(len(self.eval_params[COLUMN_DEVICE])):
+                print('#### model name: {} ####'.format(res[i][COLUMN_MODEL]))
+                print('#### appliance: {} ####'.format(res[i][COLUMN_DEVICE]))
+                print('metrics: {}'.format(res[i][COLUMN_METRICS]))
+        else:
+            res = self._super_metrics(0)
+            print('OK! Metrics are computed')
+            self.set_res(res)
+            print('#### model name: {} ####'.format(res[COLUMN_MODEL]))
+            print('#### appliance: {} ####'.format(res[COLUMN_DEVICE]))
+            print('metrics: {}'.format(res[COLUMN_METRICS]))
         self.final_preds = []
         # self.export_model_graph()
         return res
@@ -601,10 +610,15 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
         self.eval_params[COLUMN_GROUNDTRUTH] = grounds
 
     def _super_metrics(self, dev_index):
-        preds = self.final_preds[:, :, :, dev_index].squeeze().cpu().numpy().reshape(-1)
-        groundtruth = self.final_grounds[:, dev_index, :].squeeze().cpu().numpy().reshape(-1) #reshape(1,-1)[0]
-        dev, mmax = self.eval_params[COLUMN_DEVICE][dev_index], self.eval_params[COLUMN_MMAX]
-        means, stds = self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
+        if len(list(self.final_grounds.size())) > 1:
+            preds = self.final_preds[:, :, dev_index].squeeze().cpu().numpy().reshape(-1)
+            groundtruth = self.final_grounds[:, dev_index, :].squeeze().cpu().numpy().reshape(-1)
+            dev = self.eval_params[COLUMN_DEVICE][dev_index]
+        else:
+            preds = self.final_preds.squeeze().cpu().numpy().reshape(-1)
+            groundtruth = self.final_grounds.squeeze().cpu().numpy().reshape(-1)
+            dev = self.eval_params[COLUMN_DEVICE]
+        mmax, means, stds = self.eval_params[COLUMN_MMAX], self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
 
         if mmax and means and stds:
             preds = denormalize(preds, mmax)
@@ -722,10 +736,16 @@ class SuperVariationalMultiTrainingTools(SuperVariationalTrainingTools):
         return F.mse_loss(vae_logit, x).div(math.log(2))
 
     def _super_metrics(self, dev_index):
-        preds = self.final_preds[:, :, dev_index].squeeze().cpu().numpy().reshape(-1)
-        groundtruth = self.final_grounds[:, dev_index, :].squeeze().cpu().numpy().reshape(-1)
-        dev, mmax = self.eval_params[COLUMN_DEVICE][dev_index], self.eval_params[COLUMN_MMAX]
-        means, stds = self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
+        if len(list(self.final_grounds.size())) > 1:
+            preds = self.final_preds[:, :, dev_index].squeeze().cpu().numpy().reshape(-1)
+            groundtruth = self.final_grounds[:, dev_index, :].squeeze().cpu().numpy().reshape(-1)
+            dev = self.eval_params[COLUMN_DEVICE][dev_index]
+        else:
+            preds = self.final_preds.squeeze().cpu().numpy().reshape(-1)
+            groundtruth = self.final_grounds.squeeze().cpu().numpy().reshape(-1)
+            dev = self.eval_params[COLUMN_DEVICE]
+
+        mmax, means, stds = self.eval_params[COLUMN_MMAX], self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
 
         if mmax and means and stds:
             preds = denormalize(preds, mmax)
@@ -854,15 +874,22 @@ class MultiDAETrainingTools(ClassicTrainingTools):
         # outputs is a list of whatever you returned in `test_step`
         print('Metrics calculation starts')
         res = []
-        for i in range(0, len(self.eval_params[COLUMN_DEVICE])):
-            print(self.final_preds.shape)
-            res.append(self._super_metrics(i))
-        print('OK! Metrics are computed')
-        self.set_res(res)
-        for i in range(len(self.eval_params[COLUMN_DEVICE])):
-            print('#### model name: {} ####'.format(res[i][COLUMN_MODEL]))
-            print('#### appliance: {} ####'.format(res[i][COLUMN_DEVICE]))
-            print('metrics: {}'.format(res[i][COLUMN_METRICS]))
+        if isinstance(self.eval_params[COLUMN_DEVICE], list):
+            for i in range(0, len(self.eval_params[COLUMN_DEVICE])):
+                res.append(self._super_metrics(i))
+            print('OK! Metrics are computed')
+            self.set_res(res)
+            for i in range(len(self.eval_params[COLUMN_DEVICE])):
+                print('#### model name: {} ####'.format(res[i][COLUMN_MODEL]))
+                print('#### appliance: {} ####'.format(res[i][COLUMN_DEVICE]))
+                print('metrics: {}'.format(res[i][COLUMN_METRICS]))
+        else:
+            res = self._super_metrics(0)
+            print('OK! Metrics are computed')
+            self.set_res(res)
+            print('#### model name: {} ####'.format(res[COLUMN_MODEL]))
+            print('#### appliance: {} ####'.format(res[COLUMN_DEVICE]))
+            print('metrics: {}'.format(res[COLUMN_METRICS]))
         self.final_preds = []
         return res
 
@@ -870,13 +897,15 @@ class MultiDAETrainingTools(ClassicTrainingTools):
         self.eval_params[COLUMN_GROUNDTRUTH] = grounds
 
     def _super_metrics(self, dev_index):
-        print('final_preds ', self.final_preds.shape)
-        print('final_grounds ', self.final_grounds.shape)
-        preds = self.final_preds[:, dev_index].cpu().numpy()
-        groundtruth = self.final_grounds[:, dev_index, :].squeeze().cpu().numpy()
-        dev, mmax = self.eval_params[COLUMN_DEVICE][dev_index], self.eval_params[COLUMN_MMAX]
-        means, stds = self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
-
+        if len(list(self.final_grounds.size())) > 1:
+            preds = self.final_preds[:, dev_index].cpu().numpy()
+            groundtruth = self.final_grounds[:, dev_index, :].squeeze().cpu().numpy()
+            dev = self.eval_params[COLUMN_DEVICE][dev_index]
+        else:
+            preds = self.final_preds.cpu().numpy()
+            groundtruth = self.final_grounds.squeeze().cpu().numpy()
+            dev = self.eval_params[COLUMN_DEVICE]
+        mmax, means, stds = self.eval_params[COLUMN_MMAX], self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
         if mmax and means and stds:
             preds = denormalize(preds, mmax)
             preds = destandardize(preds, means, stds)
@@ -939,10 +968,14 @@ class MultiRegressorTrainingTools(MultiDAETrainingTools):
     def compute_class_loss(self, y, target_logits):
         class_loss = 0
         target_logits = target_logits.squeeze()
-        for i in range(target_logits.shape[-1]):
-            logit = target_logits[:, i].squeeze()
-            truth = y[:, i, :].squeeze()
-            class_loss += self.criterion(logit, truth).div(math.log(2))
+        if len(list(y.size())) > 1:
+            for i in range(target_logits.shape[-1]):
+                logit = target_logits[:, i].squeeze()
+                truth = y[:, i, :].squeeze()
+        else:
+            logit = target_logits.squeeze(1)
+            truth = y
+        class_loss += self.criterion(logit, truth).div(math.log(2))
         return class_loss / len(target_logits)
 
     def compute_total_train_loss(self, y, x, target_logits=None, mains=None):
@@ -1008,10 +1041,15 @@ class MultiRegressorTrainingTools(MultiDAETrainingTools):
         return {'test_loss': ''}
 
     def _super_metrics(self, dev_index):
-        preds = self.final_preds[:, :, :, dev_index].squeeze().cpu().numpy().reshape(-1)
-        groundtruth = self.final_grounds[:, dev_index, :].squeeze().cpu().numpy().reshape(-1) #reshape(1,-1)[0]
-        dev, mmax = self.eval_params[COLUMN_DEVICE][dev_index], self.eval_params[COLUMN_MMAX]
-        means, stds = self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
+        if len(list(y.size())) > 1:
+            preds = self.final_preds[:, :, :, dev_index].squeeze().cpu().numpy().reshape(-1)
+            groundtruth = self.final_grounds[:, dev_index, :].squeeze().cpu().numpy().reshape(-1)  # reshape(1,-1)[0]
+            dev = self.eval_params[COLUMN_DEVICE][dev_index]
+        else:
+            preds = self.final_preds.squeeze().cpu().numpy().reshape(-1)
+            groundtruth = self.final_grounds.squeeze().cpu().numpy().reshape(-1)  # reshape(1,-1)[0]
+            dev = self.eval_params[COLUMN_DEVICE]
+        mmax, means, stds = self.eval_params[COLUMN_MMAX], self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
 
         if mmax and means and stds:
             preds = denormalize(preds, mmax)

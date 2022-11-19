@@ -502,10 +502,10 @@ class NILMExperiments:
 
     def _set_scaling_method(self, scaling_method: SupportedScalingMethods = None):
         if scaling_method and isinstance(scaling_method, SupportedScalingMethods):
-            self.scaling_method = scaling_method
+            self.normalization_method = scaling_method
         else:
             warnings.warn('Scaling method was not properly defined. So, NORMALIZATION is used by default.')
-            self.scaling_method = SupportedScalingMethods.NORMALIZATION
+            self.normalization_method = SupportedScalingMethods.NORMALIZATION
 
     def _set_fillna_method(self, fillna_method: SupportedFillingMethods = None):
         if fillna_method and isinstance(fillna_method, SupportedFillingMethods):
@@ -733,7 +733,7 @@ class NILMExperiments:
             BATCH_SIZE: self.batch_size,
             ITERATION: iteration,
             PREPROCESSING_METHOD: self.preprocessing_method,
-            NORMALIZATION: self.normalization_method,
+            NORMALIZATION_METHOD: self.normalization_method,
             FILLNA_METHOD: self.fillna_method,
             INFERENCE_CPU: self.inference_cpu,
             ROOT_DIR: self.project_name,
@@ -1286,7 +1286,7 @@ class NILMSuperExperiments(NILMExperiments):
                                                                     subseq_window=self.subseq_window,
                                                                     noise_factor=self.noise_factor,
                                                                     preprocessing_method=self.preprocessing_method,
-                                                                    normalization_method=self.scaling_method)
+                                                                    normalization_method=self.normalization_method)
                 return train_dataset_all
         file.close()
         # TODO: Multi buildings version for BaseElectricityMultiDataset
@@ -1339,7 +1339,7 @@ class NILMSuperExperiments(NILMExperiments):
             BATCH_SIZE: self.batch_size,
             ITERATION: iteration,
             PREPROCESSING_METHOD: self.preprocessing_method,
-            NORMALIZATION_METHOD: self.scaling_method,
+            NORMALIZATION_METHOD: self.normalization_method,
             FILLNA_METHOD: self.fillna_method,
             INFERENCE_CPU: self.inference_cpu,
             ROOT_DIR: self.project_name,
