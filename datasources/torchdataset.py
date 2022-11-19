@@ -104,6 +104,7 @@ class BaseElectricityDataset(ABC):
         self.meterchunk = torch.tensor([])
         self.has_more_data = True
         self.noise_factor = noise_factor
+        self.empty_device = False
         self._run()
 
     def _run(self):
@@ -148,9 +149,18 @@ class BaseElectricityDataset(ABC):
                                                                    sample_period=sample_period,
                                                                    building=building,
                                                                    chunksize=chunksize)
-
-        self.appliance_generator = self.datasource.get_appliance_generator(appliance=device,
-                                                                           start=start_date,
+        try:
+            self.appliance_generator = self.datasource.get_appliance_generator(appliance=device,
+                                                                               start=start_date,
+                                                                               end=end_date,
+                                                                               sample_period=sample_period,
+                                                                               building=building,
+                                                                               chunksize=chunksize)
+        except Exception as e:
+            warnings.warn(str(e))
+            warnings.warn('No data for device: {}. Created a zero timeseries instead.'.format(device))
+            self.empty_device = True
+            self.appliance_generator = self.datasource.get_mains_generator(start=start_date,
                                                                            end=end_date,
                                                                            sample_period=sample_period,
                                                                            building=building,
@@ -160,6 +170,8 @@ class BaseElectricityDataset(ABC):
         try:
             mainchunk = next(self.mains_generator)
             meterchunk = next(self.appliance_generator)
+            if self.empty_device:
+                meterchunk = 0 * meterchunk
             mainchunk, meterchunk = align_chunks(mainchunk, meterchunk)
             if len(mainchunk) or len(meterchunk):
                 mainchunk, meterchunk = self._chunk_preprocessing(mainchunk, meterchunk)
@@ -304,8 +316,9 @@ class BaseElectricityMultiDataset(Dataset, ABC):
         self.meterchunks = torch.tensor([])
         self.has_more_data = True
         self.noise_factor = noise_factor
+        self.empty_devices_index = []
+        print('normalization_method: ', normalization_method)
         self._run()
-        print(normalization_method)
 
     def _run(self):
         self._init_generators(datasource=self.datasource,
@@ -350,7 +363,7 @@ class BaseElectricityMultiDataset(Dataset, ABC):
                                                                    building=building,
                                                                    chunksize=chunksize)
         self.appliance_generators = []
-        for device in devices:
+        for i, device in enumerate(devices):
             print('Load Appliance: ', device)
             try:
                 self.appliance_generator = self.datasource.get_appliance_generator(appliance=device,
@@ -364,16 +377,28 @@ class BaseElectricityMultiDataset(Dataset, ABC):
             except Exception as e:
                 warnings.warn(str(e))
                 warnings.warn('No data for device: {}. Created a zero timeseries instead.'.format(device))
-                # zeros_gen = (series*0 for series in enumerate(self.mains_generator))
-                # self.appliance_generators.append(zeros_gen)
+                self.empty_devices_index.append(i)
+                dummy_generator = self.datasource.get_mains_generator(start=start_date,
+                                                                      end=end_date,
+                                                                      sample_period=sample_period,
+                                                                      building=building,
+                                                                      chunksize=chunksize)
+                self.appliance_generators.append(dummy_generator)
 
         if len(self.appliance_generators) < 1:
             raise Exception('No appliance generators exist')
+
+    def ground_meterchunks(self, chunks):
+        for i in self.empty_devices_index:
+            chunks[i] = 0 * chunks[i]
+        return chunks
 
     def _reload(self):
         try:
             mainchunk = next(self.mains_generator)
             meterchunks = [next(appliance_generator) for appliance_generator in self.appliance_generators]
+            if len(self.empty_devices_index):
+                meterchunks = self.ground_meterchunks(meterchunks)
             mainchunk, meterchunks = align_multiple_chunks(mainchunk, meterchunks)
 
             if len(mainchunk) and len(meterchunks):
