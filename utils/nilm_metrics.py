@@ -111,7 +111,6 @@ def NILMmetrics(pred: np.array, ground: np.array, threshold: int = 40, rounding_
     print('preds shape {}, ground shape {}'.format(pred.shape, ground.shape))
     print('###### Sanity Check finished ######')
     if ground.shape[0] > 0:
-        print('###### No groundtruth available, metrics are set to NaN ######')
         pred, ground = replace_nan_with_0(pred, ground)
         rete = relative_error_total_energy(pred, ground)
         mae = mean_absolute_error(pred, ground)
@@ -135,6 +134,7 @@ def NILMmetrics(pred: np.array, ground: np.array, threshold: int = 40, rounding_
                            COLUMN_TP: tp, COLUMN_TN: tn, COLUMN_FP: fp, COLUMN_FN: fn,
                            }
     else:
+        print('###### No groundtruth available, metrics are set to NaN ######')
         metrics_results = {COLUMN_RECALL: np.nan, COLUMN_PRECISION: np.nan,
                            COLUMN_F1: np.nan, COLUMN_ACCURACY: np.nan,
                            COLUMN_NDE: np.nan, COLUMN_EAC: np.nan,
