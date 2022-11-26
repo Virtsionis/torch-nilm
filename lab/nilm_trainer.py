@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from lab.training_tools import TrainingToolsFactory
 from utils.nilm_reporting import save_appliance_report
 from datasources.datasource import DatasourceFactory
-from datasources.torchdataset import ElectricityDataset, BaseElectricityMultiDataset
+from datasources.torchdataset import ElectricityDataset, BaseElectricityMultiDataset, UNETBaseElectricityMultiDataset
 from constants.enumerates import SupportedPreprocessingMethods, SupportedFillingMethods, SupportedScalingMethods
 from pytorch_lightning.loggers import WandbLogger
 
@@ -146,22 +146,25 @@ def train_eval_super(model_name: str, train_loader: DataLoader, tests_params: pd
             It's used to look up the class in "model_dict"
     """
     date = str(datetime.now().strftime("%Y%m%d-%H:%M"))
-    wandb_logger = WandbLogger(name='{}_GridSearch_iter{}_{}'.format(model_name, str(iteration), str(date)),
-                               project='SuperVae')
+    # wandb_logger = WandbLogger(name='{}_GridSearch_iter{}_{}'.format(model_name, str(iteration), str(date)),
+    #                            project='SuperVae')
 
     if progress_bar:
         trainer = pl.Trainer(gpus=1, max_epochs=epochs, auto_lr_find=True, callbacks=callbacks, precision=16,
-                             logger=wandb_logger, gradient_clip_val=gradient_clip_val,
+                             # logger=wandb_logger,
+                             gradient_clip_val=gradient_clip_val,
                              gradient_clip_algorithm=gradient_clip_algorithm)
     else:
         trainer = pl.Trainer(gpus=1, max_epochs=epochs, auto_lr_find=True, callbacks=callbacks, precision=16,
-                             progress_bar_refresh_rate=0, logger=wandb_logger,  gradient_clip_val=gradient_clip_val,
+                             progress_bar_refresh_rate=0,
+                             # logger=wandb_logger,
+                             gradient_clip_val=gradient_clip_val,
                              gradient_clip_algorithm=gradient_clip_algorithm)
 
     model = TrainingToolsFactory.build_and_equip_model(model_name=model_name,
                                                        model_hparams=model_hparams,
                                                        eval_params=eval_params)
-    wandb_logger.watch(model, log='all')
+    # wandb_logger.watch(model, log='all')
     if val_loader:
         trainer.fit(model, train_loader, val_loader)
     else:
@@ -177,26 +180,47 @@ def train_eval_super(model_name: str, train_loader: DataLoader, tests_params: pd
         print(80 * '#')
 
         datasource = DatasourceFactory.create_datasource(dataset)
-        test_dataset = BaseElectricityMultiDataset(datasource=datasource,
-                                                   building=int(building),
-                                                   window_size=window_size, subseq_window=subseq_window,
-                                                   devices=devices,
-                                                   start_date=dates[0],
-                                                   end_date=dates[1],
-                                                   mmax=mmax, means=means, stds=stds,
-                                                   meter_means=meter_means, meter_stds=meter_stds,
-                                                   sample_period=sample_period,
-                                                   preprocessing_method=preprocessing_method,
-                                                   normalization_method=normalization_method,)
+        if (model_name == 'UNetNiLM') or (model_name == 'CNN1DUnetNilm'):
+            test_dataset = UNETBaseElectricityMultiDataset(datasource=datasource,
+                                                           building=int(building),
+                                                           window_size=window_size, subseq_window=subseq_window,
+                                                           devices=devices,
+                                                           start_date=dates[0],
+                                                           end_date=dates[1],
+                                                           mmax=mmax, means=means, stds=stds,
+                                                           meter_means=meter_means, meter_stds=meter_stds,
+                                                           sample_period=sample_period,
+                                                           preprocessing_method=preprocessing_method,
+                                                           normalization_method=normalization_method, )
+            if preprocessing_method in [SupportedPreprocessingMethods.ROLLING_WINDOW,
+                                        SupportedPreprocessingMethods.MIDPOINT_WINDOW]:
+                grounds = [[meterchunk.numpy() for meterchunk in test_dataset.meterchunks],
+                           [state.numpy() for state in test_dataset.states]]
+            else:
+                grounds = [[np.reshape(meterchunk.numpy(), -1) for meterchunk in test_dataset.meterchunks],
+                           [np.reshape(state.numpy(), -1) for state in test_dataset.states]]
+        else:
+            test_dataset = BaseElectricityMultiDataset(datasource=datasource,
+                                                       building=int(building),
+                                                       window_size=window_size, subseq_window=subseq_window,
+                                                       devices=devices,
+                                                       start_date=dates[0],
+                                                       end_date=dates[1],
+                                                       mmax=mmax, means=means, stds=stds,
+                                                       meter_means=meter_means, meter_stds=meter_stds,
+                                                       sample_period=sample_period,
+                                                       preprocessing_method=preprocessing_method,
+                                                       normalization_method=normalization_method,)
+
+            if preprocessing_method in [SupportedPreprocessingMethods.ROLLING_WINDOW,
+                                        SupportedPreprocessingMethods.MIDPOINT_WINDOW]:
+                grounds = [meterchunk.numpy() for meterchunk in test_dataset.meterchunks]
+            else:
+                grounds = [np.reshape(meterchunk.numpy(), -1) for meterchunk in test_dataset.meterchunks]
 
         test_loader = DataLoader(test_dataset, batch_size=batch_size,
                                  shuffle=False, num_workers=8)
 
-        if preprocessing_method in [SupportedPreprocessingMethods.ROLLING_WINDOW,
-                                    SupportedPreprocessingMethods.MIDPOINT_WINDOW]:
-            grounds = [meterchunk.numpy()for meterchunk in test_dataset.meterchunks]
-        else:
-            grounds = [np.reshape(meterchunk.numpy(), -1)for meterchunk in test_dataset.meterchunks]
         if inference_cpu:
             print('Model to CPU')
             model.to(CPU_NAME)

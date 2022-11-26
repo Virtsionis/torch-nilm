@@ -247,3 +247,39 @@ def add_gaussian_noise(mainchunk: np.array, noise_factor: float = 0.1):
     noise = noise_factor * np.random.normal(0, 1, mainchunk.shape)
     mainchunk = mainchunk + noise
     return mainchunk
+
+
+def binarization(data, threshold):
+    """[summary]
+
+    Arguments:
+        data {[type]} -- [description]
+        threshold {[type]} -- [description]
+
+    Returns:
+        [type] -- [description]
+    """
+    state = np.where(data >= threshold, 1, 0).astype(int)
+    return state
+
+
+def _quantile_signal(signal, window_size, quantile=.5):
+    """
+    Takes Signal and denoises it by using the quantile value of each window
+
+    Args:
+        signal (np.array): signal to create quantiles
+        window_size (int): length of the quantile windows
+        quantile (float): percentage of the calculate quantile
+    Returns:
+        quantile_signal (np.array): signal smoothed by quantiles
+    """
+
+    quantile_signal = np.empty_like(signal)
+
+    for i in range(0, len(signal), window_size):
+        window = signal[i:i + window_size]
+        q = np.quantile(window, quantile)
+        quantile_signal[i:i + window_size] = q
+
+    return quantile_signal

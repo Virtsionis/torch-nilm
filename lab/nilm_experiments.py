@@ -16,7 +16,7 @@ from utils.nilm_reporting import get_final_report, get_statistical_report
 from constants.enumerates import SupportedNilmExperiments, SupportedExperimentCategories, SupportedExperimentVolumes, \
     ElectricalAppliances, SupportedPreprocessingMethods, SupportedFillingMethods, SupportedScalingMethods
 from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset, ElectricityIterableDataset, \
-    BaseElectricityMultiDataset
+    BaseElectricityMultiDataset, UNETBaseElectricityMultiDataset
 
 with torch.no_grad():
     torch.cuda.empty_cache()
@@ -652,6 +652,7 @@ class NILMExperiments:
 
     def _prepare_train_val_loaders(self, train_dataset_all: Union[ElectricityDataset,
                                                                   BaseElectricityMultiDataset,
+                                                                  UNETBaseElectricityMultiDataset,
                                                                   ElectricityMultiBuildingsDataset,
                                                                   ElectricityIterableDataset] = None):
         if train_dataset_all:
@@ -764,6 +765,8 @@ class NILMExperiments:
     @staticmethod
     def get_dataset_mmax_means_stds(dataset: Union[ElectricityDataset,
                                                    ElectricityMultiBuildingsDataset,
+                                                   UNETBaseElectricityMultiDataset,
+                                                   BaseElectricityMultiDataset,
                                                    ElectricityIterableDataset] = None):
         if dataset:
             mmax = dataset.mmax
@@ -1244,7 +1247,7 @@ class NILMSuperExperiments(NILMExperiments):
                                )
 
     def _prepare_train_dataset(self, experiment_category: SupportedExperimentCategories = None, devices: list = None,
-                               window: int = None):
+                               window: int = None, model_name: str = None):
         file = open('{}base{}TrainSetsInfo_{}'.format(self.train_file_dir, experiment_category, devices[0]), 'r')
         train_info = []
         for line in file:
@@ -1276,17 +1279,31 @@ class NILMSuperExperiments(NILMExperiments):
                     #                                                subseq_window=self.subseq_window,
                     #                                                noise_factor=self.noise_factor)
                 else:
-                    train_dataset_all = BaseElectricityMultiDataset(datasource=datasource,
-                                                                    building=int(train_house),
-                                                                    window_size=window,
-                                                                    devices=devices,
-                                                                    start_date=train_dates[0],
-                                                                    end_date=train_dates[1],
-                                                                    sample_period=self.sample_period,
-                                                                    subseq_window=self.subseq_window,
-                                                                    noise_factor=self.noise_factor,
-                                                                    preprocessing_method=self.preprocessing_method,
-                                                                    normalization_method=self.normalization_method)
+                    if (model_name == 'UNetNiLM') or (model_name == 'CNN1DUnetNilm'):
+                        train_dataset_all = UNETBaseElectricityMultiDataset(datasource=datasource,
+                                                                            building=int(train_house),
+                                                                            window_size=window,
+                                                                            devices=devices,
+                                                                            start_date=train_dates[0],
+                                                                            end_date=train_dates[1],
+                                                                            sample_period=self.sample_period,
+                                                                            subseq_window=self.subseq_window,
+                                                                            noise_factor=self.noise_factor,
+                                                                            preprocessing_method=self.preprocessing_method,
+                                                                            normalization_method=self.normalization_method)
+
+                    else:
+                        train_dataset_all = BaseElectricityMultiDataset(datasource=datasource,
+                                                                        building=int(train_house),
+                                                                        window_size=window,
+                                                                        devices=devices,
+                                                                        start_date=train_dates[0],
+                                                                        end_date=train_dates[1],
+                                                                        sample_period=self.sample_period,
+                                                                        subseq_window=self.subseq_window,
+                                                                        noise_factor=self.noise_factor,
+                                                                        preprocessing_method=self.preprocessing_method,
+                                                                        normalization_method=self.normalization_method)
                 return train_dataset_all
         file.close()
         # TODO: Multi buildings version for BaseElectricityMultiDataset
@@ -1313,7 +1330,7 @@ class NILMSuperExperiments(NILMExperiments):
         #                                                  train_set, time_folds, fold)
         #     iteration, train_set_name = fold, train_set
         # else:
-        train_dataset_all = self._prepare_train_dataset(experiment_category, devices, window)
+        train_dataset_all = self._prepare_train_dataset(experiment_category, devices, window, model_name)
         tests_params = self._prepare_test_parameters(experiment_category, devices[0])
         train_set_name = train_dataset_all.datasource.get_name()
         train_loader, val_loader = self._prepare_train_val_loaders(train_dataset_all)

@@ -8,6 +8,7 @@ from typing import Dict, Tuple
 import pytorch_lightning as pl
 import torch.nn.functional as F
 from constants.constants import *
+from neural_networks.unet_nilm import quantile_regression_loss
 from utils.nilm_metrics import NILMmetrics
 from neural_networks.base_models import BaseModel
 from utils.helpers import denormalize, destandardize
@@ -64,6 +65,8 @@ class TrainingToolsFactory:
             return MultiRegressorTrainingTools(model, model_hparams, eval_params)
         elif model.supports_multivib():
             return SuperVariationalMultiTrainingTools(model, model_hparams, eval_params)
+        elif model.supports_unetnilm():
+            return UnetNilmTrainingTools(model, model_hparams, eval_params)
         else:
             return ClassicTrainingTools(model, model_hparams, eval_params)
 
@@ -78,7 +81,7 @@ class ClassicTrainingTools(pl.LightningModule):
         """
         super().__init__()
         # Exports the hyperparameters to a YAML file, and create "self.hparams" namespace
-        self.save_hyperparameters()
+        # self.save_hyperparameters()
         # Create model
         self.model = model
 
@@ -159,12 +162,16 @@ class ClassicTrainingTools(pl.LightningModule):
         means = self.eval_params[COLUMN_MEANS]
         stds = self.eval_params[COLUMN_STDS]
         print('start denorm')
+        # elif np.all(np.isinf(groundtruth)):
         if mmax:
             preds = denormalize(self.final_preds, mmax)
             ground = denormalize(groundtruth, mmax)
         elif means and stds:
             preds = destandardize(self.final_preds, means, stds)
             ground = destandardize(groundtruth, means, stds)
+        else:
+            preds = np.array([])
+            ground = np.array([])
         print('end denorm')
         res = NILMmetrics(pred=preds,
                           ground=ground,
@@ -1214,3 +1221,153 @@ class VariationalMultiRegressorTrainingTools(SuperVariationalTrainingTools):
             info_loss += i_loss
         return loss / sample_nbr, class_loss / sample_nbr, info_loss / sample_nbr, bayes_loss / sample_nbr,
 
+
+class UnetNilmTrainingTools(ClassicTrainingTools):
+    def __init__(self, model, model_hparams, eval_params, lr=0.001, adam_betas=(0.9, 0.98)):
+        """
+        Inputs:
+            model_name - Name of the model to run. Used for creating the model (see function below)
+            model_hparams - Hyperparameters for the model, as dictionary.
+        """
+        super().__init__(model, model_hparams, eval_params)
+        self.final_yhats = torch.tensor([])
+        self.final_shats = torch.tensor([])
+        self.final_ys = torch.tensor([])
+        self.final_ss = torch.tensor([])
+        self.taus = torch.tensor(model_hparams['taus']).to(device)
+        self.output_dim = model_hparams['output_dim']
+        self.num_quantiles = model_hparams['num_quantiles']
+        self.num_classes = model_hparams['num_classes']
+        if model_hparams['lr']:
+            self.lr = model_hparams['lr']
+        else:
+            self.lr = lr
+        if model_hparams['adam_betas']:
+            self.adam_betas = model_hparams['adam_betas']
+        else:
+            self.adam_betas = adam_betas
+
+    def compute_loss(self, B, y_hat, s_hat, y, s):
+        y_hat = y_hat.view(B, self.num_quantiles, self.num_classes, self.output_dim)
+        s_hat = s_hat.view(B, self.num_classes, self.output_dim,)
+
+        class_loss = F.binary_cross_entropy_with_logits(s_hat, s)
+        reg_loss = quantile_regression_loss(y_hat, y, self.taus)
+        total_loss = class_loss + reg_loss
+        return total_loss, class_loss, reg_loss
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), betas=self.adam_betas, lr=self.lr)
+
+    def forward(self, x):
+        # Forward function that is run when visualizing the graph
+        return self.model(x)
+
+    def training_step(self, batch, batch_idx):
+        x, y, s = batch
+        B = x.shape[0]
+        # Forward pass
+        y_hat, s_hat = self(x)
+        train_loss, class_loss, reg_loss = self.compute_loss(B, y_hat, s_hat, y, s)
+        return {'loss': train_loss, 'class_loss': class_loss, 'reg_loss': reg_loss}
+
+    def _forward_step(self, batch: Tensor) -> Tuple[float, float, float]:
+        x, y, s = batch
+        B = x.shape[0]
+        # Forward pass
+        y_hat, s_hat = self(x)
+        train_loss, class_loss, reg_loss = self.compute_loss(B, y_hat, s_hat, y, s)
+        return train_loss, class_loss, reg_loss
+
+    def validation_step(self, val_batch: Tensor, batch_idx: int) -> Dict:
+        train_loss, class_loss, reg_loss = self._forward_step(val_batch)
+        val_loss = train_loss
+        self.log(VAL_LOSS, val_loss, prog_bar=True, on_epoch=True, on_step=False)
+        self.log("val_class_loss", class_loss, prog_bar=False, on_epoch=True, on_step=False)
+        self.log("val_reg_loss_loss", reg_loss, prog_bar=False, on_epoch=True, on_step=False)
+        return {"val_loss": val_loss}
+
+    def test_step(self, batch, batch_idx):
+        x, y, s = batch
+        B = x.shape[0]
+        # Forward pass
+        y_hat, s_hat = self(x)
+        y_hat = y_hat.view(B, self.num_quantiles, self.num_classes, self.output_dim)
+        s_hat = s_hat.view(B, self.num_classes, self.output_dim)
+
+        if not len(self.final_preds):
+            self.final_yhats = y_hat
+            self.final_shats = s_hat
+            self.final_ys = y
+            self.final_ss = s
+        else:
+            self.final_yhats = torch.cat((self.final_yhats, y_hat))
+            self.final_shats = torch.cat((self.final_shats, s_hat))
+            self.final_ys = torch.cat((self.final_ys, y))
+            self.final_ss = torch.cat((self.final_ss, s))
+
+        return {'test_loss': ''}
+
+    def test_epoch_end(self, outputs):
+        # outputs is a list of whatever you returned in `test_step`
+        print('Metrics calculation starts')
+        res = []
+        if isinstance(self.eval_params[COLUMN_DEVICE], list):
+            for i in range(0, len(self.eval_params[COLUMN_DEVICE])):
+                res.append(self._super_metrics(i))
+            print('OK! Metrics are computed')
+            self.set_res(res)
+            for i in range(len(self.eval_params[COLUMN_DEVICE])):
+                print('#### model name: {} ####'.format(res[i][COLUMN_MODEL]))
+                print('#### appliance: {} ####'.format(res[i][COLUMN_DEVICE]))
+                print('metrics: {}'.format(res[i][COLUMN_METRICS]))
+        else:
+            res = self._super_metrics(0)
+            print('OK! Metrics are computed')
+            self.set_res(res)
+            print('#### model name: {} ####'.format(res[COLUMN_MODEL]))
+            print('#### appliance: {} ####'.format(res[COLUMN_DEVICE]))
+            print('metrics: {}'.format(res[COLUMN_METRICS]))
+        self.final_preds = []
+        return res
+
+    def set_ground(self, grounds):
+        self.eval_params[COLUMN_GROUNDTRUTH] = grounds
+
+    def _super_metrics(self, dev_index):
+        print("self.final_yhats.shape: ", self.final_yhats.shape)
+        print("self.final_shats.shape: ", self.final_shats.shape)
+        print("self.final_ys.shape: ", self.final_ys.shape)
+        print("self.final_ss.shape: ", self.final_ss.shape)
+
+        yhats = self.final_yhats[:, dev_index, dev_index, :].squeeze(-1).cpu().numpy()
+        shats = self.final_shats[:, dev_index, :].squeeze(-1).cpu().numpy()
+        y = self.final_ys[:, dev_index, :].squeeze(-1).cpu().numpy()
+        s = self.final_ss[:, dev_index, :].squeeze(-1).cpu().numpy()
+        dev = self.eval_params[COLUMN_DEVICE][dev_index]
+        mmax, means, stds = self.eval_params[COLUMN_MMAX], self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
+
+        if mmax and means and stds:
+            preds = denormalize(yhats, mmax)
+            preds = destandardize(yhats, means, stds)
+            ground = denormalize(y, mmax)
+            ground = destandardize(y, means, stds)
+        elif mmax:
+            preds = denormalize(yhats, mmax)
+            ground = denormalize(y, mmax)
+        elif means and stds:
+            preds = destandardize(yhats, means, stds)
+            ground = destandardize(y, means, stds)
+        else:
+            ground = np.array([])
+
+        res = NILMmetrics(pred=preds,
+                          ground=ground,
+                          threshold=ON_THRESHOLDS.get(ElectricalAppliances(dev), 50),)
+        results = {COLUMN_MODEL: self.model_name,
+                   COLUMN_METRICS: res,
+                   COLUMN_PREDICTIONS: preds,
+                   COLUMN_GROUNDTRUTH: ground,
+                   COLUMN_DEVICE: dev,
+                   }
+        return results

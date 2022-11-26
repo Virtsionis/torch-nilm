@@ -407,9 +407,251 @@ class BaseElectricityMultiDataset(Dataset, ABC):
                     np.array(meterchunks))
                 if self.preprocessing_method == SupportedPreprocessingMethods.ROLLING_WINDOW:
                     self.meterchunks = self.meterchunks.unsqueeze(-1)
+            else:
+                raise Exception('you need to increase chunksize')
+        except StopIteration:
+            self.has_more_data = False
+            return
+
+    def _chunk_preprocessing(self, mainchunk, meterchunks):
+        if self.fillna_method == SupportedFillingMethods.FILL_INTERPOLATION:
+            mainchunk, meterchunks = replace_chunks_nans_interpolation(mainchunk, meterchunks)
+        mainchunk, meterchunks = replace_chunks_nans(mainchunk, meterchunks)
+        if self.normalization_method == SupportedScalingMethods.STANDARDIZATION:
+            if None in [self.means, self.meter_means, self.meter_stds, self.stds]:
+                self._set_means_stds(mainchunk, meterchunks[0])
+            mainchunk, meterchunks = self._standardize_chunks(mainchunk, meterchunks)
+        elif self.normalization_method == SupportedScalingMethods.NORMALIZATION:
+            if None in [self.mmax]:
+                self._set_mmax(mainchunk)
+            mainchunk, meterchunks = normalize_chunks(mainchunk, meterchunks, self.mmax)
+        elif self.normalization_method == SupportedScalingMethods.MIXED:
+            if None in [self.means, self.meter_means, self.meter_stds, self.stds]:
+                self._set_means_stds(mainchunk, meterchunks[0])
+            mainchunk, meterchunks = self._standardize_chunks(mainchunk, meterchunks)
+            if None in [self.mmax]:
+                self._set_mmax(mainchunk)
+            mainchunk, meterchunks = normalize_chunks(mainchunk, meterchunks, self.mmax)
+
+        if self.preprocessing_method == SupportedPreprocessingMethods.ROLLING_WINDOW:
+            mainchunk, meterchunks = apply_rolling_window_chunks(mainchunk, meterchunks, self.window_size)
+        elif self.preprocessing_method == SupportedPreprocessingMethods.MIDPOINT_WINDOW:
+            mainchunk, meterchunks = apply_midpoint_window_chunks(mainchunk, meterchunks, self.window_size)
+        elif self.preprocessing_method == SupportedPreprocessingMethods.SEQ_T0_SEQ:
+            mainchunk, meterchunks = apply_sequence_to_sequence_chunk_list(mainchunk, meterchunks, self.window_size)
+        elif self.preprocessing_method == SupportedPreprocessingMethods.SEQ_T0_SUBSEQ:
+            mainchunk, meterchunks = apply_sequence_to_subsequence_list(mainchunk, meterchunks,
+                                                                        sequence_window=self.window_size,
+                                                                        subsequence_window=self.subseq_window)
+        if self.noise_factor:
+            mainchunk = add_gaussian_noise(mainchunk, self.noise_factor)
+
+        if self.shuffle:
+            mainchunk, meterchunks = mainchunk.sample(frac=1), [meterchunk.sample(frac=1) for meterchunk in meterchunks]
+        return mainchunk, meterchunks
+
+    def _standardize_chunks(self, mainchunk, meterchunks):
+        return standardize_chunks_lists(mainchunk, meterchunks, self.means, self.stds,
+                                        self.meter_means, self.meter_stds)
+
+
+class UNETBaseElectricityMultiDataset(Dataset, ABC):
+    """
+    -UNETBaseElectricityMultiDataset
+
+    This is a base class containing all the methods necessary for loading, alignment and preprocessing of NILM data.
+    In the current version, NILMTK supported datasets were used https://arxiv.org/abs/1404.3878.
+    Thus, the part of loading the data depends on NILMTK package. In the future, the class will support dataset from
+    other sources (e.g. csv, h5 etc).
+
+    Args:
+        datasource(datasource): datasource object, indicates the target datasource to load the data from
+        building(int): the desired building
+        devices(list): the target electrical appliances
+        dates(list): list with the start and end(optional) dates for training window [start, end]
+                    eg:['2016-04-01','2017-04-01']
+        window_size(int): the size of the rolling window
+        chunksize(int): the size of loaded chunk from NILMTK generators
+        mmax(float): the maximum value of mains time series,
+            needed for the de-normalization of the data
+        means(float): the mean value of mains time series
+            needed for the de-standardization of the data
+        stds(float): the std value of mains time series
+            needed for the de-standardization of the data
+        meter_means(float): the mean value of meter time series
+            needed for the de-standardization of the data
+        meter_stds(float): the std value of meter time series
+            needed for the de-standardization of the data
+        sample_period(int): the sample period given in seconds
+            if sample_period is larger than the sampling of the data, then NILMTK downsamples the measurements.
+            Else, upsampling is excecuted
+        normalization_method(str): the normalization method of the time series
+            possible values: STANDARDIZATION or NORMALIZATION
+            if STANDARDIZATION is given, the time series are standardized with mean & std values
+                of the mains & target meter time series
+            if NORMALIZATION is given, the time series are normalized with the max value of the mains time series
+        preprocessing_method(str): the preprocessing_method method of the time series
+            possible values: ROLLING_WINDOW or MIDPOINT_WINDOW or SEQ_T0_SEQ or SEQ_T0_SUBSEQ
+            if ROLLING_WINDOW is given, the time series are preprocessed as described in paper:
+                'Sliding Window Approach for Online Energy Disaggregation Using Artificial Neural Networks'
+                https://dl.acm.org/doi/10.1145/3200947.3201011
+            if MIDPOINT_WINDOW is given, the time series are preprocessed as described in paper:
+                'Sequence-to-point learning with neural networks for non-intrusive load monitoring',
+                https://arxiv.org/pdf/1612.09106.pdf
+            if SEQ_T0_SEQ is given then sequence-to-sequence schema is applied as described in paper:
+                'Deep Neural Networks Applied to Energy Disaggregation'
+                https://arxiv.org/pdf/1507.06594.pdf
+            if SEQ_T0_SUBSEQ is given then sequence-to-subsequence schema is applied as described in paper:
+                'Sequence-To-Subsequence Learning With Conditional Gan For Power Disaggregation'
+                doi: 10.1109/ICASSP40776.2020.9053947
+        fillna_method(str): the filling NA method of the time series
+        noise_factor (float): a factor tο multiply a gaussian noise signal, which will be added to the normalized
+            mains timeseries. The noise follows a gaussian distribution (mu=0, sigma=1).
+            The final signal is given by : mains = mains + noise_factor * np.random(0, 1)
+
+    Functionality in a nut-shell:
+        After saving the input arguments as class properties, the NILMTK generators are initialized and
+        all the data are loaded in the memory. Then, the mains & target meter time series are aligned before
+        preprocessing takes place. The preprocessing consists of time series normalization/standardization
+        (depends on the chosen normalization method) and the creation of windows if preprocessing_method and window_size
+        are specified. The feeding of the preprocessed data is taken care of the pytorch dataloader.
+    """
+
+    def __init__(self, datasource: Datasource, building: int, devices: list, start_date: str,
+                 end_date: str, window_size: int = 50, mmax: float = None, means: float = None, stds: float = None,
+                 meter_means: float = None, meter_stds: float = None, sample_period: int = None,
+                 chunksize: int = 10 ** 6,
+                 shuffle: bool = False,
+                 normalization_method: SupportedScalingMethods = SupportedScalingMethods.STANDARDIZATION,
+                 preprocessing_method: SupportedPreprocessingMethods = SupportedPreprocessingMethods.SEQ_T0_SEQ,
+                 subseq_window: int = None,
+                 fillna_method: str = SupportedFillingMethods.FILL_ZEROS, noise_factor: float = None):
+        self.building = building
+        self.devices = devices
+        self.mmax = mmax
+        self.means = means
+        self.stds = stds
+        self.meter_means = meter_means
+        self.meter_stds = meter_stds
+        self.chunksize = chunksize
+        self.start_date = start_date
+        self.end_date = end_date
+        self.sample_period = sample_period
+        self.datasource = datasource
+        self.preprocessing_method = preprocessing_method
+        self.fillna_method = fillna_method
+        self.window_size = window_size
+        self.subseq_window = subseq_window
+        self.shuffle = shuffle
+        self.thresholds = []
+        self.normalization_method = normalization_method
+        self.mainchunk = torch.tensor([])
+        self.meterchunks = torch.tensor([])
+        self.states = torch.tensor([])
+        self.has_more_data = True
+        self.noise_factor = noise_factor
+        self.empty_devices_index = []
+        print('normalization_method: ', normalization_method)
+        self._run()
+
+    def _run(self):
+        self._init_generators(datasource=self.datasource,
+                              building=self.building,
+                              devices=self.devices,
+                              start_date=self.start_date,
+                              end_date=self.end_date,
+                              sample_period=self.sample_period,
+                              chunksize=self.chunksize)
+        self._reload()
+
+    def __len__(self):
+        return len(self.mainchunk)
+
+    def _set_mmax(self, mainchunk):
+        if self.mmax is None and len(mainchunk):
+            self.mmax = mainchunk.max()
+
+    def _set_means_stds(self, mainchunk, meterchunk):
+        if self.means is None and self.stds is None and len(mainchunk):
+            self.means = mainchunk.mean()
+            self.stds = mainchunk.std()
+
+        if self.meter_means is None and self.meter_stds is None and len(meterchunk):
+            self.meter_means = mainchunk.mean()
+            self.meter_stds = mainchunk.std()
+
+    def __getitem__(self, i):
+        x = self.mainchunk
+        y = self.meterchunks
+        s = self.states
+        return x[i].float(), y[:, i, :].float(), s[:, i, :].float()
+
+    def __mmax__(self):
+        return self.mmax
+
+    def _init_generators(self, datasource: Datasource, building: int, devices: list, start_date: str,
+                         end_date: str, sample_period: int, chunksize: int):
+        self.datasource = datasource
+        self.mains_generator = self.datasource.get_mains_generator(start=start_date,
+                                                                   end=end_date,
+                                                                   sample_period=sample_period,
+                                                                   building=building,
+                                                                   chunksize=chunksize)
+        self.appliance_generators = []
+        for i, device in enumerate(devices):
+            print('Load Appliance: ', device)
+            try:
+                self.appliance_generator = self.datasource.get_appliance_generator(appliance=device,
+                                                                                   start=start_date,
+                                                                                   end=end_date,
+                                                                                   sample_period=sample_period,
+                                                                                   building=building,
+                                                                                   chunksize=chunksize)
+                self.appliance_generators.append(self.appliance_generator)
+                self.thresholds.append(ON_THRESHOLDS.get(device, 50))
+
+            except Exception as e:
+                warnings.warn(str(e))
+                warnings.warn('No data for device: {}. Created a zero timeseries instead.'.format(device))
+                self.empty_devices_index.append(i)
+                dummy_generator = self.datasource.get_mains_generator(start=start_date,
+                                                                      end=end_date,
+                                                                      sample_period=sample_period,
+                                                                      building=building,
+                                                                      chunksize=chunksize)
+                self.appliance_generators.append(dummy_generator)
+                self.thresholds.append(10**4)
+
+        if len(self.appliance_generators) < 1:
+            raise Exception('No appliance generators exist')
+
+    def ground_meterchunks(self, chunks):
+        for i in self.empty_devices_index:
+            chunks[i] = 0 * chunks[i]
+        return chunks
+
+    def _reload(self):
+        try:
+            mainchunk = next(self.mains_generator)
+            meterchunks = [next(appliance_generator) for appliance_generator in self.appliance_generators]
+            if len(self.empty_devices_index):
+                meterchunks = self.ground_meterchunks(meterchunks)
+            mainchunk, meterchunks = align_multiple_chunks(mainchunk, meterchunks)
+
+            if len(mainchunk) and len(meterchunks):
+                mainchunk, meterchunks = self._chunk_preprocessing(mainchunk, meterchunks)
+                states = [binarization(meterchunk, threshold) for meterchunk, threshold in zip(meterchunks, self.thresholds)]
+                self.mainchunk, self.meterchunks, self.states = torch.from_numpy(np.array(mainchunk)), \
+                                                                torch.from_numpy(np.array(meterchunks)),\
+                                                                torch.from_numpy(np.array(states))
+                if self.preprocessing_method == SupportedPreprocessingMethods.ROLLING_WINDOW:
+                    self.meterchunks = self.meterchunks.unsqueeze(-1)
+                    self.states = self.states.unsqueeze(-1)
                 # print('FINAL MAINS SHAPE: ', self.mainchunk.shape)
                 # print('FINAL METERS SHAPE: ', self.meterchunks.shape)
                 # print('FINAL METER SHAPE: ', self.meterchunks[0].shape)
+                # print('FINAL STATES SHAPE: ', self.states.shape)
+                # print('FINAL STATE SHAPE: ', self.states[0].shape)
             else:
                 raise Exception('you need to increase chunksize')
         except StopIteration:

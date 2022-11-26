@@ -46,3 +46,7 @@ class BaseModel(nn.Module, abc.ABC):
 
     def supports_multivib(self) -> bool:
         return False
+
+    def supports_unetnilm(self) -> bool:
+        return False
+
