@@ -75,7 +75,7 @@ class CNN1D(UNETNILMBaseModel):
         self.mlp1 = nn.Linear(128 * 16, 1024)
         self.prelu4 = nn.PReLU()
         self.mlp2 = nn.Linear(1024, self.num_classes * output_dim)
-        self.mlp3 = nn.Linear(1024, self.num_classes * output_dim )
+        self.mlp3 = nn.Linear(1024, self.num_classes * output_dim * self.num_quantiles)
 
         nn.utils.weight_norm(self.conv1)
         nn.init.xavier_uniform_(self.conv1.weight)
@@ -312,7 +312,7 @@ class UNetNiLM(UNETNILMBaseModel):
         self.output_dim = output_dim
 
         self.fc_out_state = nn.Linear(1024, num_classes * output_dim)
-        self.fc_out_power = nn.Linear(1024, num_classes * output_dim)
+        self.fc_out_power = nn.Linear(1024, num_classes * output_dim * num_quantiles)
 
         self.pooling_size = pooling_size
         self.num_classes = num_classes
@@ -342,7 +342,7 @@ class UNetNiLM(UNETNILMBaseModel):
         # power_logits = self.fc_out_power(mlp_out).view(B, self.window_size, self.num_quantiles, self.num_classes)
 
         states_logits = self.fc_out_state(mlp_out).view(B, self.num_classes, self.output_dim,)
-        power_logits = self.fc_out_power(mlp_out).view(B, self.num_classes, self.output_dim)
+        power_logits = self.fc_out_power(mlp_out).view(B, self.num_quantiles, self.num_classes, self.output_dim)
 
         # print('unet_out shape: ', unet_out.shape)
         # print('conv_out shape: ', conv_out.shape)
