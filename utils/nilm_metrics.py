@@ -9,13 +9,23 @@ def NILMmetrics(pred: np.array, ground: np.array, threshold: int = 40, rounding_
     def convert_precision_16_to_32(arr):
         return arr.astype(float)
 
-    @njit
+    def divide(num, den):
+        if den > 0:
+            return num / den
+        return np.nan
+
+    # @njit
     def get_eac(prediction, target):
         num = np.sum(np.abs(prediction - target))
         den = (np.sum(target))
-        eac_ = 1 - (num / den) / 2
-        eac_ = np.where(eac_ < 0, 0, eac_)
-        return eac_
+        num_den = divide(num, den)
+        if num_den:
+            eac_ = 1 - (num / den) / 2
+        else:
+            return np.array(0.0)
+        if eac_ < 0:
+            return np.array(0.0)
+        return np.array(float(eac_))
 
     @njit
     def get_relative_error(target, prediction):
@@ -23,7 +33,9 @@ def NILMmetrics(pred: np.array, ground: np.array, threshold: int = 40, rounding_
 
     @njit
     def get_nde(prediction, target, round_digit=3):
-        return round(np.sum((target - prediction) ** 2) / np.sum((target ** 2)), round_digit)
+        if np.sum((target ** 2)):
+            return round(np.sum((target - prediction) ** 2) / np.sum((target ** 2)), round_digit)
+        return 0
 
     @njit
     def tp_tn_fp_fn(states_pred, states_ground):
@@ -37,25 +49,25 @@ def NILMmetrics(pred: np.array, ground: np.array, threshold: int = 40, rounding_
     def recall(tp, fn, round_digit=3):
         if float(tp+fn) > 0:
             return round((tp/float(tp+fn)), round_digit)
-        return np.nan
+        return 0
 
     @njit
     def precision(tp, fp, round_digit=3):
         if tp+fp > 0:
             return round((tp/float(tp+fp)), round_digit)
-        return np.nan
+        return 0
 
     @njit
     def f1(prec, rec, round_digit=3):
         if prec+rec > 0:
             return round((2 * (prec*rec) / float(prec+rec)), round_digit)
-        return np.nan
+        return 0
 
     @njit
     def accuracy(tp, tn, p, n, round_digit=3):
         if p + n > 0:
             return round(((tp + tn) / float(p + n)), round_digit)
-        return np.nan
+        return 0
 
     @njit
     def relative_error_total_energy(predictions, groundtruth, round_digit=3):
@@ -63,7 +75,7 @@ def NILMmetrics(pred: np.array, ground: np.array, threshold: int = 40, rounding_
         e_ground = np.sum(groundtruth)
         if float(max(e_pred, e_ground)) > 0:
             return round((np.abs(e_pred - e_ground) / float(max(e_pred, e_ground))), round_digit)
-        return np.nan
+        return 0
 
     @njit
     def mean_absolute_error(predictions, groundtruth, round_digit=3):
@@ -71,7 +83,7 @@ def NILMmetrics(pred: np.array, ground: np.array, threshold: int = 40, rounding_
         if sum_samples > 0:
             total_sum = np.sum(np.abs(predictions - groundtruth))
             return round((total_sum / sum_samples), round_digit)
-        return np.nan
+        return 0
 
     @njit
     def replace_nan_with_0(pr, gr):
@@ -134,12 +146,12 @@ def NILMmetrics(pred: np.array, ground: np.array, threshold: int = 40, rounding_
                            COLUMN_TP: tp, COLUMN_TN: tn, COLUMN_FP: fp, COLUMN_FN: fn,
                            }
     else:
-        print('###### No groundtruth available, metrics are set to NaN ######')
-        metrics_results = {COLUMN_RECALL: np.nan, COLUMN_PRECISION: np.nan,
-                           COLUMN_F1: np.nan, COLUMN_ACCURACY: np.nan,
-                           COLUMN_NDE: np.nan, COLUMN_EAC: np.nan,
-                           COLUMN_MAE: np.nan, COLUMN_RETE: np.nan,
-                           COLUMN_TP: np.nan, COLUMN_TN: np.nan, COLUMN_FP: np.nan, COLUMN_FN: np.nan,
+        print('###### No groundtruth available, metrics are set to zero ######')
+        metrics_results = {COLUMN_RECALL: 0, COLUMN_PRECISION: 0,
+                           COLUMN_F1: 0, COLUMN_ACCURACY: 0,
+                           COLUMN_NDE: 0, COLUMN_EAC: 0,
+                           COLUMN_MAE: 0, COLUMN_RETE: 0,
+                           COLUMN_TP: 0, COLUMN_TN: 0, COLUMN_FP: 0, COLUMN_FN: 0,
                            }
 
     return metrics_results
