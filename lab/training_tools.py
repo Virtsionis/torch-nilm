@@ -617,12 +617,12 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
 
     def _super_metrics(self, dev_index):
         if len(list(self.final_grounds.size())) > 1:
-            preds = self.final_preds[:, :, dev_index].squeeze().cpu().numpy().reshape(-1)
-            groundtruth = self.final_grounds[:, dev_index, :].squeeze().cpu().numpy().reshape(-1)
+            preds = self.final_preds.squeeze()[:, dev_index].cpu().numpy()
+            groundtruth = self.final_grounds.squeeze()[:, dev_index].cpu().numpy()
             dev = self.eval_params[COLUMN_DEVICE][dev_index]
         else:
-            preds = self.final_preds.squeeze().cpu().numpy().reshape(-1)
-            groundtruth = self.final_grounds.squeeze().cpu().numpy().reshape(-1)
+            preds = self.final_preds.squeeze().cpu().numpy()
+            groundtruth = self.final_grounds.squeeze().cpu().numpy()
             dev = self.eval_params[COLUMN_DEVICE]
         mmax, means, stds = self.eval_params[COLUMN_MMAX], self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
 
@@ -740,44 +740,6 @@ class SuperVariationalMultiTrainingTools(SuperVariationalTrainingTools):
         # x = x[:, -1].unsqueeze(-1)
         # return F.mse_loss(vae_logit, x).div(math.log(2))
         return F.mse_loss(vae_logit, x).div(math.log(2))
-
-    def _super_metrics(self, dev_index):
-        if len(list(self.final_grounds.size())) > 1:
-            preds = self.final_preds[:, :, dev_index].squeeze().cpu().numpy().reshape(-1)
-            groundtruth = self.final_grounds[:, dev_index, :].squeeze().cpu().numpy().reshape(-1)
-            dev = self.eval_params[COLUMN_DEVICE][dev_index]
-        else:
-            preds = self.final_preds.squeeze().cpu().numpy().reshape(-1)
-            groundtruth = self.final_grounds.squeeze().cpu().numpy().reshape(-1)
-            dev = self.eval_params[COLUMN_DEVICE]
-
-        mmax, means, stds = self.eval_params[COLUMN_MMAX], self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
-
-        if mmax and means and stds:
-            preds = denormalize(preds, mmax)
-            preds = destandardize(preds, means, stds)
-            ground = denormalize(groundtruth, mmax)
-            ground = destandardize(ground, means, stds)
-        elif mmax:
-            preds = denormalize(preds, mmax)
-            ground = denormalize(groundtruth, mmax)
-        elif means and stds:
-            preds = destandardize(preds, means, stds)
-            ground = destandardize(groundtruth, means, stds)
-        else:
-            ground = np.array([])
-
-        res = NILMmetrics(pred=preds,
-                          ground=ground,
-                          threshold=ON_THRESHOLDS.get(ElectricalAppliances(dev), 50),
-                         )
-        results = {COLUMN_MODEL: self.model_name,
-                   COLUMN_METRICS: res,
-                   COLUMN_PREDICTIONS: preds,
-                   COLUMN_GROUNDTRUTH: ground,
-                   COLUMN_DEVICE: dev,
-                   }
-        return results
 
 
 class MultiDAETrainingTools(ClassicTrainingTools):
@@ -904,11 +866,11 @@ class MultiDAETrainingTools(ClassicTrainingTools):
 
     def _super_metrics(self, dev_index):
         if len(list(self.final_grounds.size())) > 1:
-            preds = self.final_preds[:, dev_index].cpu().numpy()
-            groundtruth = self.final_grounds[:, dev_index, :].squeeze().cpu().numpy()
+            preds = self.final_preds.squeeze()[:, dev_index].cpu().numpy()
+            groundtruth = self.final_grounds.squeeze()[:, dev_index].cpu().numpy()
             dev = self.eval_params[COLUMN_DEVICE][dev_index]
         else:
-            preds = self.final_preds.cpu().numpy()
+            preds = self.final_preds.squeeze().cpu().numpy()
             groundtruth = self.final_grounds.squeeze().cpu().numpy()
             dev = self.eval_params[COLUMN_DEVICE]
         mmax, means, stds = self.eval_params[COLUMN_MMAX], self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
@@ -1045,43 +1007,6 @@ class MultiRegressorTrainingTools(MultiDAETrainingTools):
             self.final_grounds = torch.cat((self.final_grounds, y))
 
         return {'test_loss': ''}
-
-    def _super_metrics(self, dev_index):
-        if len(list(self.final_grounds.size())) > 1:
-            preds = self.final_preds[:, :, :, dev_index].squeeze().cpu().numpy().reshape(-1)
-            groundtruth = self.final_grounds[:, dev_index, :].squeeze().cpu().numpy().reshape(-1)  # reshape(1,-1)[0]
-            dev = self.eval_params[COLUMN_DEVICE][dev_index]
-        else:
-            preds = self.final_preds.squeeze().cpu().numpy().reshape(-1)
-            groundtruth = self.final_grounds.squeeze().cpu().numpy().reshape(-1)  # reshape(1,-1)[0]
-            dev = self.eval_params[COLUMN_DEVICE]
-        mmax, means, stds = self.eval_params[COLUMN_MMAX], self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
-
-        if mmax and means and stds:
-            preds = denormalize(preds, mmax)
-            preds = destandardize(preds, means, stds)
-            ground = denormalize(groundtruth, mmax)
-            ground = destandardize(ground, means, stds)
-        elif mmax:
-            preds = denormalize(preds, mmax)
-            ground = denormalize(groundtruth, mmax)
-        elif means and stds:
-            preds = destandardize(preds, means, stds)
-            ground = destandardize(groundtruth, means, stds)
-        else:
-            ground = np.array([])
-
-        res = NILMmetrics(pred=preds,
-                          ground=ground,
-                          threshold=ON_THRESHOLDS.get(ElectricalAppliances(dev), 50),
-                         )
-        results = {COLUMN_MODEL: self.model_name,
-                   COLUMN_METRICS: res,
-                   COLUMN_PREDICTIONS: preds,
-                   COLUMN_GROUNDTRUTH: ground,
-                   COLUMN_DEVICE: dev,
-                   }
-        return results
 
     def sample_elbo(self, inputs, labels, sample_nbr, multi_label=False, complexity_cost_weight=1):
         loss = 0
