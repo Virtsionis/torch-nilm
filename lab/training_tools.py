@@ -616,14 +616,13 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
         self.eval_params[COLUMN_GROUNDTRUTH] = grounds
 
     def _super_metrics(self, dev_index):
-        if len(list(self.final_grounds.size())) > 1:
+        if len(self.eval_params[COLUMN_DEVICE]) > 1:
             preds = self.final_preds.squeeze()[:, dev_index].cpu().numpy()
             groundtruth = self.final_grounds.squeeze()[:, dev_index].cpu().numpy()
-            dev = self.eval_params[COLUMN_DEVICE][dev_index]
         else:
             preds = self.final_preds.squeeze().cpu().numpy()
             groundtruth = self.final_grounds.squeeze().cpu().numpy()
-            dev = self.eval_params[COLUMN_DEVICE]
+        dev = self.eval_params[COLUMN_DEVICE][dev_index]
         mmax, means, stds = self.eval_params[COLUMN_MMAX], self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
 
         if mmax and means and stds:
@@ -865,14 +864,13 @@ class MultiDAETrainingTools(ClassicTrainingTools):
         self.eval_params[COLUMN_GROUNDTRUTH] = grounds
 
     def _super_metrics(self, dev_index):
-        if len(list(self.final_grounds.size())) > 1:
+        if len(self.eval_params[COLUMN_DEVICE]) > 1:
             preds = self.final_preds.squeeze()[:, dev_index].cpu().numpy()
             groundtruth = self.final_grounds.squeeze()[:, dev_index].cpu().numpy()
-            dev = self.eval_params[COLUMN_DEVICE][dev_index]
         else:
             preds = self.final_preds.squeeze().cpu().numpy()
             groundtruth = self.final_grounds.squeeze().cpu().numpy()
-            dev = self.eval_params[COLUMN_DEVICE]
+        dev = self.eval_params[COLUMN_DEVICE][dev_index]
         mmax, means, stds = self.eval_params[COLUMN_MMAX], self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
         if mmax and means and stds:
             preds = denormalize(preds, mmax)
@@ -1220,7 +1218,7 @@ class UnetNilmTrainingTools(ClassicTrainingTools):
         y_hat = y_hat.view(B, self.num_quantiles, self.num_classes, self.output_dim)
         s_hat = s_hat.view(B, self.num_classes, self.output_dim)
 
-        if not len(self.final_preds):
+        if not len(self.final_yhats):
             self.final_yhats = y_hat
             self.final_shats = s_hat
             self.final_ys = y
@@ -1264,11 +1262,16 @@ class UnetNilmTrainingTools(ClassicTrainingTools):
         print("self.final_shats.shape: ", self.final_shats.shape)
         print("self.final_ys.shape: ", self.final_ys.shape)
         print("self.final_ss.shape: ", self.final_ss.shape)
-
-        yhats = self.final_yhats[:, dev_index, dev_index, :].squeeze(-1).cpu().numpy()
-        shats = self.final_shats[:, dev_index, :].squeeze(-1).cpu().numpy()
-        y = self.final_ys[:, dev_index, :].squeeze(-1).cpu().numpy()
-        s = self.final_ss[:, dev_index, :].squeeze(-1).cpu().numpy()
+        if len(self.eval_params[COLUMN_DEVICE]) > 1:
+            yhats = self.final_yhats.squeeze()[:, dev_index].cpu().numpy()
+            shats = self.final_shats.squeeze()[:, dev_index].cpu().numpy()
+            y = self.final_ys.squeeze()[:, dev_index].cpu().numpy()
+            s = self.final_ss.squeeze()[:, dev_index].cpu().numpy()
+        else:
+            yhats = self.final_yhats.squeeze().cpu().numpy()
+            shats = self.final_shats.squeeze().cpu().numpy()
+            y = self.final_ys.squeeze().cpu().numpy()
+            s = self.final_ss.squeeze().cpu().numpy()
         dev = self.eval_params[COLUMN_DEVICE][dev_index]
         mmax, means, stds = self.eval_params[COLUMN_MMAX], self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
 
