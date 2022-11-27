@@ -317,6 +317,7 @@ class BaseElectricityMultiDataset(Dataset, ABC):
         self.has_more_data = True
         self.noise_factor = noise_factor
         self.empty_devices_index = []
+        print('BaseElectricityMultiDataset')
         print('normalization_method: ', normalization_method)
         self._run()
 
@@ -524,7 +525,7 @@ class UNETBaseElectricityMultiDataset(Dataset, ABC):
                  shuffle: bool = False,
                  normalization_method: SupportedScalingMethods = SupportedScalingMethods.STANDARDIZATION,
                  preprocessing_method: SupportedPreprocessingMethods = SupportedPreprocessingMethods.SEQ_T0_SEQ,
-                 subseq_window: int = None,
+                 subseq_window: int = None, quantile_filtering: bool = False,
                  fillna_method: str = SupportedFillingMethods.FILL_ZEROS, noise_factor: float = None):
         self.building = building
         self.devices = devices
@@ -551,6 +552,8 @@ class UNETBaseElectricityMultiDataset(Dataset, ABC):
         self.has_more_data = True
         self.noise_factor = noise_factor
         self.empty_devices_index = []
+        self.quantile_filtering = quantile_filtering
+        print('UNETBaseElectricityMultiDataset')
         print('normalization_method: ', normalization_method)
         self._run()
 
@@ -639,19 +642,19 @@ class UNETBaseElectricityMultiDataset(Dataset, ABC):
             mainchunk, meterchunks = align_multiple_chunks(mainchunk, meterchunks)
 
             if len(mainchunk) and len(meterchunks):
-                mainchunk, meterchunks = self._chunk_preprocessing(mainchunk, meterchunks)
-                states = [binarization(meterchunk, threshold) for meterchunk, threshold in zip(meterchunks, self.thresholds)]
+
+                mainchunk, meterchunks, states = self._chunk_preprocessing(mainchunk, meterchunks)
                 self.mainchunk, self.meterchunks, self.states = torch.from_numpy(np.array(mainchunk)), \
                                                                 torch.from_numpy(np.array(meterchunks)),\
                                                                 torch.from_numpy(np.array(states))
                 if self.preprocessing_method == SupportedPreprocessingMethods.ROLLING_WINDOW:
                     self.meterchunks = self.meterchunks.unsqueeze(-1)
                     self.states = self.states.unsqueeze(-1)
-                # print('FINAL MAINS SHAPE: ', self.mainchunk.shape)
-                # print('FINAL METERS SHAPE: ', self.meterchunks.shape)
-                # print('FINAL METER SHAPE: ', self.meterchunks[0].shape)
-                # print('FINAL STATES SHAPE: ', self.states.shape)
-                # print('FINAL STATE SHAPE: ', self.states[0].shape)
+                print('FINAL MAINS SHAPE: ', self.mainchunk.shape)
+                print('FINAL METERS SHAPE: ', self.meterchunks.shape)
+                print('FINAL METER SHAPE: ', self.meterchunks[0].shape)
+                print('FINAL STATES SHAPE: ', self.states.shape)
+                print('FINAL STATE SHAPE: ', self.states[0].shape)
             else:
                 raise Exception('you need to increase chunksize')
         except StopIteration:
@@ -662,6 +665,7 @@ class UNETBaseElectricityMultiDataset(Dataset, ABC):
         if self.fillna_method == SupportedFillingMethods.FILL_INTERPOLATION:
             mainchunk, meterchunks = replace_chunks_nans_interpolation(mainchunk, meterchunks)
         mainchunk, meterchunks = replace_chunks_nans(mainchunk, meterchunks)
+        states = [binarization(meterchunk, threshold) for meterchunk, threshold in zip(meterchunks, self.thresholds)]
         if self.normalization_method == SupportedScalingMethods.STANDARDIZATION:
             if None in [self.means, self.meter_means, self.meter_stds, self.stds]:
                 self._set_means_stds(mainchunk, meterchunks[0])
@@ -679,21 +683,28 @@ class UNETBaseElectricityMultiDataset(Dataset, ABC):
             mainchunk, meterchunks = normalize_chunks(mainchunk, meterchunks, self.mmax)
 
         if self.preprocessing_method == SupportedPreprocessingMethods.ROLLING_WINDOW:
-            mainchunk, meterchunks = apply_rolling_window_chunks(mainchunk, meterchunks, self.window_size)
+            mainchunk, meterchunks, states = apply_rolling_window_chunks(mainchunk, meterchunks, self.window_size,
+                                                                         states=states)
         elif self.preprocessing_method == SupportedPreprocessingMethods.MIDPOINT_WINDOW:
-            mainchunk, meterchunks = apply_midpoint_window_chunks(mainchunk, meterchunks, self.window_size)
+            mainchunk, meterchunks = apply_midpoint_window_chunks(mainchunk, meterchunks, self.window_size,
+                                                                  states=states)
         elif self.preprocessing_method == SupportedPreprocessingMethods.SEQ_T0_SEQ:
-            mainchunk, meterchunks = apply_sequence_to_sequence_chunk_list(mainchunk, meterchunks, self.window_size)
+            mainchunk, meterchunks = apply_sequence_to_sequence_chunk_list(mainchunk, meterchunks, self.window_size,
+                                                                           quantile_filtering=self.quantile_filtering,
+                                                                           states=states)
         elif self.preprocessing_method == SupportedPreprocessingMethods.SEQ_T0_SUBSEQ:
             mainchunk, meterchunks = apply_sequence_to_subsequence_list(mainchunk, meterchunks,
                                                                         sequence_window=self.window_size,
-                                                                        subsequence_window=self.subseq_window)
+                                                                        subsequence_window=self.subseq_window,
+                                                                        quantile_filtering=self.quantile_filtering,
+                                                                        states=states)
         if self.noise_factor:
             mainchunk = add_gaussian_noise(mainchunk, self.noise_factor)
 
         if self.shuffle:
             mainchunk, meterchunks = mainchunk.sample(frac=1), [meterchunk.sample(frac=1) for meterchunk in meterchunks]
-        return mainchunk, meterchunks
+            states = [state.sample(frac=1) for state in states]
+        return mainchunk, meterchunks, states
 
     def _standardize_chunks(self, mainchunk, meterchunks):
         return standardize_chunks_lists(mainchunk, meterchunks, self.means, self.stds,

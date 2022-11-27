@@ -1,6 +1,7 @@
 import warnings
 
 import numpy as np
+import pandas as pd
 from skimage.restoration import denoise_wavelet
 
 
@@ -13,12 +14,21 @@ def apply_rolling_window(mainchunk: np.array, meterchunk: np.array, window_size:
     return mainchunk, meterchunk
 
 
-def apply_rolling_window_chunks(mainchunk: np.array, meterchunks: list, window_size: int):
+def quantile_filtering_sequence(chunk: np.array, quantile: float = 0.5):
+    print('quantile filtering')
+    chunk = np.ones(chunk.shape) * np.quantile(chunk, quantile)
+    return chunk
+
+
+def apply_rolling_window_chunks(mainchunk: np.array, meterchunks: list, window_size: int, **kwargs):
     if not window_size:
         raise Warning('Window size is not defined.')
     indexer = np.arange(window_size)[None, :] + np.arange(len(mainchunk) - window_size + 1)[:, None]
     mainchunk = mainchunk[indexer]
     meterchunks = [meterchunk[window_size - 1:] for meterchunk in meterchunks]
+    if 'states' in kwargs.keys() and len(kwargs['states']) > 0:
+        states = [state[window_size - 1:] for state in kwargs['states']]
+        return mainchunk, meterchunks, states
     return mainchunk, meterchunks
 
 
@@ -32,13 +42,16 @@ def apply_midpoint_window(mainchunk: np.array, meterchunk: np.array, window_size
     return mainchunk, meterchunk
 
 
-def apply_midpoint_window_chunks(mainchunk: np.array, meterchunks: list, window_size: int):
+def apply_midpoint_window_chunks(mainchunk: np.array, meterchunks: list, window_size: int, **kwargs):
     if not window_size:
         raise Warning('Window size is not defined.')
     indexer = np.arange(window_size)[None, :] + np.arange(len(mainchunk) - window_size + 1)[:, None]
     mainchunk = mainchunk[indexer]
     midpoint = window_size // 2
     meterchunks = [meterchunk[midpoint: len(mainchunk) + midpoint] for meterchunk in meterchunks]
+    if 'states' in kwargs.keys() and len(kwargs['states']) > 0:
+        states = [state[midpoint: len(mainchunk) + midpoint] for state in kwargs['states']]
+        return mainchunk, meterchunks, states
     return mainchunk, meterchunks
 
 
@@ -60,7 +73,7 @@ def apply_sequence_to_subsequence(mainchunk: np.array, meterchunk: np.array, seq
 
 
 def apply_sequence_to_subsequence_list(mainchunk: np.array, meterchunks: list, sequence_window: int,
-                                       subsequence_window: int):
+                                       subsequence_window: int, **kwargs):
     if not sequence_window:
         raise Warning('Sequence window is not defined.')
     if not subsequence_window:
@@ -70,13 +83,18 @@ def apply_sequence_to_subsequence_list(mainchunk: np.array, meterchunks: list, s
     lower_limit = (sequence_window - subsequence_window) // 2
     sequence_indexer = np.arange(sequence_window)[None, :] + np.arange(len(mainchunk) - sequence_window + 1)[:, None]
     mainchunk = mainchunk[sequence_indexer]
-
     subsequence_indexer = np.arange(sequence_window)[lower_limit: upper_limit] + np.arange(len(mainchunk))[:, None]
     meterchunks = [meterchunk[subsequence_indexer] for meterchunk in meterchunks]
+
+    if 'quantile_filtering' in kwargs.keys() and kwargs['quantile_filtering']:
+        pass
+    if 'states' in kwargs.keys() and len(kwargs['states']) > 0:
+        states = [state[subsequence_indexer] for state in kwargs['states']]
+        return mainchunk, meterchunks, states
     return mainchunk, meterchunks
 
 
-def apply_sequence_to_sequence_chunk_list(mainchunk: np.array, meterchunks: list, sequence_window: int):
+def apply_sequence_to_sequence_chunk_list(mainchunk: np.array, meterchunks: list, sequence_window: int, **kwargs):
     # if not sequence_window:
     #     raise Warning('Sequence window is not defined.')
     # sequence_indexer = np.arange(sequence_window)[None, :] + np.arange(len(mainchunk) - sequence_window + 1)[:, None]
@@ -93,9 +111,13 @@ def apply_sequence_to_sequence_chunk_list(mainchunk: np.array, meterchunks: list
     mainchunk = np.reshape(mainchunk, (int(len(mainchunk) / sequence_window), sequence_window))
     meterchunks = [np.reshape(meterchunk, (int(len(meterchunk) / sequence_window), sequence_window))
                    for meterchunk in meterchunks]
-
     print(mainchunk.shape, meterchunks[0].shape)
-
+    if 'quantile_filtering' in kwargs.keys() and kwargs['quantile_filtering']:
+        pass
+    if 'states' in kwargs.keys() and len(kwargs['states']) > 0:
+        states = [np.reshape(state, (int(len(state) / sequence_window), sequence_window))
+                  for state in kwargs['states']]
+        return mainchunk, meterchunks, states
     return mainchunk, meterchunks
 
 
@@ -260,26 +282,5 @@ def binarization(data, threshold):
         [type] -- [description]
     """
     state = np.where(data >= threshold, 1, 0).astype(int)
+    state = pd.Series(index=data.index, data=state)
     return state
-
-
-def _quantile_signal(signal, window_size, quantile=.5):
-    """
-    Takes Signal and denoises it by using the quantile value of each window
-
-    Args:
-        signal (np.array): signal to create quantiles
-        window_size (int): length of the quantile windows
-        quantile (float): percentage of the calculate quantile
-    Returns:
-        quantile_signal (np.array): signal smoothed by quantiles
-    """
-
-    quantile_signal = np.empty_like(signal)
-
-    for i in range(0, len(signal), window_size):
-        window = signal[i:i + window_size]
-        q = np.quantile(window, quantile)
-        quantile_signal[i:i + window_size] = q
-
-    return quantile_signal
