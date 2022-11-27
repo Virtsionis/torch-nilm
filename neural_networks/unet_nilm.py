@@ -7,15 +7,17 @@ from neural_networks.base_models import BaseModel
 def quantile_regression_loss(y_hat, y, taus):
     """
         Function that computes the quantile regression loss
-
+        M: number of appliances
+        N: number of quantiles
+        T: sequence length
         Arguments:
-            y_hat (torch.Tensor) : Shape (B x T x N x M) model regression predictions
-            y (torch.Tensor) : Shape (B x T x M) ground truth targets
+            y_hat (torch.Tensor) : Shape (B x M x N x T) model regression predictions
+            y (torch.Tensor) : Shape (B x M x T) ground truth targets
             taus (torch.Tensor) : Shape (N, ) Vector of used quantiles
         Returns:
             loss (float): value of quantile regression loss
     """
-    iy = y.unsqueeze(2).expand_as(y_hat)
+    iy = y.unsqueeze(1).expand_as(y_hat)
     error = (iy - y_hat).permute(0, 1, 3, 2)
     loss = torch.max(taus * error, (taus - 1.) * error)
     return torch.mean(torch.sum(loss, dim=-1))
@@ -338,15 +340,6 @@ class UNetNiLM(UNETNILMBaseModel):
         conv_out = F.adaptive_avg_pool1d(conv_out, self.pooling_size).view(B, -1)
         mlp_out = self.dropout(self.mlp(conv_out))
 
-        # states_logits = self.fc_out_state(mlp_out).view(B, self.window_size, self.num_classes)
-        # power_logits = self.fc_out_power(mlp_out).view(B, self.window_size, self.num_quantiles, self.num_classes)
-
         states_logits = self.fc_out_state(mlp_out).view(B, self.num_classes, self.output_dim,)
-        power_logits = self.fc_out_power(mlp_out).view(B, self.num_quantiles, self.num_classes, self.output_dim)
-
-        # print('unet_out shape: ', unet_out.shape)
-        # print('conv_out shape: ', conv_out.shape)
-        # print('mlp_out shape: ', mlp_out.shape)
-        # print('states_logits shape: ', states_logits.shape)
-        # print('power_logits shape: ', power_logits.shape)
+        power_logits = self.fc_out_power(mlp_out).view(B, self.num_classes, self.num_quantiles, self.output_dim)
         return power_logits, states_logits
