@@ -11,7 +11,7 @@ experiment_parameters = {
     ITERABLE_DATASET: False,
     PREPROCESSING_METHOD: SupportedPreprocessingMethods.ROLLING_WINDOW,
     SCALING_METHOD: SupportedScalingMethods.STANDARDIZATION,
-    FIXED_WINDOW: 100,
+    FIXED_WINDOW: 200,
     FILLNA_METHOD: SupportedFillingMethods.FILL_ZEROS,
     SUBSEQ_WINDOW: None,
     TRAIN_TEST_SPLIT: 0.75,
@@ -39,6 +39,20 @@ prior_distributions = [NORMAL_DIST for i in range(0, len(devices))]
 prior_means = [0 for i in range(0, len(devices))]
 prior_stds = [.1 for i in range(0, len(devices))]
 prior_noise_std = 1
+
+for i, dev in enumerate(devices):
+    if dev == ElectricalAppliances.DISH_WASHER:
+        prior_stds[i] = 0.15# 0.1 sto 15 kai paei kala
+    if dev == ElectricalAppliances.WASHING_MACHINE:
+        prior_stds[i] = 0.15#0.1 to krataw
+    elif dev == ElectricalAppliances.FRIDGE:
+        prior_stds[i] = 0.001# 0.001 to krataw
+    elif dev == ElectricalAppliances.KETTLE:
+        prior_stds[i] = 0.1# to krataw
+    elif dev == ElectricalAppliances.MICROWAVE:
+        prior_stds[i] = 0.001#0.1# 0.001 sto 15 kai paei kala
+
+prior_noise_std = 1 - sum(prior_stds)
 model_hparams = [
 
     {
@@ -67,13 +81,13 @@ model_hparams = [
                     'lr': 1e-3, 'bayesian_encoder': False, 'bayesian_regressor': False,
                     },
     },
-    {
-        'model_name': 'MultiRegressorConvEncoder',
-        'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
-                    'complexity_cost_weight': 1e-6, 'bayesian_encoder': False, 'bayesian_regressor': False,
-                    'dae_output_dim': experiment_parameters[FIXED_WINDOW],
-                    },
-    },
+    # {
+    #     'model_name': 'MultiRegressorConvEncoder',
+    #     'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
+    #                 'complexity_cost_weight': 1e-6, 'bayesian_encoder': False, 'bayesian_regressor': False,
+    #                 'dae_output_dim': experiment_parameters[FIXED_WINDOW],
+    #                 },
+    # },
     {
         'model_name': 'SuperVAE1b',  # FROM LATENT SPACE but with 2 changes
         # a) deeper shallow nets, b) got rid of reshape layers
