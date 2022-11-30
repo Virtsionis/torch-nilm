@@ -594,7 +594,7 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
         res = []
         if isinstance(self.eval_params[COLUMN_DEVICE], list):
             for i in range(0, len(self.eval_params[COLUMN_DEVICE])):
-                res.append(self._super_metrics(i))
+                res.append(self._super_metrics(i, multi_regression=True))
             print('OK! Metrics are computed')
             self.set_res(res)
             for i in range(len(self.eval_params[COLUMN_DEVICE])):
@@ -602,7 +602,7 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
                 print('#### appliance: {} ####'.format(res[i][COLUMN_DEVICE]))
                 print('metrics: {}'.format(res[i][COLUMN_METRICS]))
         else:
-            res = self._super_metrics(0)
+            res = self._super_metrics(0, multi_regression=False)
             print('OK! Metrics are computed')
             self.set_res(res)
             print('#### model name: {} ####'.format(res[COLUMN_MODEL]))
@@ -615,14 +615,15 @@ class SuperVariationalTrainingTools(VIBTrainingTools):
     def set_ground(self, grounds):
         self.eval_params[COLUMN_GROUNDTRUTH] = grounds
 
-    def _super_metrics(self, dev_index):
-        if len(self.eval_params[COLUMN_DEVICE]) > 1:
+    def _super_metrics(self, dev_index, multi_regression):
+        if multi_regression:
             preds = self.final_preds.squeeze()[:, dev_index].cpu().numpy()
             groundtruth = self.final_grounds.squeeze()[:, dev_index].cpu().numpy()
+            dev = self.eval_params[COLUMN_DEVICE][dev_index]
         else:
             preds = self.final_preds.squeeze().cpu().numpy()
             groundtruth = self.final_grounds.squeeze().cpu().numpy()
-        dev = self.eval_params[COLUMN_DEVICE][dev_index]
+            dev = self.eval_params[COLUMN_DEVICE]
         mmax, means, stds = self.eval_params[COLUMN_MMAX], self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
 
         if mmax and means and stds:
@@ -843,7 +844,7 @@ class MultiDAETrainingTools(ClassicTrainingTools):
         res = []
         if isinstance(self.eval_params[COLUMN_DEVICE], list):
             for i in range(0, len(self.eval_params[COLUMN_DEVICE])):
-                res.append(self._super_metrics(i))
+                res.append(self._super_metrics(i, multi_regression=True))
             print('OK! Metrics are computed')
             self.set_res(res)
             for i in range(len(self.eval_params[COLUMN_DEVICE])):
@@ -851,7 +852,7 @@ class MultiDAETrainingTools(ClassicTrainingTools):
                 print('#### appliance: {} ####'.format(res[i][COLUMN_DEVICE]))
                 print('metrics: {}'.format(res[i][COLUMN_METRICS]))
         else:
-            res = self._super_metrics(0)
+            res = self._super_metrics(0, multi_regression=False)
             print('OK! Metrics are computed')
             self.set_res(res)
             print('#### model name: {} ####'.format(res[COLUMN_MODEL]))
@@ -863,14 +864,15 @@ class MultiDAETrainingTools(ClassicTrainingTools):
     def set_ground(self, grounds):
         self.eval_params[COLUMN_GROUNDTRUTH] = grounds
 
-    def _super_metrics(self, dev_index):
-        if len(self.eval_params[COLUMN_DEVICE]) > 1:
+    def _super_metrics(self, dev_index, multi_regression):
+        if multi_regression:
             preds = self.final_preds.squeeze()[:, dev_index].cpu().numpy()
             groundtruth = self.final_grounds.squeeze()[:, dev_index].cpu().numpy()
+            dev = self.eval_params[COLUMN_DEVICE][dev_index]
         else:
             preds = self.final_preds.squeeze().cpu().numpy()
             groundtruth = self.final_grounds.squeeze().cpu().numpy()
-        dev = self.eval_params[COLUMN_DEVICE][dev_index]
+            dev = self.eval_params[COLUMN_DEVICE]
         mmax, means, stds = self.eval_params[COLUMN_MMAX], self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
         if mmax and means and stds:
             preds = denormalize(preds, mmax)
@@ -1237,7 +1239,7 @@ class UnetNilmTrainingTools(ClassicTrainingTools):
         res = []
         if isinstance(self.eval_params[COLUMN_DEVICE], list):
             for i in range(0, len(self.eval_params[COLUMN_DEVICE])):
-                res.append(self._super_metrics(i))
+                res.append(self._super_metrics(i, multi_regression=True))
             print('OK! Metrics are computed')
             self.set_res(res)
             for i in range(len(self.eval_params[COLUMN_DEVICE])):
@@ -1245,7 +1247,7 @@ class UnetNilmTrainingTools(ClassicTrainingTools):
                 print('#### appliance: {} ####'.format(res[i][COLUMN_DEVICE]))
                 print('metrics: {}'.format(res[i][COLUMN_METRICS]))
         else:
-            res = self._super_metrics(0)
+            res = self._super_metrics(0, multi_regression=False)
             print('OK! Metrics are computed')
             self.set_res(res)
             print('#### model name: {} ####'.format(res[COLUMN_MODEL]))
@@ -1257,22 +1259,23 @@ class UnetNilmTrainingTools(ClassicTrainingTools):
     def set_ground(self, grounds):
         self.eval_params[COLUMN_GROUNDTRUTH] = grounds
 
-    def _super_metrics(self, dev_index):
+    def _super_metrics(self, dev_index, multi_regression):
         print("self.final_yhats.shape: ", self.final_yhats.shape)
         print("self.final_shats.shape: ", self.final_shats.shape)
         print("self.final_ys.shape: ", self.final_ys.shape)
         print("self.final_ss.shape: ", self.final_ss.shape)
-        if len(self.eval_params[COLUMN_DEVICE]) > 1:
+        if multi_regression:
             yhats = self.final_yhats.squeeze()[:, dev_index].cpu().numpy()
             shats = self.final_shats.squeeze()[:, dev_index].cpu().numpy()
             y = self.final_ys.squeeze()[:, dev_index].cpu().numpy()
             s = self.final_ss.squeeze()[:, dev_index].cpu().numpy()
+            dev = self.eval_params[COLUMN_DEVICE][dev_index]
         else:
             yhats = self.final_yhats.squeeze().cpu().numpy()
             shats = self.final_shats.squeeze().cpu().numpy()
             y = self.final_ys.squeeze().cpu().numpy()
             s = self.final_ss.squeeze().cpu().numpy()
-        dev = self.eval_params[COLUMN_DEVICE][dev_index]
+            dev = self.eval_params[COLUMN_DEVICE]
         mmax, means, stds = self.eval_params[COLUMN_MMAX], self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
 
         if mmax and means and stds:
