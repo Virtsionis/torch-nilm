@@ -4,7 +4,7 @@ from constants.enumerates import *
 
 experiment_parameters = {
     EPOCHS: 100,
-    ITERATIONS: 3,
+    ITERATIONS: 10,
     INFERENCE_CPU: False,
     SAMPLE_PERIOD: 6,
     BATCH_SIZE: 1024,
@@ -21,11 +21,11 @@ experiment_parameters = {
 
 
 devs_taus = {
-    ElectricalAppliances.KETTLE: 0.5,
+    ElectricalAppliances.KETTLE: 0.7, #0.5
     ElectricalAppliances.MICROWAVE: 0.975,
     ElectricalAppliances.FRIDGE: 0.9,
-    ElectricalAppliances.WASHING_MACHINE: 0.025,
-    ElectricalAppliances.DISH_WASHER: 0.1
+    ElectricalAppliances.WASHING_MACHINE: 0.5, #0.025,
+    ElectricalAppliances.DISH_WASHER: 0.5, #0.1,
 
     # ElectricalAppliances.OVEN: 0.5,
     # ElectricalAppliances.TUMBLE_DRYER: 0.5,
@@ -50,7 +50,7 @@ for i, dev in enumerate(devices):
     elif dev == ElectricalAppliances.KETTLE:
         prior_stds[i] = 0.1# to krataw
     elif dev == ElectricalAppliances.MICROWAVE:
-        prior_stds[i] = 0.001#0.1# 0.001 sto 15 kai paei kala
+        prior_stds[i] = 0.01#0.1# 0.001 sto 15 kai paei kala
 
 prior_noise_std = 1 - sum(prior_stds)
 model_hparams = [
@@ -88,35 +88,35 @@ model_hparams = [
     #                 'dae_output_dim': experiment_parameters[FIXED_WINDOW],
     #                 },
     # },
-    {
-        'model_name': 'SuperVAE1b',  # FROM LATENT SPACE but with 2 changes
-        # a) deeper shallow nets, b) got rid of reshape layers
-        'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
-                    'alpha': 1e-2, 'beta': 1e-3, 'gamma': 1e-0,
-                    'dae_output_dim': experiment_parameters[FIXED_WINDOW],
-                    'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
-                    'prior_means': prior_means, 'prior_distributions': prior_distributions,
-                    'lr': 1e-3
-                    },
-    },
-    {
-        'model_name': 'SuperEncoder',  # FROM LATENT SPACE but with 2 changes
-        # a) deeper shallow nets, b) got rid of reshape layers
-        'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
-                    'alpha': 1e-2, 'beta': 1e-1, 'gamma': 1e-0,
-                    'dae_output_dim': experiment_parameters[FIXED_WINDOW],
-                    'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
-                    'prior_means': prior_means, 'prior_distributions': prior_distributions,
-                    'lr': 1e-3,
-                    },
-    },
+    # {
+    #     'model_name': 'SuperVAE1b',  # FROM LATENT SPACE but with 2 changes
+    #     # a) deeper shallow nets, b) got rid of reshape layers
+    #     'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
+    #                 'alpha': 1e-2, 'beta': 1e-3, 'gamma': 1e-0,
+    #                 'dae_output_dim': experiment_parameters[FIXED_WINDOW],
+    #                 'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
+    #                 'prior_means': prior_means, 'prior_distributions': prior_distributions,
+    #                 'lr': 1e-3
+    #                 },
+    # },
+    # {
+    #     'model_name': 'SuperEncoder',  # FROM LATENT SPACE but with 2 changes
+    #     # a) deeper shallow nets, b) got rid of reshape layers
+    #     'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
+    #                 'alpha': 1e-2, 'beta': 1e-1, 'gamma': 1e-0,
+    #                 'dae_output_dim': experiment_parameters[FIXED_WINDOW],
+    #                 'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
+    #                 'prior_means': prior_means, 'prior_distributions': prior_distributions,
+    #                 'lr': 1e-3,
+    #                 },
+    # },
 ]
 
 
 model_hparams = ModelHyperModelParameters(model_hparams)
 experiment_parameters = ExperimentParameters(**experiment_parameters)
 
-experiment = NILMSuperExperiments(project_name='UNET_MULTI', clean_project=False,
+experiment = NILMSuperExperiments(project_name='MULTI_TARGET_FINAL_BENCHMARK', clean_project=False,
                                   devices=devices, save_timeseries_results=False,
                                   experiment_categories=experiment_categories,
                                   experiment_volume=SupportedExperimentVolumes.COMMON_VOLUME,
