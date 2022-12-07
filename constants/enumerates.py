@@ -42,6 +42,9 @@ class ElectricalAppliances(Enum):
     LIGHT = 'light'
     ELECTRIC_HEATER = 'electric space heater'
     TELEVISION = 'television'
+    TOASTER = 'toaster'
+    IMMERSION_HEATER = 'immersion heater'
+    WATER_PUMP = 'water pump'
 
 
 class SupportedExperimentVolumes(Enum):
@@ -49,6 +52,7 @@ class SupportedExperimentVolumes(Enum):
     COMMON_VOLUME = 'common'
     SMALL_VOLUME = 'small'
     CV_VOLUME = 'cv'
+    UKDALE_ALL_VOLUME = 'ukdale_all'
 
 
 class SupportedPreprocessingMethods(Enum):
