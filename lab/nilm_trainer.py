@@ -99,7 +99,7 @@ def train_eval(model_name: str, train_loader: DataLoader, tests_params: pd.DataF
                                           fillna_method=fillna_method,)
 
         test_loader = DataLoader(test_dataset, batch_size=batch_size,
-                                 shuffle=False, num_workers=8)
+                                 shuffle=False, num_workers=os.cpu_count())
 
         if preprocessing_method in [SupportedPreprocessingMethods.ROLLING_WINDOW,
                                     SupportedPreprocessingMethods.MIDPOINT_WINDOW]:
@@ -219,7 +219,7 @@ def train_eval_super(model_name: str, train_loader: DataLoader, tests_params: pd
                 grounds = [np.reshape(meterchunk.numpy(), -1) for meterchunk in test_dataset.meterchunks]
 
         test_loader = DataLoader(test_dataset, batch_size=batch_size,
-                                 shuffle=False, num_workers=8)
+                                 shuffle=False, num_workers=os.cpu_count())
 
         if inference_cpu:
             print('Model to CPU')
