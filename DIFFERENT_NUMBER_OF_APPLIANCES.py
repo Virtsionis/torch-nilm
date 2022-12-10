@@ -45,22 +45,22 @@ for i, dev in enumerate(devices):
 prior_noise_std = 1 - sum(prior_stds)
 
 devs = list(devs_taus.keys())
-for i in [4, 6, 9, 12]:
+for i in [8]:
     experiment_parameters = {
-    EPOCHS: 100,
-    ITERATIONS: 10,
-    INFERENCE_CPU: False,
-    SAMPLE_PERIOD: 6,
-    BATCH_SIZE: 1024,
-    ITERABLE_DATASET: False,
-    PREPROCESSING_METHOD: SupportedPreprocessingMethods.ROLLING_WINDOW,
-    SCALING_METHOD: SupportedScalingMethods.STANDARDIZATION,
-    FIXED_WINDOW: 200,
-    FILLNA_METHOD: SupportedFillingMethods.FILL_ZEROS,
-    SUBSEQ_WINDOW: None,
-    TRAIN_TEST_SPLIT: 0.75,
-    CV_FOLDS: 3,
-    NOISE_FACTOR: 0.0,
+        EPOCHS: 1,
+        ITERATIONS: 5,
+        INFERENCE_CPU: False,
+        SAMPLE_PERIOD: 6,
+        BATCH_SIZE: 1024,
+        ITERABLE_DATASET: False,
+        PREPROCESSING_METHOD: SupportedPreprocessingMethods.ROLLING_WINDOW,
+        SCALING_METHOD: SupportedScalingMethods.STANDARDIZATION,
+        FIXED_WINDOW: 200,
+        FILLNA_METHOD: SupportedFillingMethods.FILL_ZEROS,
+        SUBSEQ_WINDOW: None,
+        TRAIN_TEST_SPLIT: 0.75,
+        CV_FOLDS: 3,
+        NOISE_FACTOR: 0.0,
 }
     devs_scenario = devs[:i]
     print('Scenario: ', devs_scenario)
@@ -74,18 +74,18 @@ for i in [4, 6, 9, 12]:
                         'adam_betas': (0.9, 0.98),
                         }
         },
-        {
-            'model_name': 'CNN1DUnetNilm',
-            'hparams': {'window_size': None, 'taus': taus, 'num_classes': len(taus),
-                        'pooling_size': 16, 'num_quantiles': 1, 'dropout': 0.0, 'lr': 0.001,
-                        'adam_betas': (0.9, 0.98),
-                        }
-        },
+        # {
+        #     'model_name': 'CNN1DUnetNilm',
+        #     'hparams': {'window_size': None, 'taus': taus, 'num_classes': len(taus),
+        #                 'pooling_size': 16, 'num_quantiles': 1, 'dropout': 0.0, 'lr': 0.001,
+        #                 'adam_betas': (0.9, 0.98),
+        #                 }
+        # },
 
         {
             'model_name': 'VariationalMultiRegressorConvEncoder',
             'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devs_scenario),
-                        'beta': 1e-1, 'gamma': 1e-0, 'complexity_cost_weight': 1e-6,
+                        'beta': 1e-2, 'gamma': 1e-0, 'complexity_cost_weight': 1e-6,
                         'dae_output_dim': experiment_parameters[FIXED_WINDOW],
                         'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
                         'prior_means': prior_means, 'prior_distributions': prior_distributions,
@@ -97,13 +97,13 @@ for i in [4, 6, 9, 12]:
     model_hparams = ModelHyperModelParameters(model_hparams)
     experiment_parameters = ExperimentParameters(**experiment_parameters)
 
-    experiment = NILMSuperExperiments(project_name='MULTI_TARGET_{}_Appliances'.format(str(i)), clean_project=False,
-                                       devices=devs_scenario, save_timeseries_results=False,
-                                       experiment_categories=experiment_categories,
-                                       experiment_volume=SupportedExperimentVolumes.COMMON_VOLUME,
-                                       experiment_parameters=experiment_parameters,
-                                       save_model=False, export_plots=False,
-                                       )
+    experiment = NILMSuperExperiments(project_name='MULTI_TARGET_{}_Appliances'.format(str(i)), clean_project=True,
+                                      devices=devs_scenario, save_timeseries_results=False,
+                                      experiment_categories=experiment_categories,
+                                      experiment_volume=SupportedExperimentVolumes.UKDALE_ALL_VOLUME,
+                                      experiment_parameters=experiment_parameters,
+                                      save_model=False, export_plots=False,
+                                      )
 
     experiment.run_benchmark(model_hparams=model_hparams)
     print('#' * 80)
