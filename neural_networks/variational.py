@@ -1037,7 +1037,7 @@ class VariationalMultiRegressorConvEncoder(VIBMultiRegressorModel):
         else:
             self.prior_distributions = [self.default_distribution for i in range(0, self.targets_num)]
 
-        self.latent_dim = (self.targets_num + 1) * self.distribution_dim
+        self.latent_dim = (self.targets_num + 0) * self.distribution_dim
 
         if any([bayesian_encoder, bayesian_regressor]):
             self.bayesian = True
@@ -1073,6 +1073,8 @@ class VariationalMultiRegressorConvEncoder(VIBMultiRegressorModel):
 
         noise_dist, noise_encoding, target_dists, target_encodings = self.get_distributions(statistics, num_sample,
                                                                                             current_epoch)
+        target_encodings = torch.reshape(target_encodings, statistics.shape)
+        statistics = statistics + target_encodings
         target_logits = torch.tensor([])
         for i in range(len(self.shallow_modules)):
             target_logit = self.shallow_modules[i](statistics)
@@ -1084,18 +1086,18 @@ class VariationalMultiRegressorConvEncoder(VIBMultiRegressorModel):
         return noise_dist, statistics, target_dists, target_logits
 
     def get_distributions(self, statistics, num_sample, current_epoch):
-        mu_noise = torch.mean(statistics[:, :2 * self.distribution_dim])
-        std_noise = F.softplus(statistics[:, : 2 * self.distribution_dim], beta=1)
-
-        noise_dist = (mu_noise, std_noise)
-        noise_encoding = self.reparametrize_n(mu_noise, std_noise, current_epoch,
-                                              num_sample, self.prior_noise_std)
+        # mu_noise = torch.mean(statistics[:, :2 * self.distribution_dim])
+        # std_noise = F.softplus(statistics[:, : 2 * self.distribution_dim], beta=1)
+        # noise_dist = (mu_noise, std_noise)
+        # noise_encoding = self.reparametrize_n(mu_noise, std_noise, current_epoch,
+        #                                       num_sample, self.prior_noise_std)
+        noise_dist = None
+        noise_encoding = None
         target_dists = []
         target_encodings = torch.tensor([])
         for i in range(self.targets_num):
-            # print('from: ', (i + 1) * 2 * self.distribution_dim, ' to: ', (i + 2) * 2 * self.distribution_dim)
-            mu = torch.mean(statistics[:, (i + 1) * 2 * self.distribution_dim: (i + 2) * 2 * self.distribution_dim])
-            std = F.softplus(statistics[:, (i + 1) * 2 * self.distribution_dim: (i + 2) * 2 * self.distribution_dim],
+            mu = torch.mean(statistics[:, (i + 0) * 2 * self.distribution_dim: (i + 1) * 2 * self.distribution_dim])
+            std = F.softplus(statistics[:, (i + 0) * 2 * self.distribution_dim: (i + 1) * 2 * self.distribution_dim],
                              beta=1)
             target_dists.append((mu, std))
             target_encoding = self.reparametrize_n(mu=mu,
