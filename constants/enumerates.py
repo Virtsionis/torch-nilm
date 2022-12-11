@@ -40,6 +40,8 @@ class ElectricalAppliances(Enum):
     COMPUTER = 'computer'
     OVEN = 'oven'
     LIGHT = 'light'
+    PRINTER = 'printer'
+    BOILER = 'boiler'
     ELECTRIC_HEATER = 'electric space heater'
     TELEVISION = 'television'
     TOASTER = 'toaster'

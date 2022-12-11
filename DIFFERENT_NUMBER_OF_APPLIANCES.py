@@ -1,23 +1,21 @@
 from lab.nilm_experiments import *
 from constants.constants import *
 from constants.enumerates import *
-
 devs_taus = {
     ElectricalAppliances.KETTLE: 0.7, #0.5
     ElectricalAppliances.MICROWAVE: 0.975,
     ElectricalAppliances.FRIDGE: 0.9,
     ElectricalAppliances.WASHING_MACHINE: 0.5, #0.025,
+
     ElectricalAppliances.DISH_WASHER: 0.5, #0.1,
-
-    ElectricalAppliances.OVEN: 0.5,
-    ElectricalAppliances.COMPUTER: 0.5,
-    ElectricalAppliances.TELEVISION: 0.5,
-    ElectricalAppliances.IMMERSION_HEATER: 0.5,
-    ElectricalAppliances.WATER_PUMP: 0.5,
-
-    ElectricalAppliances.LIGHT: 0.5,
     ElectricalAppliances.TOASTER: 0.5,
+    ElectricalAppliances.LIGHT: 0.5,
+    ElectricalAppliances.BOILER: 0.5,
+
+    ElectricalAppliances.PRINTER: 0.5,
+    ElectricalAppliances.TELEVISION: 0.5,
 }
+
 devices = list(devs_taus.keys())
 
 experiment_categories = [
@@ -45,9 +43,9 @@ for i, dev in enumerate(devices):
 prior_noise_std = 1 - sum(prior_stds)
 
 devs = list(devs_taus.keys())
-for i in [8]:
+for i in [2, 4, 8, 10]:
     experiment_parameters = {
-        EPOCHS: 1,
+        EPOCHS: 25,
         ITERATIONS: 5,
         INFERENCE_CPU: False,
         SAMPLE_PERIOD: 6,
@@ -83,9 +81,9 @@ for i in [8]:
         # },
 
         {
-            'model_name': 'VariationalMultiRegressorConvEncoder',
+            'model_name': 'StateVariationalMultiRegressorConvEncoder',
             'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devs_scenario),
-                        'beta': 1e-2, 'gamma': 1e-0, 'complexity_cost_weight': 1e-6,
+                        'mode': 'att', 'beta': 1e-3, 'gamma': 1e-0, 'delta': 10, 'complexity_cost_weight': 1e-6,
                         'dae_output_dim': experiment_parameters[FIXED_WINDOW],
                         'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
                         'prior_means': prior_means, 'prior_distributions': prior_distributions,
@@ -97,7 +95,7 @@ for i in [8]:
     model_hparams = ModelHyperModelParameters(model_hparams)
     experiment_parameters = ExperimentParameters(**experiment_parameters)
 
-    experiment = NILMSuperExperiments(project_name='MULTI_TARGET_{}_Appliances'.format(str(i)), clean_project=True,
+    experiment = NILMSuperExperiments(project_name='MULTI_TARGET_{}_Appliances'.format(str(i)), clean_project=False,
                                       devices=devs_scenario, save_timeseries_results=False,
                                       experiment_categories=experiment_categories,
                                       experiment_volume=SupportedExperimentVolumes.UKDALE_ALL_VOLUME,
