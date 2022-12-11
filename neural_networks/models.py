@@ -464,6 +464,24 @@ class ShallowRegressor(nn.Module):
         return self.dense(x)
 
 
+class ShallowRegressorStatesPower(nn.Module):
+    def __init__(self, input_dim, output_dim=1, dropout=0,):
+        super().__init__()
+        self.dense = nn.Sequential(
+            LinearDropRelu(2 * input_dim, input_dim, dropout),
+            LinearDropRelu(input_dim, input_dim // 2, dropout),
+            LinearDropRelu(input_dim // 2, input_dim // 4, dropout),
+        )
+        self.power = nn.Linear(input_dim // 4, output_dim, bias=True)
+        self.state = nn.Linear(input_dim // 4, output_dim, bias=True)
+
+    def forward(self, x):
+        x = self.dense(x)
+        power = self.power(x)
+        state = self.state(x)
+        return power, state
+
+
 @variational_estimator
 class MultiRegressorConvEncoder(MultiRegressorModel):
     def __init__(self, input_dim, dropout=0, distribution_dim=16, targets_num=1, output_dim=1, complexity_cost_weight=1e-2,

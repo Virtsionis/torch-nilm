@@ -4,7 +4,7 @@ import numpy as np
 import torch.nn as nn
 from pytorch_lightning.loggers import wandb
 from torch import Tensor
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Union, Any
 import pytorch_lightning as pl
 import torch.nn.functional as F
 from constants.constants import *
@@ -59,6 +59,8 @@ class TrainingToolsFactory:
             return BertTrainingTools(model, model_hparams, eval_params)
         elif model.supports_multidae():
             return MultiDAETrainingTools(model, model_hparams, eval_params)
+        elif model.supports_vibstatesmultiregressor:
+            return StatesVariationalMultiRegressorTrainingTools(model, model_hparams, eval_params)
         elif model.supports_vibmultiregressor():
             return VariationalMultiRegressorTrainingTools(model, model_hparams, eval_params)
         elif model.supports_multiregressor():
@@ -1280,9 +1282,225 @@ class UnetNilmTrainingTools(ClassicTrainingTools):
 
         if mmax and means and stds:
             preds = denormalize(yhats, mmax)
-            preds = destandardize(yhats, means, stds)
+            preds = destandardize(preds, means, stds)
             ground = denormalize(y, mmax)
+            ground = destandardize(ground, means, stds)
+        elif mmax:
+            preds = denormalize(yhats, mmax)
+            ground = denormalize(y, mmax)
+        elif means and stds:
+            preds = destandardize(yhats, means, stds)
             ground = destandardize(y, means, stds)
+        else:
+            ground = np.array([])
+
+        res = NILMmetrics(pred=preds,
+                          ground=ground,
+                          threshold=ON_THRESHOLDS.get(ElectricalAppliances(dev), 50),)
+        results = {COLUMN_MODEL: self.model_name,
+                   COLUMN_METRICS: res,
+                   COLUMN_PREDICTIONS: preds,
+                   COLUMN_GROUNDTRUTH: ground,
+                   COLUMN_DEVICE: dev,
+                   }
+        return results
+
+
+class StatesVariationalMultiRegressorTrainingTools(SuperVariationalTrainingTools):
+    def __init__(self, model, model_hparams, eval_params, beta=1e-5, gamma=1, #delta=1.5,
+                 sample_nbr=3, complexity_cost_weight=1e-6):
+        """
+        Inputs:
+            model_name - Name of the model to run. Used for creating the model (see function below)
+            model_hparams - Hyperparameters for the model, as dictionary.
+        """
+        super().__init__(model, model_hparams, eval_params)
+        self.final_yhats = torch.tensor([])
+        self.final_shats = torch.tensor([])
+        self.final_ys = torch.tensor([])
+        self.final_ss = torch.tensor([])
+        self.final_grounds = torch.tensor([])
+        self.model = model
+        if 'lr' in model_hparams.keys():
+            self.lr = model_hparams['lr']
+        else:
+            self.lr = 1e-3
+        if 'beta' in model_hparams.keys():
+            self.beta = model_hparams['beta']
+        else:
+            self.beta = beta
+        if 'gamma' in model_hparams.keys():
+            self.gamma = model_hparams['gamma']
+        else:
+            self.gamma = gamma
+
+        if 'delta' in model_hparams.keys():
+            self.delta = model_hparams['delta']
+        else:
+            self.delta = 1#8#5
+
+
+        print('BETA = ', self.beta)
+        print('GAMMA = ', self.gamma)
+        print('DELTA = ', self.delta)
+        print('loss = {}*info_loss + {}*class_loss + {}*reg_loss'.format(self.beta, self.gamma, self.delta))
+
+        bayesian_keys = [key for key in model_hparams.keys() if 'bayes' in key]
+        if len(bayesian_keys):
+            self.bayesian = any([model_hparams[key] for key in bayesian_keys])
+        else:
+            self.bayesian = False
+
+        self.criterion = F.mse_loss
+        if self.bayesian:
+            print('Bayesian training is: ', self.bayesian)
+            if 'sample_nbr' in model_hparams.keys():
+                self.sample_nbr = model_hparams['sample_nbr']
+            else:
+                self.sample_nbr = sample_nbr
+            if 'complexity_cost_weight' in model_hparams.keys():
+                self.complexity_cost_weight = model_hparams['complexity_cost_weight']
+            else:
+                self.complexity_cost_weight = complexity_cost_weight
+
+    def training_step(self, batch, batch_idx):
+        x, y, s = batch
+        total_loss, class_loss, reg_loss, info_loss, bayes_loss = self.compute_total_loss(x=x, y=y, s=s)
+
+        # self.log('bayes_loss', bayes_loss, prog_bar=True, on_epoch=True, on_step=False)
+        self.log('class_loss', class_loss, prog_bar=True, on_epoch=True, on_step=False)
+        self.log('reg_loss', reg_loss, prog_bar=True, on_epoch=True, on_step=False)
+        self.log('info_loss', info_loss, prog_bar=True, on_epoch=True, on_step=False)
+        self.log('total_loss', total_loss, prog_bar=True, on_epoch=True, on_step=False)
+        return {'loss': total_loss, 'class_loss': class_loss, 'reg_loss':reg_loss, 'info_loss': info_loss}
+
+    def compute_total_loss(self, y, x, s, validation=False):
+        if self.bayesian:
+            if validation:
+                sample_nbr = 1
+            else:
+                sample_nbr = self.sample_nbr
+            total_loss, class_loss, info_loss, bayes_loss = self.sample_elbo(x=x,
+                                                                             y=y,
+                                                                             sample_nbr=sample_nbr,
+                                                                             complexity_cost_weight=self.complexity_cost_weight
+                                                                             )
+        else:
+            bayes_loss = 0
+            # Forward pass
+            noise_dist, vae_logit, target_dists, target_powers, target_states = self(x)
+            total_loss, class_loss, reg_los, info_loss = self.compute_train_loss(ground_power=y,
+                                                                                 ground_state=s,
+                                                                                 target_powers=target_powers,
+                                                                                 target_states=target_states,
+                                                                                 noise_dist=noise_dist,
+                                                                                 target_dists=target_dists)
+        return total_loss, class_loss, reg_los, info_loss, bayes_loss
+
+    def compute_train_loss(self, ground_power, ground_state, target_powers, target_states, noise_dist, target_dists):
+        class_loss, reg_loss = self.compute_class_loss_power_states(ground_power=ground_power, ground_state=ground_state,
+                                                                    target_powers=target_powers, target_states=target_states)
+        info_loss = self.compute_info_loss(noise_dist=noise_dist, target_dists=target_dists)
+        total_loss = self.beta*info_loss + self.gamma*class_loss + self.delta*reg_loss
+        return total_loss, class_loss, reg_loss, info_loss
+
+    @staticmethod
+    def compute_class_loss_power_states(ground_power, ground_state, target_powers, target_states):
+        class_loss = 0
+        reg_loss = 0
+        if len(list(ground_power.size())) > 1:
+            for i in range(target_powers.shape[-1]):
+                power_logit = target_powers[:, :, :, i].squeeze(1)
+                state_logit = target_powers[:, :, :, i].squeeze(1)
+                class_loss += F.binary_cross_entropy_with_logits(state_logit, ground_state[:, i, :]).div(math.log(2))
+                reg_loss += F.mse_loss(power_logit, ground_power[:, i, :]).div(math.log(2))
+        else:
+            power_logit = target_powers.squeeze(1)
+            state_logit = target_states.squeeze(1)
+            class_loss += F.binary_cross_entropy_with_logits(state_logit, state_logit).div(math.log(2))
+            reg_loss += F.mse_loss(power_logit, ground_power).div(math.log(2))
+        return class_loss, reg_loss
+
+    def _forward_step(self, batch: Tensor) -> Tuple[
+        Union[float, Any], Union[float, Any], int, Union[float, Any], Union[float, Any]]:
+        x, y, s = batch
+        total_loss, class_loss, reg_loss, info_loss, bayes_loss = self.compute_total_loss(x=x, y=y, s=s, validation=True)
+        return total_loss, class_loss, reg_loss, info_loss, bayes_loss
+
+    def validation_step(self, val_batch: Tensor, batch_idx: int) -> Dict:
+        total_loss, class_loss, reg_loss, info_loss, bayes_loss = self._forward_step(val_batch)
+        # self.log("val_bayes_loss", bayes_loss, prog_bar=False, on_epoch=True, on_step=False)
+        self.log("vl_class_loss", class_loss, prog_bar=False, on_epoch=True, on_step=False)
+        self.log("vl_reg_loss", reg_loss, prog_bar=False, on_epoch=True, on_step=False)
+        self.log("vl_info_loss", info_loss, prog_bar=False, on_epoch=True, on_step=False)
+        self.log(VAL_LOSS, total_loss, prog_bar=True, on_epoch=True, on_step=False)
+        return {"val_loss": total_loss}
+
+    def test_step(self, batch, batch_idx):
+        x, y, s = batch
+        # Forward pass
+        noise_dist, vae_logit, target_dists, y_hat, s_hat = self(x)
+
+        if not len(self.final_yhats):
+            self.final_yhats = y_hat
+            self.final_shats = s_hat
+            self.final_ys = y
+            self.final_ss = s
+        else:
+            self.final_yhats = torch.cat((self.final_yhats, y_hat))
+            self.final_shats = torch.cat((self.final_shats, s_hat))
+            self.final_ys = torch.cat((self.final_ys, y))
+            self.final_ss = torch.cat((self.final_ss, s))
+
+        return {'test_loss': ''}
+
+    def test_epoch_end(self, outputs):
+        # outputs is a list of whatever you returned in `test_step`
+        print('Metrics calculation starts')
+        res = []
+        if isinstance(self.eval_params[COLUMN_DEVICE], list):
+            for i in range(0, len(self.eval_params[COLUMN_DEVICE])):
+                res.append(self._super_metrics(i, multi_regression=True))
+            print('OK! Metrics are computed')
+            self.set_res(res)
+            for i in range(len(self.eval_params[COLUMN_DEVICE])):
+                print('#### model name: {} ####'.format(res[i][COLUMN_MODEL]))
+                print('#### appliance: {} ####'.format(res[i][COLUMN_DEVICE]))
+                print('metrics: {}'.format(res[i][COLUMN_METRICS]))
+        else:
+            res = self._super_metrics(0, multi_regression=False)
+            print('OK! Metrics are computed')
+            self.set_res(res)
+            print('#### model name: {} ####'.format(res[COLUMN_MODEL]))
+            print('#### appliance: {} ####'.format(res[COLUMN_DEVICE]))
+            print('metrics: {}'.format(res[COLUMN_METRICS]))
+        self.final_preds = []
+        return res
+
+    def _super_metrics(self, dev_index, multi_regression):
+        print("self.final_yhats.shape: ", self.final_yhats.shape)
+        print("self.final_shats.shape: ", self.final_shats.shape)
+        print("self.final_ys.shape: ", self.final_ys.shape)
+        print("self.final_ss.shape: ", self.final_ss.shape)
+        if multi_regression:
+            yhats = self.final_yhats.squeeze()[:, dev_index].cpu().numpy()
+            shats = self.final_shats.squeeze()[:, dev_index].cpu().numpy()
+            y = self.final_ys.squeeze()[:, dev_index].cpu().numpy()
+            s = self.final_ss.squeeze()[:, dev_index].cpu().numpy()
+            dev = self.eval_params[COLUMN_DEVICE][dev_index]
+        else:
+            yhats = self.final_yhats.squeeze().cpu().numpy()
+            shats = self.final_shats.squeeze().cpu().numpy()
+            y = self.final_ys.squeeze().cpu().numpy()
+            s = self.final_ss.squeeze().cpu().numpy()
+            dev = self.eval_params[COLUMN_DEVICE]
+        mmax, means, stds = self.eval_params[COLUMN_MMAX], self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
+
+        if mmax and means and stds:
+            preds = denormalize(yhats, mmax)
+            preds = destandardize(preds, means, stds)
+            ground = denormalize(y, mmax)
+            ground = destandardize(ground, means, stds)
         elif mmax:
             preds = denormalize(yhats, mmax)
             ground = denormalize(y, mmax)

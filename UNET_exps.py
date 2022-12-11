@@ -55,26 +55,46 @@ for i, dev in enumerate(devices):
 prior_noise_std = 1 - sum(prior_stds)
 model_hparams = [
 
-    {
-        'model_name': 'UNetNiLM',
-        'hparams': {'window_size': None, 'taus': list(devs_taus.values()), 'num_layers': 5, 'features_start': 8,
-                    'n_channels': 1, 'num_classes': len(devs_taus.keys()), 'pooling_size': 16,
-                    'num_quantiles': 1, 'dropout': 0.1, 'd_model': 128, 'lr': 0.001,
-                    'adam_betas': (0.9, 0.98),
-                    }
-    },
-    {
-        'model_name': 'CNN1DUnetNilm',
-        'hparams': {'window_size': None, 'taus': list(devs_taus.values()), 'num_classes': len(devs_taus.keys()),
-                    'pooling_size': 16, 'num_quantiles': 1, 'dropout': 0.0, 'lr': 0.001,
-                    'adam_betas': (0.9, 0.98),
-                    }
-    },
+    # {
+    #     'model_name': 'UNetNiLM',
+    #     'hparams': {'window_size': None, 'taus': list(devs_taus.values()), 'num_layers': 5, 'features_start': 8,
+    #                 'n_channels': 1, 'num_classes': len(devs_taus.keys()), 'pooling_size': 16,
+    #                 'num_quantiles': 1, 'dropout': 0.1, 'd_model': 128, 'lr': 0.001,
+    #                 'adam_betas': (0.9, 0.98),
+    #                 }
+    # },
+    # {
+    #     'model_name': 'CNN1DUnetNilm',
+    #     'hparams': {'window_size': None, 'taus': list(devs_taus.values()), 'num_classes': len(devs_taus.keys()),
+    #                 'pooling_size': 16, 'num_quantiles': 1, 'dropout': 0.0, 'lr': 0.001,
+    #                 'adam_betas': (0.9, 0.98),
+    #                 }
+    # },
 
     {
-        'model_name': 'VariationalMultiRegressorConvEncoder',
+        'model_name': 'StateVariationalMultiRegressorConvEncoder',
         'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
-                    'beta': 1e-1, 'gamma': 1e-0, 'complexity_cost_weight': 1e-6,
+                    'mode': 'att', 'beta': 1e-3, 'gamma': 1e-0, 'delta': 10, 'complexity_cost_weight': 1e-6,
+                    'dae_output_dim': experiment_parameters[FIXED_WINDOW],
+                    'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
+                    'prior_means': prior_means, 'prior_distributions': prior_distributions,
+                    'lr': 1e-3, 'bayesian_encoder': False, 'bayesian_regressor': False,
+                    },
+    },
+    {
+        'model_name': 'StateVariationalMultiRegressorConvEncoder',
+        'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
+                    'mode': 'linear', 'beta': 1e-3, 'gamma': 1e-0, 'delta': 10, 'complexity_cost_weight': 1e-6,
+                    'dae_output_dim': experiment_parameters[FIXED_WINDOW],
+                    'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
+                    'prior_means': prior_means, 'prior_distributions': prior_distributions,
+                    'lr': 1e-3, 'bayesian_encoder': False, 'bayesian_regressor': False,
+                    },
+    },
+    {
+        'model_name': 'StateVariationalMultiRegressorConvEncoder',
+        'hparams': {'input_dim': None, 'distribution_dim': 16, 'targets_num': len(devices),
+                    'mode': '', 'beta': 1e-3, 'gamma': 1e-0, 'delta': 10, 'complexity_cost_weight': 1e-6,
                     'dae_output_dim': experiment_parameters[FIXED_WINDOW],
                     'max_noise': 0.1, 'prior_stds': prior_stds, 'prior_noise_std': prior_noise_std,
                     'prior_means': prior_means, 'prior_distributions': prior_distributions,
@@ -116,7 +136,7 @@ model_hparams = [
 model_hparams = ModelHyperModelParameters(model_hparams)
 experiment_parameters = ExperimentParameters(**experiment_parameters)
 
-experiment = NILMSuperExperiments(project_name='MULTI_TARGET_FINAL_BENCHMARK', clean_project=False,
+experiment = NILMSuperExperiments(project_name='VM_Combination_modes', clean_project=False,
                                   devices=devices, save_timeseries_results=False,
                                   experiment_categories=experiment_categories,
                                   experiment_volume=SupportedExperimentVolumes.COMMON_VOLUME,
