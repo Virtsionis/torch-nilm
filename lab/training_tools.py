@@ -59,16 +59,16 @@ class TrainingToolsFactory:
             return BertTrainingTools(model, model_hparams, eval_params)
         elif model.supports_multidae():
             return MultiDAETrainingTools(model, model_hparams, eval_params)
-        elif model.supports_vibstatesmultiregressor:
-            return StatesVariationalMultiRegressorTrainingTools(model, model_hparams, eval_params)
-        elif model.supports_vibmultiregressor():
-            return VariationalMultiRegressorTrainingTools(model, model_hparams, eval_params)
+        # elif model.supports_vibmultiregressor():
+        #     return VariationalMultiRegressorTrainingTools(model, model_hparams, eval_params)
         elif model.supports_multiregressor():
             return MultiRegressorTrainingTools(model, model_hparams, eval_params)
         elif model.supports_multivib():
             return SuperVariationalMultiTrainingTools(model, model_hparams, eval_params)
         elif model.supports_unetnilm():
             return UnetNilmTrainingTools(model, model_hparams, eval_params)
+        elif model.supports_vibstatesmultiregressor:
+            return StatesVariationalMultiRegressorTrainingTools(model, model_hparams, eval_params)
         else:
             return ClassicTrainingTools(model, model_hparams, eval_params)
 
