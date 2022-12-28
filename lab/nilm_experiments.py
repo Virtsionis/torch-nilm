@@ -1280,7 +1280,8 @@ class NILMSuperExperiments(NILMExperiments):
                     #                                                noise_factor=self.noise_factor)
                 else:
                     if (model_name == 'UNetNiLM') or (model_name == 'CNN1DUnetNilm') or \
-                            (model_name == 'StateVariationalMultiRegressorConvEncoder'):
+                            (model_name == 'StateVariationalMultiRegressorConvEncoder') or \
+                            (model_name == 'MultiRegressorConvEncoder'):
                         train_dataset_all = UNETBaseElectricityMultiDataset(datasource=datasource,
                                                                             building=int(train_house),
                                                                             window_size=window,

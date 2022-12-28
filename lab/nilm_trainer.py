@@ -181,7 +181,8 @@ def train_eval_super(model_name: str, train_loader: DataLoader, tests_params: pd
 
         datasource = DatasourceFactory.create_datasource(dataset)
         if (model_name == 'UNetNiLM') or (model_name == 'CNN1DUnetNilm') or \
-                (model_name == 'StateVariationalMultiRegressorConvEncoder'):
+                (model_name == 'StateVariationalMultiRegressorConvEncoder') or\
+                (model_name == 'MultiRegressorConvEncoder'):
             test_dataset = UNETBaseElectricityMultiDataset(datasource=datasource,
                                                            building=int(building),
                                                            window_size=window_size, subseq_window=subseq_window,

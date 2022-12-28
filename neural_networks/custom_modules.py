@@ -200,7 +200,8 @@ class Addition(nn.Module):
 class Concatenation(nn.Module):
     def __init__(self, input_dim):
         super().__init__()
-        self.output = nn.Linear(input_dim, input_dim // 2)
+        # self.output = nn.Linear(input_dim, input_dim // 2)
+        self.output = LinearDropRelu(input_dim, input_dim // 2)
 
     def forward(self, x, y):
         x = torch.cat((x, y), -1)

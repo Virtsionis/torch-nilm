@@ -34,6 +34,9 @@ def he_init(ms):
 
 class VIBNet(BaseModel):
 
+    def supports_classic_training(self) -> bool:
+        return False
+
     def supports_vib(self) -> bool:
         return True
 
@@ -85,6 +88,10 @@ class VIBNet(BaseModel):
 
 
 class VIBMultiRegressorModel(BaseModel):
+
+    def supports_classic_training(self) -> bool:
+        return False
+
     def supports_vibmultiregressor(self) -> bool:
         return True
 

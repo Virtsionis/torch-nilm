@@ -19,6 +19,9 @@ class MultiLabelDAEModel(BaseModel):
 
 
 class MultiRegressorModel(BaseModel):
+    def supports_classic_training(self) -> bool:
+        return False
+
     def supports_multiregressor(self) -> bool:
         return True
 
@@ -503,7 +506,7 @@ class MultiRegressorConvEncoder(MultiRegressorModel):
             distribution_dim += 1
         self.distribution_dim = distribution_dim
         self.targets_num = targets_num
-        self.latent_dim = (self.targets_num + 1) * self.distribution_dim
+        self.latent_dim = (self.targets_num + 0) * self.distribution_dim
         if any([bayesian_encoder, bayesian_regressor]):
             self.bayesian = True
         else:
@@ -527,7 +530,8 @@ class MultiRegressorConvEncoder(MultiRegressorModel):
         else:
             for i in range(self.targets_num):
                 self.shallow_modules.append(
-                    ShallowRegressor(input_dim=self.latent_dim)
+                    # ShallowRegressor(input_dim=self.latent_dim)
+                    ShallowRegressorStatesPower(input_dim=self.latent_dim)
                 )
 
     def forward(self, x, current_epoch=None, num_sample=1):
@@ -535,14 +539,18 @@ class MultiRegressorConvEncoder(MultiRegressorModel):
         # eg: [1024, 1, 50]
         x = x
         statistics = self.encoder(x)
-        target_logits = torch.tensor([])
+        target_states = torch.tensor([])
+        target_powers = torch.tensor([])
         for i in range(len(self.shallow_modules)):
-            target_logit = self.shallow_modules[i](statistics)
+            target_power, target_state = self.shallow_modules[i](statistics)
             if i == 0:
-                target_logits = target_logit.unsqueeze(1).unsqueeze(3).to(self.device)
+                target_powers = target_power.unsqueeze(1).unsqueeze(3).to(self.device)
+                target_states = target_state.unsqueeze(1).unsqueeze(3).to(self.device)
             else:
-                target_logits = torch.cat((target_logits, target_logit.unsqueeze(1).unsqueeze(3)), 3)
-        return target_logits
+                target_powers = torch.cat((target_powers, target_power.unsqueeze(1).unsqueeze(3)), 3)
+                target_states = torch.cat((target_states, target_state.unsqueeze(1).unsqueeze(3)), 3)
+
+        return target_powers, target_states
 
 
 class ConvMultiDAE(MultiLabelDAEModel):

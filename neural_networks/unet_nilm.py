@@ -24,6 +24,8 @@ def quantile_regression_loss(y_hat, y, taus):
 
 
 class UNETNILMBaseModel(BaseModel):
+    def supports_classic_training(self) -> bool:
+        return False
 
     def supports_unetnilm(self) -> bool:
         return True

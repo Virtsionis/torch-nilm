@@ -47,30 +47,30 @@ class TrainingToolsFactory:
 
     @staticmethod
     def equip_model(model, model_hparams, eval_params):
+        if model.supports_classic_training():
+            return ClassicTrainingTools(model, model_hparams, eval_params)
         if model.supports_vib():
             return VIBTrainingTools(model, model_hparams, eval_params)
-        elif model.supports_supervib():
+        if model.supports_supervib():
             return SuperVariationalTrainingTools(model, model_hparams, eval_params)
-        elif model.supports_supervibenc():
+        if model.supports_supervibenc():
             return SuperVariationalTrainingToolsEncoder(model, model_hparams, eval_params)
-        elif model.supports_bayes():
+        if model.supports_bayes():
             return BayesTrainingTools(model, model_hparams, eval_params)
-        elif model.supports_bert():
+        if model.supports_bert():
             return BertTrainingTools(model, model_hparams, eval_params)
-        elif model.supports_multidae():
+        if model.supports_multidae():
             return MultiDAETrainingTools(model, model_hparams, eval_params)
-        # elif model.supports_vibmultiregressor():
+        # if model.supports_vibmultiregressor():
         #     return VariationalMultiRegressorTrainingTools(model, model_hparams, eval_params)
-        elif model.supports_multiregressor():
+        if model.supports_multiregressor():
             return MultiRegressorTrainingTools(model, model_hparams, eval_params)
-        elif model.supports_multivib():
+        if model.supports_multivib():
             return SuperVariationalMultiTrainingTools(model, model_hparams, eval_params)
-        elif model.supports_unetnilm():
+        if model.supports_unetnilm():
             return UnetNilmTrainingTools(model, model_hparams, eval_params)
-        elif model.supports_vibstatesmultiregressor:
+        if model.supports_vibstatesmultiregressor:
             return StatesVariationalMultiRegressorTrainingTools(model, model_hparams, eval_params)
-        else:
-            return ClassicTrainingTools(model, model_hparams, eval_params)
 
 
 class ClassicTrainingTools(pl.LightningModule):
@@ -910,9 +910,24 @@ class MultiRegressorTrainingTools(MultiDAETrainingTools):
             model_hparams - Hyperparameters for the model, as dictionary.
         """
         super().__init__(model, model_hparams, eval_params)
-        self.final_preds = torch.tensor([])
+        self.final_yhats = torch.tensor([])
+        self.final_shats = torch.tensor([])
+        self.final_ys = torch.tensor([])
+        self.final_ss = torch.tensor([])
         self.final_grounds = torch.tensor([])
         self.model = model
+        if 'beta' in model_hparams.keys():
+            self.beta = model_hparams['beta']
+        else:
+            self.beta = 1e-3
+        if 'gamma' in model_hparams.keys():
+            self.gamma = model_hparams['gamma']
+        else:
+            self.gamma = 1e-0
+        if 'delta' in model_hparams.keys():
+            self.delta = model_hparams['delta']
+        else:
+            self.delta = 10#8#5
         if 'lr' in model_hparams.keys():
             self.lr = model_hparams['lr']
         else:
@@ -935,80 +950,102 @@ class MultiRegressorTrainingTools(MultiDAETrainingTools):
             else:
                 self.complexity_cost_weight = complexity_cost_weight
 
-    def compute_class_loss(self, y, target_logits):
+    @staticmethod
+    def compute_class_loss_power_states(ground_power, ground_state, target_powers, target_states):
         class_loss = 0
-        target_logits = target_logits.squeeze()
-        if len(list(y.squeeze().size())) > 1:
-            for i in range(target_logits.shape[-1]):
-                logit = target_logits[:, i].squeeze()
-                truth = y[:, i, :].squeeze()
+        reg_loss = 0
+        if len(list(ground_power.size())) > 1:
+            for i in range(target_powers.shape[-1]):
+                power_logit = target_powers[:, :, :, i].squeeze(1)
+                state_logit = target_powers[:, :, :, i].squeeze(1)
+                class_loss += F.binary_cross_entropy_with_logits(state_logit, ground_state[:, i, :]).div(math.log(2))
+                reg_loss += F.mse_loss(power_logit, ground_power[:, i, :]).div(math.log(2))
         else:
-            logit = target_logits.squeeze()
-            truth = y
-        class_loss += self.criterion(logit, truth).div(math.log(2))
-        return class_loss / len(target_logits)
+            power_logit = target_powers.squeeze(1)
+            state_logit = target_states.squeeze(1)
+            class_loss += F.binary_cross_entropy_with_logits(state_logit, state_logit).div(math.log(2))
+            reg_loss += F.mse_loss(power_logit, ground_power).div(math.log(2))
+        return class_loss, reg_loss
 
-    def compute_total_train_loss(self, y, x, target_logits=None, mains=None):
+    def compute_total_loss(self, y, x, s, validation=False):
         if self.bayesian:
-            # total_loss = self.model.sample_elbo(inputs=x,
-            total_loss = self.sample_elbo(inputs=x,
-                                          labels=y,
-                                          # criterion=self.criterion,
-                                          sample_nbr=self.sample_nbr,
-                                          multi_label=True,
-                                          complexity_cost_weight=self.complexity_cost_weight,
-                                          )
+            # total_loss = self.sample_elbo(inputs=x,
+            #                               labels=y,
+            #                               # criterion=self.criterion,
+            #                               sample_nbr=self.sample_nbr,
+            #                               multi_label=True,
+            #                               complexity_cost_weight=self.complexity_cost_weight,
+            #                               )
+            pass
         else:
             # Forward pass
-            target_logits = self(x)
-            total_loss = self.compute_class_loss(y=y, target_logits=target_logits)
-        return total_loss
+            target_powers, target_states = self(x)
+            class_loss, reg_loss = self.compute_class_loss_power_states(ground_power=y,
+                                                                        ground_state=s,
+                                                                        target_powers=target_powers,
+                                                                        target_states=target_states,)
+        total_loss = self.gamma * class_loss + self.delta * reg_loss
 
-    def compute_total_val_loss(self, y, x, target_logits=None, mains=None):
-        if self.bayesian:
-            # total_loss = self.model.sample_elbo(inputs=x,
-            total_loss = self.sample_elbo(inputs=x,
-                                          labels=y,
-                                          # criterion=self.criterion,
-                                          sample_nbr=1,
-                                          multi_label=True,
-                                          complexity_cost_weight=self.beta,
-                                          )
-        else:
-            # Forward pass
-            target_logits = self(x)
-            total_loss = self.compute_class_loss(y=y, target_logits=target_logits)
-        return total_loss
+        return total_loss, class_loss, reg_loss
 
     def training_step(self, batch, batch_idx):
-        x, y = batch
-        total_loss = self.compute_total_train_loss(x=x, y=y)
+        x, y, s = batch
+        total_loss, class_loss, reg_loss = self.compute_total_loss(x=x, y=y, s=s)
         self.log('total_loss', total_loss, prog_bar=True, on_epoch=True, on_step=False)
         return {'loss': total_loss, }
 
-    def _forward_step(self, batch: Tensor) -> float:
-        x, y = batch
-        total_loss = self.compute_total_val_loss(x=x, y=y)
-        return total_loss
+    def _forward_step(self, batch: Tensor) -> Tuple[Union[float, Any], Union[float, Any], Union[float, Any]]:
+        x, y, s = batch
+        total_loss, class_loss, reg_loss = self.compute_total_loss(x=x, y=y, s=s, validation=True)
+        return total_loss, class_loss, reg_loss
 
     def validation_step(self, val_batch: Tensor, batch_idx: int) -> Dict:
-        total_loss = self._forward_step(val_batch)
-        val_loss = total_loss
-        self.log(VAL_LOSS, val_loss, prog_bar=True, on_epoch=True, on_step=False)
-        return {"val_loss": val_loss}
+        total_loss, class_loss, reg_loss = self._forward_step(val_batch)
+        self.log("vl_class_loss", class_loss, prog_bar=False, on_epoch=True, on_step=False)
+        self.log("vl_reg_loss", reg_loss, prog_bar=False, on_epoch=True, on_step=False)
+        self.log(VAL_LOSS, total_loss, prog_bar=True, on_epoch=True, on_step=False)
+        return {"val_loss": total_loss}
 
     def test_step(self, batch, batch_idx):
-        x, y = batch
+        x, y, s = batch
         # Forward pass
-        target_logits = self(x)
-        if not len(self.final_preds):
-            self.final_preds = target_logits
-            self.final_grounds = y
+        y_hat, s_hat = self(x)
+
+        if not len(self.final_yhats):
+            self.final_yhats = y_hat
+            self.final_shats = s_hat
+            self.final_ys = y
+            self.final_ss = s
         else:
-            self.final_preds = torch.cat((self.final_preds, target_logits))
-            self.final_grounds = torch.cat((self.final_grounds, y))
+            self.final_yhats = torch.cat((self.final_yhats, y_hat))
+            self.final_shats = torch.cat((self.final_shats, s_hat))
+            self.final_ys = torch.cat((self.final_ys, y))
+            self.final_ss = torch.cat((self.final_ss, s))
 
         return {'test_loss': ''}
+
+    def test_epoch_end(self, outputs):
+        # outputs is a list of whatever you returned in `test_step`
+        print('Metrics calculation starts')
+        res = []
+        if isinstance(self.eval_params[COLUMN_DEVICE], list):
+            for i in range(0, len(self.eval_params[COLUMN_DEVICE])):
+                res.append(self._super_metrics(i, multi_regression=True))
+            print('OK! Metrics are computed')
+            self.set_res(res)
+            for i in range(len(self.eval_params[COLUMN_DEVICE])):
+                print('#### model name: {} ####'.format(res[i][COLUMN_MODEL]))
+                print('#### appliance: {} ####'.format(res[i][COLUMN_DEVICE]))
+                print('metrics: {}'.format(res[i][COLUMN_METRICS]))
+        else:
+            res = self._super_metrics(0, multi_regression=False)
+            print('OK! Metrics are computed')
+            self.set_res(res)
+            print('#### model name: {} ####'.format(res[COLUMN_MODEL]))
+            print('#### appliance: {} ####'.format(res[COLUMN_DEVICE]))
+            print('metrics: {}'.format(res[COLUMN_METRICS]))
+        self.final_preds = []
+        return res
 
     def sample_elbo(self, inputs, labels, sample_nbr, multi_label=False, complexity_cost_weight=1):
         loss = 0
@@ -1030,6 +1067,50 @@ class MultiRegressorTrainingTools(MultiDAETrainingTools):
             y = labels[:, i, :].squeeze()
             loss += self.criterion(logit, y).div(math.log(2))
         return loss / len(outputs)
+
+    def _super_metrics(self, dev_index, multi_regression):
+        print("self.final_yhats.shape: ", self.final_yhats.shape)
+        print("self.final_shats.shape: ", self.final_shats.shape)
+        print("self.final_ys.shape: ", self.final_ys.shape)
+        print("self.final_ss.shape: ", self.final_ss.shape)
+        if multi_regression:
+            yhats = self.final_yhats.squeeze()[:, dev_index].cpu().numpy()
+            shats = self.final_shats.squeeze()[:, dev_index].cpu().numpy()
+            y = self.final_ys.squeeze()[:, dev_index].cpu().numpy()
+            s = self.final_ss.squeeze()[:, dev_index].cpu().numpy()
+            dev = self.eval_params[COLUMN_DEVICE][dev_index]
+        else:
+            yhats = self.final_yhats.squeeze().cpu().numpy()
+            shats = self.final_shats.squeeze().cpu().numpy()
+            y = self.final_ys.squeeze().cpu().numpy()
+            s = self.final_ss.squeeze().cpu().numpy()
+            dev = self.eval_params[COLUMN_DEVICE]
+        mmax, means, stds = self.eval_params[COLUMN_MMAX], self.eval_params[COLUMN_MEANS], self.eval_params[COLUMN_STDS]
+
+        if mmax and means and stds:
+            preds = denormalize(yhats, mmax)
+            preds = destandardize(preds, means, stds)
+            ground = denormalize(y, mmax)
+            ground = destandardize(ground, means, stds)
+        elif mmax:
+            preds = denormalize(yhats, mmax)
+            ground = denormalize(y, mmax)
+        elif means and stds:
+            preds = destandardize(yhats, means, stds)
+            ground = destandardize(y, means, stds)
+        else:
+            ground = np.array([])
+
+        res = NILMmetrics(pred=preds,
+                          ground=ground,
+                          threshold=ON_THRESHOLDS.get(ElectricalAppliances(dev), 50),)
+        results = {COLUMN_MODEL: self.model_name,
+                   COLUMN_METRICS: res,
+                   COLUMN_PREDICTIONS: preds,
+                   COLUMN_GROUNDTRUTH: ground,
+                   COLUMN_DEVICE: dev,
+                   }
+        return results
 
 
 class VariationalMultiRegressorTrainingTools(SuperVariationalTrainingTools):
@@ -1338,7 +1419,6 @@ class StatesVariationalMultiRegressorTrainingTools(SuperVariationalTrainingTools
             self.delta = model_hparams['delta']
         else:
             self.delta = 1#8#5
-
 
         print('BETA = ', self.beta)
         print('GAMMA = ', self.gamma)

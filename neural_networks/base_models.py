@@ -10,6 +10,9 @@ class BaseModel(nn.Module, abc.ABC):
         super().__init__(*args, **kwargs)
         self.architecture_name = BASE_NETWORK
 
+    def supports_classic_training(self) -> bool:
+        return True
+
     def supports_vib(self) -> bool:
         """
         Returns yes if it supports variational information bottleneck.

@@ -10,6 +10,10 @@ from blitz.utils import variational_estimator
 
 @variational_estimator
 class BAYESNet(BaseModel):
+
+    def supports_classic_training(self) -> bool:
+        return False
+
     def supports_bayes(self) -> bool:
         return True
 
@@ -305,6 +309,9 @@ class BayesNFEDBLock(BAYESNet):
 
 
 class BayesNFED(BaseModel):
+
+    def supports_classic_training(self) -> bool:
+        return False
 
     def __init__(self, depth, kernel_size, cnn_dim, output_dim=1, **block_args):
         super(BayesNFED, self).__init__()
