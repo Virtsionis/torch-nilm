@@ -223,10 +223,14 @@ def quantile_75(data: pd.DataFrame, reset_index: bool = True):
 
 
 def destandardize(data: np.array, means: float, stds: float):
+    if np.all(np.isinf(data)):
+        return np.array([])
     return (data * stds) + means
 
 
 def denormalize(data: np.array, mmax: float):
+    if np.all(np.isinf(data)):
+        return np.array([])
     return data * mmax
 
 

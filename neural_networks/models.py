@@ -1,10 +1,33 @@
 import math
 import torch
 import torch.nn as nn
+from blitz.utils import variational_estimator
 from torchnlp.nn.attention import Attention
 
 from neural_networks.base_models import BaseModel
-from neural_networks.custom_modules import ConvDropRelu, LinearDropRelu
+from neural_networks.bayesian import ShallowBayesianRegressor, BayesianConvEncoder
+from neural_networks.custom_modules import ConvDropRelu, LinearDropRelu, View
+
+
+class MultiLabelDAEModel(BaseModel):
+    def supports_multidae(self) -> bool:
+        return True
+
+    @staticmethod
+    def get_device():
+        return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+
+class MultiRegressorModel(BaseModel):
+    def supports_classic_training(self) -> bool:
+        return False
+
+    def supports_multiregressor(self) -> bool:
+        return True
+
+    @staticmethod
+    def get_device():
+        return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 class GELU(nn.Module):
@@ -285,6 +308,306 @@ class DAE(BaseModel):
         x = self.encoder(x)
         x = self.decoder(x)
         return x
+
+
+# class ConvDAE(BaseModel):
+#     def __init__(self, input_dim, latent_dim, dropout=0.2, output_dim=1):
+#         super().__init__()
+#         self.encoder = nn.Sequential(
+#             ConvDropRelu(1, 8, kernel_size=4, relu=False),
+#             nn.Flatten(),
+#             nn.Dropout(dropout),
+#             nn.Linear(input_dim * 8, input_dim * 8),
+#             nn.ReLU(),
+#             nn.Dropout(dropout),
+#             nn.Linear(input_dim * 8, 2 * latent_dim),
+#             nn.ReLU(),
+#             nn.Dropout(dropout),
+#         )
+#         self.decoder = nn.Sequential(
+#             nn.Linear(2 * latent_dim, input_dim * 8),
+#             nn.ReLU(),
+#             nn.Dropout(dropout),
+#             nn.Unflatten(1, (8, input_dim)),
+#             nn.ConvTranspose1d(in_channels=8, out_channels=1, kernel_size=4, padding=3, stride=1, dilation=2),
+#             nn.Linear(input_dim, output_dim)
+#         )
+#
+#     def forward(self, x):
+#         x = x
+#         # x must be in shape [batch_size, 1, window_size]
+#         # eg: [1024, 1, 50]
+#         x = x
+#         x = x.unsqueeze(1)
+#         x = self.encoder(x)
+#         x = self.decoder(x)
+#         return x
+
+class ConvDAE(BaseModel):
+    def __init__(self, input_dim, latent_dim, dropout=0.2, output_dim=1, scale_factor=1):
+        super().__init__()
+        print(int(2 * scale_factor))
+        self.encoder = nn.Sequential(
+            ConvDropRelu(1, 20, kernel_size=4, dropout=dropout, groups=1),
+            ConvDropRelu(20, 30, kernel_size=4, dropout=dropout),
+            ConvDropRelu(30, 40, kernel_size=4, dropout=dropout),
+            ConvDropRelu(40, 50, kernel_size=4, dropout=dropout),
+            ConvDropRelu(50, 50, kernel_size=4, dropout=dropout),
+            ConvDropRelu(50, 60, kernel_size=4, dropout=dropout),
+            nn.Flatten(),
+            nn.Linear(input_dim * 60, 2 * latent_dim, bias=True),
+        )
+        self.decoder = nn.Sequential(
+            nn.Linear(2 * latent_dim // scale_factor, input_dim * 60, bias=True),
+            # nn.Linear(latent_dim//3, input_dim * 60, bias=True),
+            # nn.Linear(2 * latent_dim, input_dim * 60, bias=True),
+            View(1, (60, input_dim)),
+            nn.ConvTranspose1d(60, 50, kernel_size=4, padding=3, stride=1, dilation=2),
+            nn.ConvTranspose1d(50, 50, kernel_size=4, padding=3, stride=1, dilation=2),
+            nn.ConvTranspose1d(50, 40, kernel_size=4, padding=3, stride=1, dilation=2),
+            nn.ConvTranspose1d(40, 30, kernel_size=4, padding=3, stride=1, dilation=2),
+            nn.ConvTranspose1d(30, 20, kernel_size=4, padding=3, stride=1, dilation=2),
+            nn.ConvTranspose1d(20, 1, kernel_size=4, padding=3, stride=1, dilation=2),
+            nn.Linear(input_dim, output_dim, bias=True)
+        )
+
+    def forward(self, x):
+        x = x
+        # x must be in shape [batch_size, 1, window_size]
+        # eg: [1024, 1, 50]
+        x = x
+        x = x.unsqueeze(1)
+        x = self.encoder(x)
+        x = self.decoder(x)
+        return x
+
+
+class ConvDAElight(BaseModel):
+    def __init__(self, input_dim, latent_dim, dropout=0.2, output_dim=1):
+        super().__init__()
+        self.encoder = nn.Sequential(
+            ConvDropRelu(1, 20, kernel_size=4, dropout=dropout, groups=1),
+            ConvDropRelu(20, 30, kernel_size=4, dropout=dropout),
+            nn.Flatten(),
+            nn.Linear(input_dim * 30, 2 * latent_dim, bias=True),
+        )
+        self.decoder = nn.Sequential(
+            nn.Linear(2 * latent_dim, input_dim * 30, bias=True),
+            View(1, (30, input_dim)),
+            nn.ConvTranspose1d(30, 20, kernel_size=4, padding=3, stride=1, dilation=2),
+            nn.ConvTranspose1d(20, 1, kernel_size=4, padding=3, stride=1, dilation=2),
+            nn.Linear(input_dim, output_dim, bias=True)
+        )
+
+    def forward(self, x):
+        x = x
+        # x must be in shape [batch_size, 1, window_size]
+        # eg: [1024, 1, 50]
+        x = x
+        x = x.unsqueeze(1)
+        x = self.encoder(x)
+        x = self.decoder(x)
+        return x
+
+
+class ConvEncoder(BaseModel):
+    def __init__(self, input_dim, latent_dim, dropout=0.2, output_dim=1):
+        super().__init__()
+        self.encoder = nn.Sequential(
+            ConvDropRelu(1, 20, kernel_size=4, dropout=dropout, groups=1),
+            ConvDropRelu(20, 30, kernel_size=4, dropout=dropout),
+            ConvDropRelu(30, 40, kernel_size=4, dropout=dropout),
+            ConvDropRelu(40, 50, kernel_size=4, dropout=dropout),
+            ConvDropRelu(50, 50, kernel_size=4, dropout=dropout),
+            ConvDropRelu(50, 60, kernel_size=4, dropout=dropout),
+            nn.Flatten(),
+            nn.Linear(input_dim * 60, 2 * latent_dim, bias=True),
+        )
+
+    def forward(self, x):
+        x = x.unsqueeze(1)
+        x = self.encoder(x)
+        return x
+
+
+class ConvDecoder(BaseModel):
+    def __init__(self, decoder_dim, encoder_dim, dropout=0.2, output_dim=1):
+        super().__init__()
+        self.decoder = nn.Sequential(
+            nn.Linear(decoder_dim, encoder_dim * 60, bias=True),
+            View(1, (60, encoder_dim)),
+            nn.ConvTranspose1d(60, 50, kernel_size=4, padding=3, stride=1, dilation=2),
+            nn.ConvTranspose1d(50, 50, kernel_size=4, padding=3, stride=1, dilation=2),
+            nn.ConvTranspose1d(50, 40, kernel_size=4, padding=3, stride=1, dilation=2),
+            nn.ConvTranspose1d(40, 30, kernel_size=4, padding=3, stride=1, dilation=2),
+            nn.ConvTranspose1d(30, 20, kernel_size=4, padding=3, stride=1, dilation=2),
+            nn.ConvTranspose1d(20, 1, kernel_size=4, padding=3, stride=1, dilation=2),
+            nn.Linear(encoder_dim, output_dim, bias=True)
+        )
+
+    def forward(self, x):
+        x = x
+        x = x
+        x = x.unsqueeze(1)
+        x = self.decoder(x)
+        return x
+
+
+class ShallowRegressor(nn.Module):
+    def __init__(self, input_dim, output_dim=1, dropout=0,):
+        super().__init__()
+        self.dense = nn.Sequential(
+            LinearDropRelu(2 * input_dim, input_dim, dropout),
+            LinearDropRelu(input_dim, input_dim // 2, dropout),
+            LinearDropRelu(input_dim // 2, input_dim // 4, dropout),
+            nn.Linear(input_dim // 4, output_dim, bias=True),
+        )
+
+    def forward(self, x):
+        return self.dense(x)
+
+
+class ShallowRegressorStatesPower(nn.Module):
+    def __init__(self, input_dim, output_dim=1, dropout=0,):
+        super().__init__()
+        self.dense = nn.Sequential(
+            LinearDropRelu(2 * input_dim, input_dim, dropout),
+            LinearDropRelu(input_dim, input_dim // 2, dropout),
+            LinearDropRelu(input_dim // 2, input_dim // 4, dropout),
+        )
+        self.power = nn.Linear(input_dim // 4, output_dim, bias=True)
+        self.state = nn.Linear(input_dim // 4, output_dim, bias=True)
+
+    def forward(self, x):
+        x = self.dense(x)
+        power = self.power(x)
+        state = self.state(x)
+        return power, state
+
+
+@variational_estimator
+class MultiRegressorConvEncoder(MultiRegressorModel):
+    def __init__(self, input_dim, dropout=0, distribution_dim=16, targets_num=1, output_dim=1, complexity_cost_weight=1e-2,
+                 dae_output_dim=50, bayesian_encoder=False, bayesian_regressor=False, lr=1e-3, *args, **kwargs):
+
+        super().__init__(*args, **kwargs)
+        self.architecture_name = 'MultiRegressorConvEncoder'
+        """
+        :param input_dim:
+        :param distribution_dim:  the latent dimension of each distribution
+        :param targets_num:  the number of targets
+        :param max_noise:
+        :param dropout:
+        :param output_dim:
+        """
+        self.device = self.get_device()
+        self.complexity_cost_weight = complexity_cost_weight
+        if distribution_dim % 2 > 0:
+            distribution_dim += 1
+        self.distribution_dim = distribution_dim
+        self.targets_num = targets_num
+        self.latent_dim = (self.targets_num + 0) * self.distribution_dim
+        if any([bayesian_encoder, bayesian_regressor]):
+            self.bayesian = True
+        else:
+            self.bayesian = False
+
+        if bayesian_encoder:
+            print('Integration of BayesianEncoder')
+            self.encoder = BayesianConvEncoder(input_dim=input_dim, dropout=dropout, output_dim=dae_output_dim,
+                                               latent_dim=self.latent_dim,)
+        else:
+            self.encoder = ConvEncoder(input_dim=input_dim, dropout=dropout, output_dim=dae_output_dim,
+                                       latent_dim=self.latent_dim, )
+
+        self.shallow_modules = nn.ModuleList()
+        if bayesian_regressor:
+            print('Integration of ShallowBayesianRegressors')
+            for i in range(self.targets_num):
+                self.shallow_modules.append(
+                    ShallowBayesianRegressor(input_dim=self.latent_dim)
+                )
+        else:
+            for i in range(self.targets_num):
+                self.shallow_modules.append(
+                    # ShallowRegressor(input_dim=self.latent_dim)
+                    ShallowRegressorStatesPower(input_dim=self.latent_dim)
+                )
+
+    def forward(self, x, current_epoch=None, num_sample=1):
+        # x must be in shape [batch_size, 1, window_size]
+        # eg: [1024, 1, 50]
+        x = x
+        statistics = self.encoder(x)
+        target_states = torch.tensor([])
+        target_powers = torch.tensor([])
+        for i in range(len(self.shallow_modules)):
+            target_power, target_state = self.shallow_modules[i](statistics)
+            if i == 0:
+                target_powers = target_power.unsqueeze(1).unsqueeze(3).to(self.device)
+                target_states = target_state.unsqueeze(1).unsqueeze(3).to(self.device)
+            else:
+                target_powers = torch.cat((target_powers, target_power.unsqueeze(1).unsqueeze(3)), 3)
+                target_states = torch.cat((target_states, target_state.unsqueeze(1).unsqueeze(3)), 3)
+
+        return target_powers, target_states
+
+
+class ConvMultiDAE(MultiLabelDAEModel):
+    def __init__(self, input_dim, latent_dim, dropout=0.2, output_dim=1, targets_num=0, mains_sequence=False):
+        super().__init__()
+        self.device = self.get_device()
+        scale_factor = targets_num + 1
+        self.decoder_input = 2 * latent_dim // scale_factor
+        self.encoder = nn.Sequential(
+            ConvDropRelu(1, 20, kernel_size=4, dropout=dropout, groups=1),
+            ConvDropRelu(20, 30, kernel_size=4, dropout=dropout),
+            ConvDropRelu(30, 40, kernel_size=4, dropout=dropout),
+            ConvDropRelu(40, 50, kernel_size=4, dropout=dropout),
+            ConvDropRelu(50, 50, kernel_size=4, dropout=dropout),
+            ConvDropRelu(50, 60, kernel_size=4, dropout=dropout),
+            nn.Flatten(),
+            nn.Linear(input_dim * 60, 2 * latent_dim, bias=True),
+        )
+        self.decoders = nn.ModuleList()
+        for i in range(scale_factor):
+            if mains_sequence and i == 0:
+                out_features = input_dim
+            else:
+                out_features = 1
+
+            self.decoders.append(
+                nn.Sequential(
+                    nn.Linear(self.decoder_input, input_dim * 60, bias=True),
+                    View(1, (60, input_dim)),
+                    nn.ConvTranspose1d(60, 50, kernel_size=4, padding=3, stride=1, dilation=2),
+                    nn.ConvTranspose1d(50, 50, kernel_size=4, padding=3, stride=1, dilation=2),
+                    nn.ConvTranspose1d(50, 40, kernel_size=4, padding=3, stride=1, dilation=2),
+                    nn.ConvTranspose1d(40, 30, kernel_size=4, padding=3, stride=1, dilation=2),
+                    nn.ConvTranspose1d(30, 20, kernel_size=4, padding=3, stride=1, dilation=2),
+                    nn.ConvTranspose1d(20, 1, kernel_size=4, padding=3, stride=1, dilation=2),
+                    nn.Linear(input_dim, out_features=out_features, bias=True)
+                )
+            )
+
+    def forward(self, x):
+        # x must be in shape [batch_size, 1, window_size]
+        # eg: [1024, 1, 50]
+        x = x.unsqueeze(1)
+        x = self.encoder(x)
+        logits = torch.tensor([])
+        for i in range(len(self.decoders)):
+            logit = self.decoders[i](x[:, i*self.decoder_input:(i+1)*self.decoder_input])
+            if i == 0:
+                logits = logit.unsqueeze(1).unsqueeze(3).to(self.device)
+            else:
+                logits = torch.cat((logits, logit.unsqueeze(1).unsqueeze(3)), 3)
+        logits = logits.squeeze()
+        mains_logit = logits[:, 0]
+        target_logits = logits[:, 1:]
+        # print("mains_logit", mains_logit.shape)
+        # print("target_logits", target_logits.shape)
+        return mains_logit, target_logits
 
 
 class FourierBLock(nn.Module):

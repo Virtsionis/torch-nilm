@@ -1,9 +1,43 @@
 import torch
 import numpy as np
+from numba import njit
 from constants.constants import*
 
 
-def NILMmetrics(pred: np.array, ground: np.array, threshold: int = 40, round_digit: int = 3):
+def NILMmetrics(pred: np.array, ground: np.array, threshold: int = 40, rounding_digit: int = 3):
+
+    def convert_precision_16_to_32(arr):
+        return arr.astype(float)
+
+    def divide(num, den):
+        if den > 0:
+            return num / den
+        return np.nan
+
+    # @njit
+    def get_eac(prediction, target):
+        num = np.sum(np.abs(prediction - target))
+        den = (np.sum(target))
+        num_den = divide(num, den)
+        if num_den:
+            eac_ = 1 - (num / den) / 2
+        else:
+            return np.array(0.0)
+        if eac_ < 0:
+            return np.array(0.0)
+        return np.array(float(eac_))
+
+    @njit
+    def get_relative_error(target, prediction):
+        return np.mean(np.nan_to_num(np.abs(target - prediction) / np.maximum(target, prediction)))
+
+    @njit
+    def get_nde(prediction, target, round_digit=3):
+        if np.sum((target ** 2)):
+            return round(np.sum((target - prediction) ** 2) / np.sum((target ** 2)), round_digit)
+        return 0
+
+    @njit
     def tp_tn_fp_fn(states_pred, states_ground):
         tp = np.sum(np.logical_and(states_pred == 1, states_ground == 1))
         fp = np.sum(np.logical_and(states_pred == 1, states_ground == 0))
@@ -11,58 +45,118 @@ def NILMmetrics(pred: np.array, ground: np.array, threshold: int = 40, round_dig
         tn = np.sum(np.logical_and(states_pred == 0, states_ground == 0))
         return tp, tn, fp, fn
 
-    def recall(tp, fn):
-        return tp/float(tp+fn)
+    @njit
+    def recall(tp, fn, round_digit=3):
+        if float(tp+fn) > 0:
+            return round((tp/float(tp+fn)), round_digit)
+        return 0
 
-    def precision(tp, fp):
-        return tp/float(tp+fp)
+    @njit
+    def precision(tp, fp, round_digit=3):
+        if tp+fp > 0:
+            return round((tp/float(tp+fp)), round_digit)
+        return 0
 
-    def f1(prec, rec):
-        return 2 * (prec*rec) / float(prec+rec)
+    @njit
+    def f1(prec, rec, round_digit=3):
+        if prec+rec > 0:
+            return round((2 * (prec*rec) / float(prec+rec)), round_digit)
+        return 0
 
-    def accuracy(tp, tn, p, n):
-        return (tp + tn) / float(p + n)
+    @njit
+    def accuracy(tp, tn, p, n, round_digit=3):
+        if p + n > 0:
+            return round(((tp + tn) / float(p + n)), round_digit)
+        return 0
 
-    def relative_error_total_energy(predictions, groundtruth):
-        e_pred = sum(predictions)
-        e_ground = sum(groundtruth)
-        return abs(e_pred - e_ground) / float(max(e_pred, e_ground))
+    @njit
+    def relative_error_total_energy(predictions, groundtruth, round_digit=3):
+        e_pred = np.sum(predictions)
+        e_ground = np.sum(groundtruth)
+        if float(max(e_pred, e_ground)) > 0:
+            return round((np.abs(e_pred - e_ground) / float(max(e_pred, e_ground))), round_digit)
+        return 0
 
-    def mean_absolute_error(predictions, groundtruth):
+    @njit
+    def mean_absolute_error(predictions, groundtruth, round_digit=3):
         sum_samples = len(predictions)
-        total_sum = sum(abs(predictions - groundtruth))
-        return total_sum / sum_samples
+        if sum_samples > 0:
+            total_sum = np.sum(np.abs(predictions - groundtruth))
+            return round((total_sum / sum_samples), round_digit)
+        return 0
+
+    @njit
+    def replace_nan_with_0(pr, gr):
+        pr[np.isnan(pr)] = 0
+        gr[np.isnan(gr)] = 0
+        return pr, gr
+
+    @njit
+    def thresholding(pr, gr, thres):
+        pr = np.array([0 if p < thres else 1 for p in pr])
+        gr = np.array([0 if p < thres else 1 for p in gr])
+        return pr, gr
+
+    @njit
+    def get_positives_negatives(pr):
+        pos = np.sum(pr)
+        neg = len(pr) - pos
+        return pos, neg
+
+    @njit
+    def are_equal(pr, gr):
+        return np.array_equal(pr, gr)
 
     if torch.is_tensor(pred):
-        pr = pred.numpy()
+        pred = pred.numpy()
     else:
-        pr = pred
+        pass
 
     if torch.is_tensor(ground):
-        gr = ground.numpy()
+        ground = ground.numpy()
     else:
-        gr = ground
+        pass
 
-    pr[np.isnan(pr)] = 0
-    gr[np.isnan(gr)] = 0
+    pred, ground = convert_precision_16_to_32(pred), convert_precision_16_to_32(ground)
+    print('###### Sanity Check started #######')
+    print('Preds == grounds is: ', are_equal(pred, ground))
+    print('preds shape {}, ground shape {}'.format(pred.shape, ground.shape))
+    print('###### Sanity Check finished ######')
+    if ground.shape[0] > 0:
+        pred, ground = replace_nan_with_0(pred, ground)
+        rete = relative_error_total_energy(pred, ground)
+        mae = mean_absolute_error(pred, ground)
+        eac = get_eac(pred, ground)
+        nde = get_nde(pred, ground)
 
-    rete = round(relative_error_total_energy(pr, gr), round_digit)
-    mae = mean_absolute_error(pr, gr)
-    mae = round(mae, round_digit)
+        pred, ground = thresholding(pred, ground, threshold)
 
-    pr = np.array([0 if p < threshold else 1 for p in pr])
-    gr = np.array([0 if p < threshold else 1 for p in gr])
+        tp, tn, fp, fn = tp_tn_fp_fn(pred, ground)
+        positives, negatives = get_positives_negatives(pred)
 
-    tp, tn, fp, fn = tp_tn_fp_fn(pr, gr)
-    positives = sum(pr)
-    negatives = len(pr) - positives
+        recall = recall(tp, fn, rounding_digit)
+        precision = precision(tp, fp, rounding_digit)
+        f1 = f1(precision, recall, rounding_digit)
+        accuracy = accuracy(tp, tn, positives, negatives, rounding_digit)
 
-    recall = round(recall(tp, fn), round_digit)
-    precision = round(precision(tp, fp), round_digit)
-    f1 = round(f1(precision,recall), round_digit)
-    accuracy = round(accuracy(tp, tn, positives, negatives), round_digit)
+        metrics_results = {COLUMN_RECALL: recall, COLUMN_PRECISION: precision,
+                           COLUMN_F1: f1, COLUMN_ACCURACY: accuracy,
+                           COLUMN_NDE: nde, COLUMN_EAC: eac,
+                           COLUMN_MAE: mae, COLUMN_RETE: rete,
+                           COLUMN_TP: tp, COLUMN_TN: tn, COLUMN_FP: fp, COLUMN_FN: fn,
+                           }
+    else:
+        print('###### No groundtruth available, metrics are set to zero ######')
+        metrics_results = {COLUMN_RECALL: 0, COLUMN_PRECISION: 0,
+                           COLUMN_F1: 0, COLUMN_ACCURACY: 0,
+                           COLUMN_NDE: 0, COLUMN_EAC: 0,
+                           COLUMN_MAE: 0, COLUMN_RETE: 0,
+                           COLUMN_TP: 0, COLUMN_TN: 0, COLUMN_FP: 0, COLUMN_FN: 0,
+                           }
 
-    metrics_results = {COLUMN_RECALL: recall, COLUMN_PRECISION: precision,
-                       COLUMN_F1: f1, COLUMN_ACCURACY: accuracy,
-                       COLUMN_MAE: mae, COLUMN_RETE: rete}
     return metrics_results
+
+
+
+
+

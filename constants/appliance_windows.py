@@ -44,6 +44,13 @@ WINDOWS = {
         ElectricalAppliances.WASHING_MACHINE: 400,
         ElectricalAppliances.DISH_WASHER: 500,
     },
+    'MyVAE': {
+        ElectricalAppliances.MICROWAVE: 100,
+        ElectricalAppliances.KETTLE: 300,
+        ElectricalAppliances.FRIDGE: 400,
+        ElectricalAppliances.WASHING_MACHINE: 400,
+        ElectricalAppliances.DISH_WASHER: 500,
+    },
     'VAE': {
         ElectricalAppliances.MICROWAVE: 128,
         ElectricalAppliances.KETTLE: 256,

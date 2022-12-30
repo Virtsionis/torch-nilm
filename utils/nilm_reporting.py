@@ -145,7 +145,8 @@ def get_final_report(tree_levels: dict, save: bool = True, root_dir: str = None,
     else:
         columns = [COLUMN_MODEL, COLUMN_APPLIANCE, COLUMN_CATEGORY, COLUMN_EXPERIMENT,
                    COLUMN_RECALL, COLUMN_F1, COLUMN_PRECISION, COLUMN_ACCURACY, COLUMN_MAE,
-                   COLUMN_RETE, COLUMN_EPOCHS, COLUMN_HPARAMS]
+                   COLUMN_NDE, COLUMN_EAC, COLUMN_RETE, COLUMN_EPOCHS, COLUMN_HPARAMS,
+                   COLUMN_TP, COLUMN_TN, COLUMN_FP, COLUMN_FN, ]
 
     if model_index:
         columns.append(COLUMN_MODEL_VERSION)
@@ -209,7 +210,7 @@ def save_appliance_report(root_dir: str = None, model_name: str = None, device: 
         report = pd.read_csv(path + report_filename)
     else:
         cols = [COLUMN_RECALL, COLUMN_F1, COLUMN_PRECISION, COLUMN_ACCURACY,
-                COLUMN_MAE, COLUMN_RETE, COLUMN_EPOCHS, COLUMN_HPARAMS]
+                COLUMN_MAE, COLUMN_NDE, COLUMN_EAC, COLUMN_RETE, COLUMN_EPOCHS, COLUMN_HPARAMS]
         report = pd.DataFrame(columns=cols)
 
     try:

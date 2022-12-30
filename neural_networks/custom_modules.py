@@ -1,14 +1,34 @@
 import warnings
+
+import torch
 import torch.nn as nn
+from torchnlp.nn import Attention
+from blitz.modules import BayesianConv1d, BayesianLinear
+from blitz.utils import variational_estimator
 
 
 class LinearDropRelu(nn.Module):
-    def __init__(self, in_features, out_features, dropout=0):
+    def __init__(self, in_features, out_features, dropout=0, bias=True):
         super(LinearDropRelu, self).__init__()
         self.linear = nn.Sequential(
-            nn.Linear(in_features, out_features),
+            nn.Linear(in_features, out_features, bias=bias),
+            # nn.BatchNorm1d(out_features),
             nn.Dropout(dropout),
-            nn.ReLU(inplace=True),
+            nn.LeakyReLU(inplace=True),
+        )
+
+    def forward(self, x):
+        return self.linear(x)
+
+
+class BayesianLinearDropRelu(nn.Module):
+    def __init__(self, in_features, out_features, dropout=0, bias=True):
+        super(BayesianLinearDropRelu, self).__init__()
+        self.linear = nn.Sequential(
+            BayesianLinear(in_features, out_features, bias=bias),
+            # nn.BatchNorm1d(out_features),
+            nn.Dropout(dropout),
+            nn.LeakyReLU(inplace=True),
         )
 
     def forward(self, x):
@@ -28,13 +48,45 @@ class ConvDropRelu(nn.Module):
             self.conv = nn.Sequential(
                 nn.ZeroPad2d(padding),
                 nn.Conv1d(in_channels, out_channels, kernel_size, groups=groups),
+                # nn.BatchNorm1d(out_channels),
                 nn.Dropout(dropout),
-                nn.ReLU(inplace=True),
+                nn.LeakyReLU(inplace=True),
             )
         else:
             self.conv = nn.Sequential(
                 nn.ZeroPad2d(padding),
                 nn.Conv1d(in_channels, out_channels, kernel_size, groups=groups),
+                # nn.BatchNorm1d(out_channels),
+                nn.Dropout(dropout),
+            )
+
+    def forward(self, x):
+        return self.conv(x)
+
+
+@variational_estimator
+class BayesianConvDropRelu(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, dropout=0, groups=1, relu=True):
+        super(BayesianConvDropRelu, self).__init__()
+
+        left, right = kernel_size // 2, kernel_size // 2
+        if kernel_size % 2 == 0:
+            right -= 1
+        padding = (left, right, 0, 0)
+
+        if relu:
+            self.conv = nn.Sequential(
+                nn.ZeroPad2d(padding),
+                BayesianConv1d(in_channels, out_channels, kernel_size, groups=groups),
+                # nn.BatchNorm1d(out_channels),
+                nn.Dropout(dropout),
+                nn.LeakyReLU(inplace=True),
+            )
+        else:
+            self.conv = nn.Sequential(
+                nn.ZeroPad2d(padding),
+                BayesianConv1d(in_channels, out_channels, kernel_size, groups=groups),
+                # nn.BatchNorm1d(out_channels),
                 nn.Dropout(dropout),
             )
 
@@ -123,3 +175,51 @@ class VIBDecoder(nn.Module):
         decoding = self.conv(encoding).squeeze()
         decoding = self.flatten(decoding)
         return self.feedforward(decoding)
+
+
+class View(nn.Module):
+    def __init__(self, dim, shape):
+        super(View, self).__init__()
+        self.dim = dim
+        self.shape = shape
+
+    def forward(self, input_tensor):
+        new_shape = list(input_tensor.shape)[:self.dim] + list(self.shape) + list(input_tensor.shape)[self.dim + 1:]
+        return input_tensor.view(*new_shape)
+
+
+class Addition(nn.Module):
+    def __init__(self,):
+        super().__init__()
+
+    @staticmethod
+    def forward(x, y):
+        return torch.add(x, y)
+
+
+class Concatenation(nn.Module):
+    def __init__(self, input_dim):
+        super().__init__()
+        # self.output = nn.Linear(input_dim, input_dim // 2)
+        self.output = LinearDropRelu(input_dim, input_dim // 2)
+
+    def forward(self, x, y):
+        x = torch.cat((x, y), -1)
+        return self.output(x)
+
+
+class AttentionModule(nn.Module):
+    def __init__(self, dimensions=5, attention_type='dot'):
+        super().__init__()
+        self.attention = Attention(dimensions=dimensions, attention_type=attention_type)
+        self.dimensions = dimensions
+
+    def forward(self, query, context):
+        # query must be in shape [batch_size, seq_len, input_size=output_size of prev layer]
+        # so we have to change the order of the dimensions
+        output_shape = query.shape
+        query = torch.reshape(query, (query.shape[0], query.shape[1] // self.dimensions, self.dimensions))
+        context = torch.reshape(context, (context.shape[0], context.shape[1] // self.dimensions, self.dimensions))
+        output, _ = self.attention(query.contiguous(), context.contiguous())
+        output = output.reshape(output_shape)
+        return output

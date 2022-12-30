@@ -5,7 +5,7 @@ import torch
 import pandas as pd
 from typing import Union
 from constants.constants import *
-from lab.nilm_trainer import train_eval
+from lab.nilm_trainer import train_eval, train_eval_super
 from constants.appliance_windows import WINDOWS
 from datasources.datasource import Datasource
 from datasources.datasource import DatasourceFactory
@@ -14,8 +14,9 @@ from utils.helpers import create_tree_dir, create_time_folds
 from callbacks.callbacks_factories import TrainerCallbacksFactory
 from utils.nilm_reporting import get_final_report, get_statistical_report
 from constants.enumerates import SupportedNilmExperiments, SupportedExperimentCategories, SupportedExperimentVolumes, \
-    ElectricalAppliances, SupportedPreprocessingMethods, SupportedFillingMethods
-from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset, ElectricityIterableDataset
+    ElectricalAppliances, SupportedPreprocessingMethods, SupportedFillingMethods, SupportedScalingMethods
+from datasources.torchdataset import ElectricityDataset, ElectricityMultiBuildingsDataset, ElectricityIterableDataset, \
+    BaseElectricityMultiDataset, UNETBaseElectricityMultiDataset
 
 with torch.no_grad():
     torch.cuda.empty_cache()
@@ -62,6 +63,7 @@ class ExperimentParameters:
     def __init__(self, epochs: int = 100, iterations: int = 5, inference_cpu: bool = False,
                  sample_period: int = 6, batch_size: int = 256, iterable_dataset: bool = False,
                  preprocessing_method: SupportedPreprocessingMethods = SupportedPreprocessingMethods.ROLLING_WINDOW,
+                 scaling_method: SupportedScalingMethods = SupportedScalingMethods.NORMALIZATION,
                  fillna_method: SupportedFillingMethods = SupportedFillingMethods.FILL_ZEROS,
                  fixed_window: int = None, subseq_window: int = None, train_test_split: float = 0.8, cv_folds: int = 3,
                  noise_factor: float = None, ):
@@ -74,6 +76,7 @@ class ExperimentParameters:
             BATCH_SIZE: batch_size,
             ITERABLE_DATASET: iterable_dataset,
             PREPROCESSING_METHOD: preprocessing_method,
+            SCALING_METHOD: scaling_method,
             FILLNA_METHOD: fillna_method,
             FIXED_WINDOW: fixed_window,
             SUBSEQ_WINDOW: subseq_window,
@@ -430,6 +433,7 @@ class NILMExperiments:
         self.batch_size = 256
         self.iterable_dataset = False
         self._set_preprocessing_method(SupportedPreprocessingMethods.ROLLING_WINDOW)
+        self._set_scaling_method(SupportedScalingMethods.NORMALIZATION)
         self._set_fillna_method(SupportedFillingMethods.FILL_ZEROS)
         self.fixed_window = 100
         self.subseq_window = None
@@ -444,6 +448,7 @@ class NILMExperiments:
             self.iterations = experiment_parameters[ITERATIONS]
             self.inference_cpu = experiment_parameters[INFERENCE_CPU]
             self._set_preprocessing_method(experiment_parameters[PREPROCESSING_METHOD])
+            self._set_scaling_method(experiment_parameters[SCALING_METHOD])
             self._set_fillna_method(experiment_parameters[FILLNA_METHOD])
             self.sample_period = experiment_parameters[SAMPLE_PERIOD]
             self.batch_size = experiment_parameters[BATCH_SIZE]
@@ -494,6 +499,13 @@ class NILMExperiments:
         else:
             warnings.warn('Preprocessing method was not properly defined. So, ROLLING_WINDOW is used by default.')
             self.preprocessing_method = SupportedPreprocessingMethods.ROLLING_WINDOW
+
+    def _set_scaling_method(self, scaling_method: SupportedScalingMethods = None):
+        if scaling_method and isinstance(scaling_method, SupportedScalingMethods):
+            self.normalization_method = scaling_method
+        else:
+            warnings.warn('Scaling method was not properly defined. So, NORMALIZATION is used by default.')
+            self.normalization_method = SupportedScalingMethods.NORMALIZATION
 
     def _set_fillna_method(self, fillna_method: SupportedFillingMethods = None):
         if fillna_method and isinstance(fillna_method, SupportedFillingMethods):
@@ -577,6 +589,7 @@ class NILMExperiments:
                                                              window_size=window,
                                                              sample_period=self.sample_period,
                                                              preprocessing_method=self.preprocessing_method,
+                                                             normalization_method=self.normalization_method,
                                                              fillna_method=self.fillna_method,
                                                              subseq_window=self.subseq_window,)
         return train_dataset_all
@@ -608,6 +621,7 @@ class NILMExperiments:
                                                                    dates=train_dates,
                                                                    sample_period=self.sample_period,
                                                                    preprocessing_method=self.preprocessing_method,
+                                                                   normalization_method=self.normalization_method,
                                                                    fillna_method=self.fillna_method,
                                                                    subseq_window=self.subseq_window,
                                                                    noise_factor=self.noise_factor)
@@ -619,6 +633,7 @@ class NILMExperiments:
                                                            dates=train_dates,
                                                            sample_period=self.sample_period,
                                                            preprocessing_method=self.preprocessing_method,
+                                                           normalization_method=self.normalization_method,
                                                            fillna_method=self.fillna_method,
                                                            subseq_window=self.subseq_window,
                                                            noise_factor=self.noise_factor)
@@ -629,12 +644,15 @@ class NILMExperiments:
                                                              window_size=window,
                                                              sample_period=self.sample_period,
                                                              preprocessing_method=self.preprocessing_method,
+                                                             normalization_method=self.normalization_method,
                                                              fillna_method=self.fillna_method,
                                                              subseq_window=self.subseq_window,
                                                              noise_factor=self.noise_factor)
         return train_dataset_all
 
     def _prepare_train_val_loaders(self, train_dataset_all: Union[ElectricityDataset,
+                                                                  BaseElectricityMultiDataset,
+                                                                  UNETBaseElectricityMultiDataset,
                                                                   ElectricityMultiBuildingsDataset,
                                                                   ElectricityIterableDataset] = None):
         if train_dataset_all:
@@ -716,6 +734,7 @@ class NILMExperiments:
             BATCH_SIZE: self.batch_size,
             ITERATION: iteration,
             PREPROCESSING_METHOD: self.preprocessing_method,
+            NORMALIZATION_METHOD: self.normalization_method,
             FILLNA_METHOD: self.fillna_method,
             INFERENCE_CPU: self.inference_cpu,
             ROOT_DIR: self.project_name,
@@ -746,6 +765,8 @@ class NILMExperiments:
     @staticmethod
     def get_dataset_mmax_means_stds(dataset: Union[ElectricityDataset,
                                                    ElectricityMultiBuildingsDataset,
+                                                   UNETBaseElectricityMultiDataset,
+                                                   BaseElectricityMultiDataset,
                                                    ElectricityIterableDataset] = None):
         if dataset:
             mmax = dataset.mmax
@@ -1110,3 +1131,257 @@ class NILMExperiments:
                                prepare_project_properties=False,
                                model_index=model_index + 1,
                                )
+
+
+class NILMSuperExperiments(NILMExperiments):
+    def __init__(self, project_name: str = None, clean_project: bool = False, experiment_categories: list = None,
+                 devices: list = None, save_timeseries_results: bool = True, export_plots: bool = True,
+                 experiment_volume: SupportedExperimentVolumes = SupportedExperimentVolumes.LARGE_VOLUME,
+                 experiment_type: SupportedNilmExperiments = None, experiment_parameters: ExperimentParameters = None,
+                 model_hparams: ModelHyperModelParameters = None, hparam_tuning: HyperParameterTuning = None,
+                 data_dir: str = None, train_file_dir: str = None, test_file_dir: str = None, save_model: bool = False,
+                 save_preprocessing_params: bool = False):
+
+        super(NILMSuperExperiments, self).__init__(project_name, clean_project, experiment_categories, devices, save_timeseries_results,
+                                                   export_plots, experiment_volume, experiment_type, experiment_parameters, model_hparams,
+                                                   hparam_tuning, data_dir, train_file_dir, test_file_dir, save_model, save_preprocessing_params)
+
+    def _set_default_experiment_parameters(self):
+        self.epochs = 100
+        self.iterations = 5
+        self.inference_cpu = False
+        self.sample_period = 6
+        self.batch_size = 256
+        self.iterable_dataset = False
+        self._set_preprocessing_method(SupportedPreprocessingMethods.SEQ_T0_SEQ)
+        self._set_scaling_method(SupportedScalingMethods.NORMALIZATION)
+        self._set_fillna_method(SupportedFillingMethods.FILL_ZEROS)
+        self.fixed_window = 100
+        self.subseq_window = None
+        self.train_test_split = 0.8
+        self.cv_folds = 3
+        self.noise_factor = None
+
+    def run_benchmark(self, devices: list = None, experiment_parameters: list = None, data_dir: str = None,
+                      train_file_dir: str = None, test_file_dir: str = None, model_hparams: ModelHyperModelParameters = None,
+                      experiment_volume: SupportedExperimentVolumes = None, experiment_categories: list = None,
+                      export_report: bool = True, stat_measures: list = None, ):
+        """
+        A method to execute the benchmark methodology described in:
+            Symeonidis et al. “A Benchmark Framework to Evaluate Energy Disaggregation Solutions.” EANN (2019).
+            DOI:10.1007/978-3-030-20257-6_2
+
+        Args:
+            devices(list): This list contains the desired devices to be investigated. The available devices can be found in
+                constants/enumerates/ElectricalAppliances.
+            experiment_parameters(list): The general experiment parameters-settings to be used.
+            data_dir(str): The directory of the data. If None is given, the path in datasources/paths_manager.py is used
+            train_file_dir(str): The directory of the date files. If None is given, the files in benchmark dir are used.
+            test_file_dir(str): The directory of the date files. If None is given, the files in benchmark dir are used.
+            model_hparams(ModelHyperModelParameters): The hyperparameters for all the models under investigation.
+            experiment_volume(SupportedExperimentVolumes): The list of the desired experiment_volume to be used.
+            experiment_categories(list): This list contains the desired experiment_categories to be executed.
+                The available categories can be found in constants/enumerates/SupportedExperimentCategories.
+            export_report(bool): Whether to export the final report (xlsx) or not.
+            stat_measures(list): user can define the appropriate statistical measures to be included to the report
+                supported measures: [ MEAN, MEDIAN, STANDARD_DEVIATION, MINIMUM, MAXIMUM, PERCENTILE_25TH,
+                PERCENTILE_75TH]
+        Example of use:
+            model_hparams = [
+                {
+                    'model_name': 'SAED',
+                    'hparams': {'window_size': None},
+                },
+                {
+                    'model_name': 'WGRU',
+                    'hparams': {'dropout': 0},
+                },
+            ]
+            model_hparams = ModelHyperModelParameters(model_hparams)
+            experiment_parameters = ExperimentParameters(**experiment_parameters)
+
+            experiment = NILMExperiments(project_name='NILM_EXPERIMENTS', clean_project=False,
+                                         devices=devices, save_timeseries_results=False,
+                                         experiment_categories=experiment_categories,
+                                         experiment_volume=SupportedExperimentVolumes.LARGE_VOLUME,
+                                         experiment_parameters=experiment_parameters,
+                                         )
+            experiment.run_benchmark(model_hparams=model_hparams)
+        """
+        print('>>>BENCHMARK EXPERIMENT<<<')
+        self._prepare_project_properties(devices=devices,
+                                         experiment_parameters=experiment_parameters,
+                                         data_dir=data_dir,
+                                         train_file_dir=train_file_dir,
+                                         test_file_dir=test_file_dir,
+                                         experiment_volume=experiment_volume,
+                                         model_hparams=model_hparams,
+                                         hparam_tuning=None,
+                                         experiment_categories=experiment_categories,
+                                         experiment_type=SupportedNilmExperiments.BENCHMARK,
+                                         )
+
+        for experiment_category in self.experiment_categories:
+            print('EXPERIMENT CATEGORY: ', experiment_category)
+            print(self.models)
+            for model_name in self.models:
+                model_hparams = self.model_hparams.get_model_params(model_name)
+                model_hparams, window = self._calculate_model_window(model_hparams=model_hparams,
+                                                                     model_name=model_name, device=self.devices[0])
+                model_hparams = self._set_model_output_dim(model_hparams, output_dim=window)
+
+                for iteration in range(1, self.iterations + 1):
+                    print('#' * 20)
+                    print(ITERATION_NAME, ': ', iteration)
+                    print('#' * 20)
+                    train_eval_args = self._prepare_train_eval_input(experiment_category, self.devices, window,
+                                                                     model_name, iteration, None,
+                                                                     model_hparams=model_hparams)
+                    self._call_train_eval(
+                        train_eval_args
+                    )
+        if export_report:
+            self.export_report(save_name=STAT_REPORT,
+                               stat_measures=stat_measures,
+                               prepare_project_properties=False,
+                               )
+
+    def _prepare_train_dataset(self, experiment_category: SupportedExperimentCategories = None, devices: list = None,
+                               window: int = None, model_name: str = None):
+        file = open('{}base{}TrainSetsInfo_{}'.format(self.train_file_dir, experiment_category, devices[0]), 'r')
+        train_info = []
+        for line in file:
+            toks = line.split(',')
+            train_set = toks[0]
+            train_house = toks[1]
+            train_dates = [str(toks[2]), str(toks[3].rstrip("\n"))]
+            datasource = DatasourceFactory.create_datasource(train_set)
+            if experiment_category == SupportedExperimentCategories.MULTI_CATEGORY:
+                train_info.append({
+                    COLUMN_DEVICE: devices,
+                    COLUMN_DATASOURCE: datasource,
+                    COLUMN_BUILDING: int(train_house),
+                    COLUMN_DATES: train_dates,
+                })
+            else:
+                file.close()
+                if self.iterable_dataset:
+                    pass
+                    # TODO: Iterable version of BaseElectricityMultiDataset
+                    # train_dataset_all = ElectricityIterableDataset(datasource=datasource,
+                    #                                                building=int(train_house),
+                    #                                                window_size=window,
+                    #                                                device=device,
+                    #                                                dates=train_dates,
+                    #                                                sample_period=self.sample_period,
+                    #                                                preprocessing_method=self.preprocessing_method,
+                    #                                                fillna_method=self.fillna_method,
+                    #                                                subseq_window=self.subseq_window,
+                    #                                                noise_factor=self.noise_factor)
+                else:
+                    if (model_name == 'UNetNiLM') or (model_name == 'CNN1DUnetNilm') or \
+                            (model_name == 'StateVariationalMultiRegressorConvEncoder') or \
+                            (model_name == 'MultiRegressorConvEncoder'):
+                        train_dataset_all = UNETBaseElectricityMultiDataset(datasource=datasource,
+                                                                            building=int(train_house),
+                                                                            window_size=window,
+                                                                            devices=devices,
+                                                                            start_date=train_dates[0],
+                                                                            end_date=train_dates[1],
+                                                                            sample_period=self.sample_period,
+                                                                            subseq_window=self.subseq_window,
+                                                                            noise_factor=self.noise_factor,
+                                                                            preprocessing_method=self.preprocessing_method,
+                                                                            normalization_method=self.normalization_method)
+
+                    else:
+                        train_dataset_all = BaseElectricityMultiDataset(datasource=datasource,
+                                                                        building=int(train_house),
+                                                                        window_size=window,
+                                                                        devices=devices,
+                                                                        start_date=train_dates[0],
+                                                                        end_date=train_dates[1],
+                                                                        sample_period=self.sample_period,
+                                                                        subseq_window=self.subseq_window,
+                                                                        noise_factor=self.noise_factor,
+                                                                        preprocessing_method=self.preprocessing_method,
+                                                                        normalization_method=self.normalization_method)
+                return train_dataset_all
+        file.close()
+        # TODO: Multi buildings version for BaseElectricityMultiDataset
+        # train_dataset_all = ElectricityMultiBuildingsDataset(train_info=train_info,
+        #                                                      window_size=window,
+        #                                                      sample_period=self.sample_period,
+        #                                                      preprocessing_method=self.preprocessing_method,
+        #                                                      fillna_method=self.fillna_method,
+        #                                                      subseq_window=self.subseq_window,
+        #                                                      noise_factor=self.noise_factor)
+        # return train_dataset_all
+
+    def _prepare_train_eval_input(self, experiment_category: str = None, devices: list = None, window: int = None,
+                                  model_name: str = None, iteration: int = None, fold: int = None,
+                                  model_hparams: dict = None, model_index: int = None):
+
+        # TODO: Provide support for the rest of experiments
+        # if self.experiment_type in [SupportedNilmExperiments.CROSS_VALIDATION,
+        #                             SupportedNilmExperiments.HYPERPARAM_TUNE_CV]:
+        #     datasource, time_folds, train_set, train_house = self._prepare_cv_parameters(experiment_category, device)
+        #     train_dataset_all = self._prepare_cv_dataset(device, fold, window, datasource,
+        #                                                  time_folds, train_house)
+        #     tests_params = self._prepare_test_parameters(experiment_category, device, train_house,
+        #                                                  train_set, time_folds, fold)
+        #     iteration, train_set_name = fold, train_set
+        # else:
+        train_dataset_all = self._prepare_train_dataset(experiment_category, devices, window, model_name)
+        tests_params = self._prepare_test_parameters(experiment_category, devices[0])
+        train_set_name = train_dataset_all.datasource.get_name()
+        train_loader, val_loader = self._prepare_train_val_loaders(train_dataset_all)
+        mmax, means, stds, meter_means, meter_stds = self.get_dataset_mmax_means_stds(train_dataset_all)
+
+        eval_params = {COLUMN_DEVICE: devices,
+                       COLUMN_MMAX: mmax,
+                       COLUMN_MEANS: meter_means,
+                       COLUMN_STDS: meter_stds,
+                       COLUMN_GROUNDTRUTH: '', }
+
+        experiment_name = '_'.join([experiment_category, TRAIN_NAME, train_set_name, '', ])
+
+        train_eval_args = {
+            MODEL_NAME: model_name,
+            MODEL_INDEX: model_index,
+            COLUMN_DEVICES: devices,
+            WINDOW_SIZE: window,
+            SUBSEQ_WINDOW: self.subseq_window,
+            EXPERIMENT_CATEGORY: experiment_category,
+            EXPERIMENT_TYPE: self.experiment_type.value,
+            SAMPLE_PERIOD: self.sample_period,
+            BATCH_SIZE: self.batch_size,
+            ITERATION: iteration,
+            PREPROCESSING_METHOD: self.preprocessing_method,
+            NORMALIZATION_METHOD: self.normalization_method,
+            FILLNA_METHOD: self.fillna_method,
+            INFERENCE_CPU: self.inference_cpu,
+            ROOT_DIR: self.project_name,
+            MODE_HPARAMS: model_hparams,
+            SAVE_TIMESERIES: self.save_timeseries,
+            SAVE_MODEL: self.save_model,
+            SAVE_PREPROCESSING_PARAMS: self.save_preprocessing_params,
+            EPOCHS: self.epochs,
+            CALLBACKS: [TrainerCallbacksFactory.create_earlystopping()],
+            TRAIN_LOADER: train_loader,
+            VAL_LOADER: val_loader,
+            COLUMN_MMAX: mmax,
+            COLUMN_MEANS: means,
+            COLUMN_STDS: stds,
+            METER_MEANS: meter_means,
+            METER_STDS: meter_stds,
+            TESTS_PARAMS: tests_params,
+            EVAL_PARAMS: eval_params,
+            EXPERIMENT_NAME: experiment_name,
+        }
+
+        return train_eval_args
+
+    @staticmethod
+    def _call_train_eval(args):
+        train_eval_super(**args)

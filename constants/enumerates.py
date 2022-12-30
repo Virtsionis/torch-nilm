@@ -38,15 +38,23 @@ class ElectricalAppliances(Enum):
     DISH_WASHER = 'dish washer'
     TUMBLE_DRYER = 'tumble dryer'
     COMPUTER = 'computer'
-    OVEN = 'electric oven'
+    OVEN = 'oven'
     LIGHT = 'light'
+    PRINTER = 'printer'
+    BOILER = 'boiler'
     ELECTRIC_HEATER = 'electric space heater'
+    TELEVISION = 'television'
+    TOASTER = 'toaster'
+    IMMERSION_HEATER = 'immersion heater'
+    WATER_PUMP = 'water pump'
 
 
 class SupportedExperimentVolumes(Enum):
     LARGE_VOLUME = 'large'
+    COMMON_VOLUME = 'common'
     SMALL_VOLUME = 'small'
     CV_VOLUME = 'cv'
+    UKDALE_ALL_VOLUME = 'ukdale_all'
 
 
 class SupportedPreprocessingMethods(Enum):
@@ -59,4 +67,10 @@ class SupportedPreprocessingMethods(Enum):
 class SupportedFillingMethods(Enum):
     FILL_ZEROS = 'fill_zeros'
     FILL_INTERPOLATION = 'fill_interpolation'
+
+
+class SupportedScalingMethods(Enum):
+    STANDARDIZATION = 'standardization'
+    NORMALIZATION = 'normalization'
+    MIXED = 'mixed'
 

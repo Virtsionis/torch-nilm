@@ -10,6 +10,9 @@ class BaseModel(nn.Module, abc.ABC):
         super().__init__(*args, **kwargs)
         self.architecture_name = BASE_NETWORK
 
+    def supports_classic_training(self) -> bool:
+        return True
+
     def supports_vib(self) -> bool:
         """
         Returns yes if it supports variational information bottleneck.
@@ -28,3 +31,30 @@ class BaseModel(nn.Module, abc.ABC):
         Returns yes if it supports bayesian inference.
         """
         return False
+
+    def supports_supervib(self) -> bool:
+        return False
+
+    def supports_supervibenc(self) -> bool:
+        return False
+
+    def supports_multidae(self) -> bool:
+        return False
+
+    def supports_multiregressor(self) -> bool:
+        return False
+
+    def supports_vibmultiregressor(self) -> bool:
+        return False
+
+    def supports_multivib(self) -> bool:
+        return False
+
+    def supports_vibstatesmultiregressor(self) -> bool:
+        return False
+
+    def supports_unetnilm(self) -> bool:
+        return False
+
+
+

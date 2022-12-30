@@ -3,15 +3,55 @@ import torch.nn as nn
 from torchnlp.nn import Attention
 
 from neural_networks.base_models import BaseModel
-from blitz.modules import BayesianLinear
-from neural_networks.custom_modules import ConvDropRelu, LinearDropRelu
+from blitz.modules import BayesianLinear, BayesianConv1d
+from neural_networks.custom_modules import ConvDropRelu, LinearDropRelu, BayesianConvDropRelu, BayesianLinearDropRelu
 from blitz.utils import variational_estimator
 
 
 @variational_estimator
 class BAYESNet(BaseModel):
+
+    def supports_classic_training(self) -> bool:
+        return False
+
     def supports_bayes(self) -> bool:
         return True
+
+
+@variational_estimator
+class ShallowBayesianRegressor(nn.Module):
+    def __init__(self, input_dim, output_dim=1, dropout=0, ):
+        super().__init__()
+        self.dense = nn.Sequential(
+            BayesianLinearDropRelu(2 * input_dim, input_dim, dropout),
+            BayesianLinearDropRelu(input_dim, input_dim // 2, dropout),
+            BayesianLinearDropRelu(input_dim // 2, input_dim // 4, dropout),
+            BayesianLinearDropRelu(input_dim // 4, output_dim, bias=True),
+        )
+
+    def forward(self, x):
+        return self.dense(x)
+
+
+@variational_estimator
+class BayesianConvEncoder(nn.Module):
+    def __init__(self, input_dim, latent_dim, dropout=0.2, output_dim=1):
+        super().__init__()
+        self.encoder = nn.Sequential(
+            BayesianConvDropRelu(1, 20, kernel_size=4, groups=1),
+            BayesianConvDropRelu(20, 30, kernel_size=4),
+            BayesianConvDropRelu(30, 40, kernel_size=4),
+            BayesianConvDropRelu(40, 50, kernel_size=4),
+            BayesianConvDropRelu(50, 50, kernel_size=4),
+            BayesianConvDropRelu(50, 60, kernel_size=4),
+            nn.Flatten(),
+            BayesianLinear(input_dim * 60, 2 * latent_dim, bias=True),
+        )
+
+    def forward(self, x):
+        x = x.unsqueeze(1)
+        x = self.encoder(x)
+        return x
 
 
 class BayesWGRU(BAYESNet):
@@ -37,15 +77,15 @@ class BayesWGRU(BAYESNet):
             BayesianLinear(512, 128,
                            prior_sigma_1=0.8,
                            prior_sigma_2=0.1,
-                          ),
+                           ),
             nn.Dropout(dropout),
             nn.ReLU(inplace=True),
         )
         self.dense2 = nn.Sequential(
             BayesianLinear(128, 64,
-                           #prior_sigma_1=0.1,#prior_pi=0.5, posterior_rho_init=-10.0,
-                        #    prior_sigma_2=0.5,
-                          ),
+                           # prior_sigma_1=0.1,#prior_pi=0.5, posterior_rho_init=-10.0,
+                           #    prior_sigma_2=0.5,
+                           ),
             nn.Dropout(dropout),
             nn.ReLU(inplace=True),
         )
@@ -80,7 +120,6 @@ class BayesSimpleGru(BAYESNet):
     def __init__(self, hidden_dim=16, dropout=0, lr=None):
         super(BayesSimpleGru, self).__init__()
 
-
         self.drop = dropout
         self.lr = lr
         s1 = 0.05
@@ -98,7 +137,7 @@ class BayesSimpleGru(BAYESNet):
             BayesianLinear(128, 64,
                            prior_sigma_1=s1,
                            prior_sigma_2=s2,
-                          ),
+                           ),
             nn.ReLU(inplace=True),
         )
         # self.dense = LinearDropRelu(128, 64, self.drop)
@@ -116,6 +155,7 @@ class BayesSimpleGru(BAYESNet):
         x = self.dense(x)
         out = self.output(x)
         return out
+
 
 class BayesSeq2Point(BAYESNet):
 
@@ -156,7 +196,7 @@ class BayesSeq2Point(BAYESNet):
 
 
 class BayesNFEDBLock(BAYESNet):
-    
+
     def __init__(self, input_dim, hidden_dim, inverse_fft=False, dropout=0.0):
         """
         Inputs:
@@ -168,21 +208,21 @@ class BayesNFEDBLock(BAYESNet):
         self.consider_inverse_fft = inverse_fft
         s1 = 0.05
         s2 = 0.01
-        self.linear_fftout = BayesianLinear(2*input_dim, input_dim,
+        self.linear_fftout = BayesianLinear(2 * input_dim, input_dim,
                                             prior_sigma_1=s1,
                                             prior_sigma_2=s2,
-                                           )
+                                            )
         # Two-layer MLP
         self.linear_net = nn.Sequential(
             BayesianLinear(input_dim, hidden_dim,
                            prior_sigma_1=s1,
                            prior_sigma_2=s2,
-                          ),
+                           ),
             nn.Dropout(dropout),
             nn.ReLU(inplace=True),
             BayesianLinear(hidden_dim, input_dim,
                            prior_sigma_1=s1,
-                           prior_sigma_2=s2,)
+                           prior_sigma_2=s2, )
         )
 
         # Layers to apply in between the main layers
@@ -200,6 +240,7 @@ class BayesNFEDBLock(BAYESNet):
         linear_out = self.linear_net(x)
         x = x + self.dropout(linear_out)
         return x
+
 
 # class BayesFNETBLock(BAYESNet):
 
@@ -268,6 +309,9 @@ class BayesNFEDBLock(BAYESNet):
 
 
 class BayesNFED(BaseModel):
+
+    def supports_classic_training(self) -> bool:
+        return False
 
     def __init__(self, depth, kernel_size, cnn_dim, output_dim=1, **block_args):
         super(BayesNFED, self).__init__()
