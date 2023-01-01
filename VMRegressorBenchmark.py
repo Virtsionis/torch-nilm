@@ -3,7 +3,7 @@ from constants.constants import *
 from constants.enumerates import *
 
 experiment_parameters = {
-    EPOCHS: 100,
+    EPOCHS: 0,
     ITERATIONS: 10,
     INFERENCE_CPU: False,
     SAMPLE_PERIOD: 6,
