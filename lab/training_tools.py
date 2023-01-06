@@ -83,7 +83,7 @@ class ClassicTrainingTools(pl.LightningModule):
         """
         super().__init__()
         # Exports the hyperparameters to a YAML file, and create "self.hparams" namespace
-        # self.save_hyperparameters()
+        self.save_hyperparameters()
         # Create model
         self.model = model
 
