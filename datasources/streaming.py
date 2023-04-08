@@ -5,9 +5,10 @@ from typing import TYPE_CHECKING, Optional, Union
 module_path = "./open_dev/"
 module = importlib.import_module(module_path)
 
-
 if TYPE_CHECKING:
     from .builder import DatasetBuilder
+    from .builder import DatasetBuilder_all
+
 
 
 def extend_module_for_streaming(module_path, use_auth_token: Optional[Union[str, bool]] = None):
