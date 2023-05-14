@@ -2,9 +2,9 @@ import os
 from pathlib import Path
 
 dirname = os.path.dirname(__file__)
-UK_DALE = os.path.join(dirname, '../../data/UKDALE/UKDALE.h5')
-REDD = os.path.join(dirname, '../../data/REDD/REDD.h5')
-REFIT = os.path.join(dirname, '../../data/REFIT/REFIT.h5')
+UK_DALE = os.path.join(dirname, '/tsi/data_education/Ladjal/koublal/nilm_ref/ukdale.h5')
+REDD = os.path.join(dirname, '/tsi/data_education/Ladjal/koublal/nilm_ref/ukdale.h5')
+REFIT = os.path.join(dirname, '/tsi/data_education/Ladjal/koublal/nilm_ref/ukdale.h5')
 
 
 MODEL_CKPT_PATH = 'model/'
