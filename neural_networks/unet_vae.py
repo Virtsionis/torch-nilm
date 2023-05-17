@@ -5,7 +5,7 @@ from neural_networks.variational import VIBNet
 
 from neural_networks.custom_modules import ConvDropRelu, LinearDropRelu, VIBDecoder, IBNNet
 
-def Conv1DTranspose(input_tensor, filters, kernel_size, strides=2, padding='same', activation=None):
+class ConvTranspose1d(nn.Module):
     """
         input_tensor: tensor, with the shape (batch_size, time_steps, dims)
         filters: int, output dimension, i.e. the output tensor will have the shape of (batch_size, time_steps, filters)
@@ -13,12 +13,6 @@ def Conv1DTranspose(input_tensor, filters, kernel_size, strides=2, padding='same
         strides: int, convolution step size
         padding: 'same' | 'valid'
     """
-    x = Lambda(lambda x: K.expand_dims(x, axis=2))(input_tensor)
-    x = nn.Conv2DTranspose(filters=filters, kernel_size=(kernel_size, 1), strides=(strides, 1), padding=padding, activation=activation)(x)
-    x = Lambda(lambda x: K.squeeze(x, axis=2))(x)
-    return x
-
-class ConvTranspose1d(nn.Module):
     def __init__(self, in_channels_time, out_channels_time, in_channels_features, out_channels_features, kernel_size, stride=1,
                  padding=0, output_padding=0,groups=1, bias=True, dilation=1):
         super().__init__()
