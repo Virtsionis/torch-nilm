@@ -67,6 +67,15 @@ WINDOWS = {
         ElectricalAppliances.WASHING_MACHINE: 256,
         ElectricalAppliances.DISH_WASHER: 512,
     },
+    'UnetVAE': {
+        ElectricalAppliances.MICROWAVE: 128,
+        ElectricalAppliances.KETTLE: 256,
+        ElectricalAppliances.FRIDGE: 256,
+        ElectricalAppliances.WATER_PUMP: 400,
+        ElectricalAppliances.WASHING_MACHINE: 256,
+        ElectricalAppliances.DISH_WASHER: 512,
+    },
+
     'VIB_SAED': {
         ElectricalAppliances.MICROWAVE: 100,
         ElectricalAppliances.KETTLE: 50,
