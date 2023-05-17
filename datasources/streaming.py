@@ -53,4 +53,3 @@ def extend_module_for_streaming(module_path, use_auth_token: Optional[Union[str,
     patch_submodule(module, "xml.etree.ElementTree.parse", wrap_auth(xet_parse)).start()
     patch_submodule(module, "xml.dom.minidom.parse", wrap_auth(xxml_dom_minidom_parse)).start()
     module._patched_for_streaming = True
-    module.

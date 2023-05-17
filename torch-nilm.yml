@@ -207,4 +207,4 @@ dependencies:
     - wandb==0.10.32
     - werkzeug==2.0.1
     - xlrd==2.0.1
-    - yarl==1.6.3
+    - yarl==1.6.3 
