@@ -12,6 +12,7 @@ class ConvTranspose1d(nn.Module):
         kernel_size: int, size of the convolution kernel
         strides: int, convolution step size
         padding: 'same' | 'valid'
+        Fix unet_vae (from Antoine Langevin paper)
     """
     def __init__(self, in_channels_time, out_channels_time, in_channels_features, out_channels_features, kernel_size, stride=1,
                  padding=0, output_padding=0,groups=1, bias=True, dilation=1):
