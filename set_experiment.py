@@ -19,12 +19,14 @@ experiment_parameters = {
 }
 
 devices = [
-    ElectricalAppliances.KETTLE,
-    ElectricalAppliances.MICROWAVE,
-    ElectricalAppliances.FRIDGE,
+    #ElectricalAppliances.KETTLE,
+    #ElectricalAppliances.MICROWAVE,
+    #ElectricalAppliances.WATER_PUMP,
     ElectricalAppliances.WASHING_MACHINE,
-    ElectricalAppliances.DISH_WASHER,
+    #ElectricalAppliances.DISH_WASHER,
 ]
+
+
 
 experiment_categories = [
     SupportedExperimentCategories.SINGLE_CATEGORY,
