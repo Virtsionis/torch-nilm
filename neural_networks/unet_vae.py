@@ -5,6 +5,29 @@ from neural_networks.variational import VIBNet
 
 from neural_networks.custom_modules import ConvDropRelu, LinearDropRelu, VIBDecoder, IBNNet
 
+import torch
+import torch.nn as nn
+
+def Conv1DTranspose(input_tensor, filters, kernel_size, strides=2, padding='same', activation=None):
+    """
+        input_tensor: tensor, with the shape (batch_size, time_steps, dims)
+        filters: int, output dimension, i.e. the output tensor will have the shape of (batch_size, time_steps, filters)
+        kernel_size: int, size of the convolution kernel
+        strides: int, convolution step size
+        padding: 'same' | 'valid'
+    """
+    batch_size, time_steps, dims = input_tensor.size()
+
+    x = input_tensor.unsqueeze(2)  # Add a dummy dimension
+    conv_transpose = nn.ConvTranspose2d(dims, filters, kernel_size=(kernel_size, 1), stride=(strides, 1), padding=padding)
+    x = conv_transpose(x)
+    x = x.squeeze(2)  # Remove the dummy dimension
+
+    if activation is not None:
+        x = activation(x)
+
+    return x
+
 class ConvTranspose1d(nn.Module):
     """
         input_tensor: tensor, with the shape (batch_size, time_steps, dims)
