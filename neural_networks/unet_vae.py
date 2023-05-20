@@ -16,8 +16,7 @@ def Conv1DTranspose(input_tensor, filters, kernel_size, strides=2, padding='same
         strides: int, convolution step size
         padding: 'same' | 'valid'
     """
-    batch_size, time_steps, dims = input_tensor.size()
-
+    _, _, dims = input_tensor.size()
     x = input_tensor.unsqueeze(2)  # Add a dummy dimension
     conv_transpose = nn.ConvTranspose2d(dims, filters, kernel_size=(kernel_size, 1), stride=(strides, 1), padding=padding)
     x = conv_transpose(x)
