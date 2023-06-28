@@ -97,7 +97,7 @@ class BayesianConvDropRelu(nn.Module):
 class ConvBatchRelu(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, groups=1, relu=True, batch_norm=True):
         super(ConvBatchRelu, self).__init__()
-
+        
         left, right = kernel_size // 2, kernel_size // 2
         if kernel_size % 2 == 0:
             right -= 1

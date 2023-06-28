@@ -144,11 +144,14 @@ class BaseElectricityDataset(ABC):
     def _init_generators(self, datasource: Datasource, building: int, device: str, start_date: str,
                          end_date: str, sample_period: int, chunksize: int):
         self.datasource = datasource
+        
         self.mains_generator = self.datasource.get_mains_generator(start=start_date,
                                                                    end=end_date,
                                                                    sample_period=sample_period,
                                                                    building=building,
                                                                    chunksize=chunksize)
+     
+        
         try:
             self.appliance_generator = self.datasource.get_appliance_generator(appliance=device,
                                                                                start=start_date,
@@ -156,6 +159,8 @@ class BaseElectricityDataset(ABC):
                                                                                sample_period=sample_period,
                                                                                building=building,
                                                                                chunksize=chunksize)
+            print("self.appliance_generator", self.appliance_generator)
+            
         except Exception as e:
             warnings.warn(str(e))
             warnings.warn('No data for device: {}. Created a zero timeseries instead.'.format(device))
@@ -165,9 +170,11 @@ class BaseElectricityDataset(ABC):
                                                                            sample_period=sample_period,
                                                                            building=building,
                                                                            chunksize=chunksize)
+            print("self.appliance_generator")
 
     def _reload(self):
         try:
+            
             mainchunk = next(self.mains_generator)
             meterchunk = next(self.appliance_generator)
             if self.empty_device:

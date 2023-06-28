@@ -1,5 +1,6 @@
 from neural_networks.unet_nilm import UNetNiLM, CNN1D
 from neural_networks.vae_nilm import VAE
+from neural_networks.unet_vae import UnetVAE 
 from neural_networks.models import WGRU, Seq2Point, SAED, SimpleGru, NFED, DAE, ConvDAE, ConvMultiDAE, \
     MultiRegressorConvEncoder
 
@@ -26,6 +27,7 @@ ACTIVE_MODELS = {'WGRU': WGRU,
                  'BayesNFED': BayesNFED,
                  'BayesSAED': BayesSAED,
                  'VAE': VAE,
+                 'UnetVAE': UnetVAE,
                  'DAE': DAE,
                  'BERT': BERT4NILM,
                  'SuperEncoder': SuperEncoder,

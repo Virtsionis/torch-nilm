@@ -32,13 +32,20 @@ class Datasource():
 
     def get_mains_generator(self, start: str, end: str, sample_period: int = 6, building: int = 1,
                             chunksize: int = 1000) -> Iterator[pd.Series]:
+        
+        
         mains_metergroup = self._get_mains_meter_group(building, start, end)
+        print(mains_metergroup)
         mains_power_gen = mains_metergroup.power_series(sample_period=sample_period, chunksize=chunksize)
+        print(mains_power_gen)
         return mains_power_gen
 
     def get_appliance_generator(self, appliance: str, start: str, end: str, sample_period: int = 6,
                                 building: int = 1, chunksize: int = None) -> Iterator[pd.Series]:
         selected_metergroup = self.get_selected_metergroup([appliance], building, end, start, include_mains=False)
+        stop
+        print("selected_metergroup", selected_metergroup)
+        
         appliance_power_gen = selected_metergroup.power_series(sample_period=sample_period, chunksize=chunksize)
         return appliance_power_gen
 
@@ -136,19 +143,27 @@ class Datasource():
         Returns:
             A MeterGroup containing the specified appliances.
         """
+        stop
+    
         start_time = time.time() if TIMING else None
         self.dataset.set_window(start=start, end=end)
         elec = self.dataset.buildings[building].elec
+        
         appliances_with_one_meter = []
         appliances_with_more_meters = []
+        stop
+        print("appliances",appliances)
         for appliance in appliances:
             metergroup = elec.select_using_appliances(type=appliances)
+            print("metergroup",metergroup.meters)
             if len(metergroup.meters) > 1:
                 appliances_with_more_meters.append(appliance)
             else:
                 appliances_with_one_meter.append(appliance)
-
+        appliances_with_one_meter = ['fridge']
+        print('appliances_with_one_meter',appliances_with_one_meter)
         special_metergroup = None
+        print('selected_metergroup',special_metergroup)
         for appliance in appliances_with_more_meters:
             inst = 1
             if appliance == 'sockets' and building == 3:
@@ -159,6 +174,7 @@ class Datasource():
                 special_metergroup = special_metergroup.union(elec.select_using_appliances(type=appliance, instance=1))
 
         selected_metergroup = elec.select_using_appliances(type=appliances_with_one_meter)
+
         if special_metergroup:
             selected_metergroup = selected_metergroup.union(special_metergroup)
 

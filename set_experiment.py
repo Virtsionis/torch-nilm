@@ -19,12 +19,14 @@ experiment_parameters = {
 }
 
 devices = [
-    ElectricalAppliances.KETTLE,
-    ElectricalAppliances.MICROWAVE,
-    ElectricalAppliances.FRIDGE,
+    #ElectricalAppliances.KETTLE,
+    #ElectricalAppliances.MICROWAVE,
+    #ElectricalAppliances.WATER_PUMP,
     ElectricalAppliances.WASHING_MACHINE,
-    ElectricalAppliances.DISH_WASHER,
+    #ElectricalAppliances.DISH_WASHER,
 ]
+
+
 
 experiment_categories = [
     SupportedExperimentCategories.SINGLE_CATEGORY,
@@ -32,23 +34,22 @@ experiment_categories = [
 ]
 
 model_hparams = [
-
+        {
+        'model_name': 'UnetVAE',
+        'hparams': {'window_size': None, 'cnn_dim': 256, 'kernel_size': 3, 'latent_dim': 16},
+    },
+    {
+        'model_name': 'VAE',
+        'hparams': {'window_size': None, 'cnn_dim': 256, 'kernel_size': 3, 'latent_dim': 16},
+    },
+    {
+                'model_name': 'NFED',
+                'hparams': {'depth': 1, 'kernel_size': 5, 'cnn_dim': 128,
+                            'input_dim': None, 'hidden_dim': 256, 'dropout': 0.0},
+    },
     {
         'model_name': 'SimpleGru',
         'hparams': {},
-    },
-    {
-        'model_name': 'S2P',
-        'hparams': {'window_size': None},
-    },
-    {
-        'model_name': 'DAE',
-        'hparams': {'input_dim': None},
-    },
-    {
-        'model_name': 'NFED',
-        'hparams': {'depth': 1, 'kernel_size': 5, 'cnn_dim': 128,
-                    'input_dim': None, 'hidden_dim': 256, 'dropout': 0.0},
     },
     {
         'model_name': 'SAED',
